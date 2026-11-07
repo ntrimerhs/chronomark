@@ -1,0 +1,17 @@
+# Normalise line endings in the index so every clone behaves the same.
+* text=auto
+
+# Shell scripts must keep LF endings: a CRLF shebang makes MSYS2/Git Bash fail
+# with "bad interpreter" or "\r command not found".
+*.sh text eol=lf
+
+# Binary assets -- never treated as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mp4 binary
+*.wav binary
+*.flac binary
+*.zip binary

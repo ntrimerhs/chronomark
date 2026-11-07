@@ -11,3 +11,7 @@ pillow
 yt-dlp
 sentence-transformers
 openai
+# Imported by qdrant_store.py (embedded Qdrant, no server needed).
+qdrant-client
+# Imported directly by whisper.py for the HF Inference fallback.
+requests

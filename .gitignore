@@ -14,6 +14,12 @@ backend/__pycache__/
 .venv
 temp_probe/
 
+# local-only tooling: static ffmpeg/ffprobe build, the HF model cache and the
+# setup/install scripts
+tools/
+_setup/
+models/
+
 # ffmpeg chunk scratch space, recreated per upload
 backend/temp_chunks/
 

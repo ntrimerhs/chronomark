@@ -43,10 +43,13 @@ _groq_client = (
 _endpoint_url = os.getenv("HF_WHISPER_ENDPOINT_URL")
 _endpoint_token = os.getenv("HF_WHISPER_ENDPOINT_TOKEN")
 
-if _openai_client:
-    print(
-        f"[Whisper] Using {'Groq ' + _GROQ_MODEL if _groq_client else 'OpenAI Whisper API'}"
-    )
+# Groq is checked first because transcribe_audio prefers it whenever its key
+# exists; keying this branch on _openai_client alone reported "HF Inference API"
+# for a Groq-only setup, i.e. the log named a provider that was never used.
+if _groq_client:
+    print(f"[Whisper] Using Groq {_GROQ_MODEL}")
+elif _openai_client:
+    print("[Whisper] Using OpenAI Whisper API")
 elif _endpoint_url and _endpoint_token:
     _asr_url = _endpoint_url
     _asr_token = _endpoint_token
@@ -703,7 +706,8 @@ def _merge_chunk_segments(chunks, results):
 # limits and each request is truly independent, so it's safe to fan out far
 # more chunks at once there -- this is what actually lets a 6-minute video
 # (~12 chunks) transcribe in a handful of seconds instead of several rounds.
-MAX_WORKERS = 16 if _openai_client else 4
+# Groq counts here too: same OpenAI-compatible API, same high concurrency.
+MAX_WORKERS = 16 if (_openai_client or _groq_client) else 4
 
 
 _LOCAL_MODEL = None
