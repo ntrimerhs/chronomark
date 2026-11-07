@@ -1,0 +1,81 @@
+/* Visual index of the video's keyframes.
+
+   A horizontal strip under the player: each keyframe is a thumbnail with its
+   timestamp, click to seek. Deliberately scrolls rather than wraps — a
+   two-hour lecture can produce a lot of frames, and a wrapping grid would push
+   the chat panel off screen. */
+
+.frame-strip {
+  margin-top: 14px;
+}
+
+.frame-strip-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.frame-strip-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.frame-strip-scroll::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.frame-strip-item {
+  position: relative;
+  flex: 0 0 auto;
+  width: 108px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  background: none;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.frame-strip-item:hover {
+  border-color: rgba(255, 59, 154, 0.6);
+  transform: translateY(-2px);
+}
+
+.frame-strip-item.is-active {
+  border-color: #ff3b9a;
+  box-shadow: 0 0 0 2px rgba(255, 59, 154, 0.25);
+}
+
+.frame-strip-item img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.frame-strip-time {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(10, 18, 28, 0.85);
+  color: #f8fafc;
+  font-family: 'SF Mono', 'Fira Code', 'Roboto Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame-strip-item {
+    transition: none;
+  }
+  .frame-strip-item:hover {
+    transform: none;
+  }
+}

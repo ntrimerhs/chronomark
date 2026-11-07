@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useImmer } from 'use-immer';
 // import api from '@/api';
 // import { parseSSEStream } from '@/utils';
 import { Bot } from 'lucide-react';
 import ChatMessages from './ChatMessages';
 import ChatInput from './ChatInput';
+import { API_BASE_URL } from '../config';
 import '../styles/chatbot.css';
 
 const QUICK_ACTIONS = [
@@ -15,10 +16,21 @@ const QUICK_ACTIONS = [
 ];
 
 function Chatbot({ onSeek, videoId }) {
-  const [chatId, setChatId] = useState(null);
   const [messages, setMessages] = useImmer([]);
   const [newMessage, setNewMessage] = useState('');
   const [showQuickActions, setShowQuickActions] = useState(true);
+
+  // A conversation belongs to one video, and nothing else enforced that.
+  // Uploading a new video kept the previous Q&A, which is then sent as
+  // `history`, so the model saw that a topic had already been explained and
+  // skipped it -- e.g. "hello world" in a second video that also covered it.
+  // Retrieval was always scoped by video_id; only the transcript of the
+  // conversation was not.
+  useEffect(() => {
+    setMessages(() => []);
+    setShowQuickActions(true);
+    setNewMessage('');
+  }, [videoId, setMessages]);
 
   const isLoading =
     messages.length && messages[messages.length - 1].loading;
@@ -37,6 +49,7 @@ function Chatbot({ onSeek, videoId }) {
       draft.push({
         role: "user",
         content: trimmedMessage,
+        videoId,
       });
 
       draft.push({
@@ -53,12 +66,15 @@ function Chatbot({ onSeek, videoId }) {
       // questions ("what about that?") instead of treating every question
       // in isolation. Exclude loading/error placeholders -- only real
       // exchanged content is useful context.
+      // Belt and braces: even if a reset is missed, only turns stamped with
+      // this video (or unstamped, from a fresh chat) may become history.
       const history = messages
         .filter((m) => !m.loading && !m.error && m.content)
+        .filter((m) => !m.videoId || m.videoId === videoId)
         .map((m) => ({ role: m.role, content: m.content }))
         .slice(-6);
 
-      const response = await fetch("http://localhost:8000/ask", {
+      const response = await fetch(`${API_BASE_URL}/ask`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -74,7 +74,7 @@ def clear_collections():
         print(f"[Qdrant] {name} after clear: {remaining} points")
 
 
-def store_text_embeddings(video_id: str, segments: list[dict]):
+def store_text_embeddings(video_id: str, segments: list[dict], id_prefix: str = "text"):
     points = []
 
     for i, seg in enumerate(segments):
@@ -82,7 +82,7 @@ def store_text_embeddings(video_id: str, segments: list[dict]):
         start = timestamp[0]
         end = timestamp[1]
 
-        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{video_id}_text_{i}"))
+        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{video_id}_{id_prefix}_{i}"))
 
         points.append(
             models.PointStruct(

@@ -1,0 +1,42 @@
+You are analyzing frames from one segment of a longer video.
+
+Segment: {{segment_id}}
+Absolute segment start: {{start_hms}}
+Absolute segment end: {{end_hms}}
+Frames are provided in chronological order. Each frame has an absolute timestamp label.
+
+LANGUAGE
+- Detect the language of the text visible in the frames (Greek, English, or other).
+- Write every description, summary and uncertainty in THAT language.
+- Put the detected language code in the "language" field: el, en, or other.
+
+WHAT TO REPORT
+- Report only frames where something visibly changed.
+- If a frame repeats the previous one, skip it completely. Never write "no change",
+  "same as previous" or "unchanged" as an observation.
+- Each description: at most 25 words.
+- segment_summary: at most 60 words, covering what happened across the whole segment.
+
+TRUTHFULNESS
+- Describe only what is visible or strongly inferable.
+- Do not invent events, dialogue, identities, or causes.
+- If something is unclear, say "unclear" and put it in uncertainties.
+- Preserve absolute timestamps in [HH:MM:SS] format.
+- Return valid JSON only. No markdown.
+
+JSON schema:
+{
+  "segment_id": "string",
+  "language": "el|en|other",
+  "start_sec": 0,
+  "end_sec": 300,
+  "observations": [
+    {
+      "timestamp": "HH:MM:SS",
+      "description": "string",
+      "confidence": "high|medium|low"
+    }
+  ],
+  "segment_summary": "string",
+  "uncertainties": ["string"]
+}

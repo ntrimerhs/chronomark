@@ -245,15 +245,117 @@ def extract_audio(video_path, output_audio):
 _PTS_TIME_RE = re.compile(r"pts_time:([0-9.]+)")
 
 
+def extract_frame_at(video_path, timestamp, output_path, max_width=0):
+    """Grab a single frame at a timestamp.
+
+    Seeks to the timestamp rather than decoding from the start, so the cost is
+    milliseconds no matter where in the video the moment sits. Used for frames
+    chosen by meaning -- a definition, a worked example -- rather than by pixel
+    change, so they must not require a full decode pass each.
+    """
+    try:
+        timestamp = max(0.0, float(timestamp))
+    except (TypeError, ValueError):
+        return False
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    output_kwargs = {"vframes": 1, "q:v": 3}
+    vf = []
+    if max_width and int(max_width) > 0:
+        vf.append(f"scale='min({int(max_width)},iw)':-2")
+    if vf:
+        output_kwargs["vf"] = ",".join(vf)
+
+    try:
+        (
+            ffmpeg.input(str(video_path), ss=timestamp)
+            .output(str(output_path), **output_kwargs)
+            .overwrite_output()
+            .global_args("-loglevel", "error")
+            .run(capture_stdout=True, capture_stderr=True)
+        )
+    except Exception:
+        return False
+
+    return output_path.exists() and output_path.stat().st_size > 0
+
+
+def _frame_hash(frame_path):
+    """64-bit difference hash of a frame, or None when it cannot be read.
+
+    dHash compares adjacent pixels in a 9x8 grayscale thumbnail: robust to
+    brightness and compression noise, sensitive to layout changes -- which is
+    what "is this still the same slide?" actually means.
+    """
+    try:
+        from PIL import Image
+
+        with Image.open(frame_path) as image:
+            thumb = image.convert("L").resize((9, 8), Image.Resampling.BILINEAR)
+            pixels = list(thumb.getdata())
+    except Exception:
+        return None
+
+    bits = 0
+    for row in range(8):
+        for col in range(8):
+            left = pixels[row * 9 + col]
+            right = pixels[row * 9 + col + 1]
+            bits = (bits << 1) | (1 if left > right else 0)
+    return bits
+
+
+def _dedupe_frames(frame_files, timestamps, min_gap_sec=2.5, max_hash_distance=6):
+    """Drop frames that merely restate the previous one.
+
+    FFmpeg scores each frame against the frame immediately before it, not
+    against the last frame kept. A slow continuous change -- a highlight
+    fading, a cursor travelling, compression noise -- therefore crosses the
+    scene threshold on many consecutive frames and produces near-identical
+    stills a second apart.
+
+    Two rules, because duplicates arise two ways: a minimum time gap kills
+    bursts seconds apart, and a perceptual-hash distance from the last *kept*
+    frame kills the same visual state recurring later, whatever the gap.
+    Rejected files are deleted so the directory matches what is returned.
+    """
+    kept = []
+    kept_moments = []
+    kept_hashes = []
+
+    for frame_file in frame_files:
+        moment = timestamps.get(frame_file.name)
+
+        if kept_moments and moment is not None and (moment - kept_moments[-1]) < min_gap_sec:
+            frame_file.unlink(missing_ok=True)
+            continue
+
+        digest = _frame_hash(frame_file)
+        if digest is not None and kept_hashes and kept_hashes[-1] is not None:
+            if bin(digest ^ kept_hashes[-1]).count("1") < max_hash_distance:
+                frame_file.unlink(missing_ok=True)
+                continue
+
+        kept.append(frame_file)
+        kept_moments.append(moment if moment is not None else -1.0)
+        kept_hashes.append(digest)
+
+    return kept, {f.name: timestamps.get(f.name) for f in kept}
+
+
 def extract_frames(
     video_path,
     output_dir,
     interval_seconds=5.0,
     extraction_mode="scene",
-    scene_threshold=0.35,
-    keyframes_only=True,
+    scene_threshold=0.12,
+    keyframes_only=False,
     max_width=0,
     quality=5,
+    min_gap_sec=2.5,
+    max_hash_distance=6,
 ):
     """Extract sampled JPEG frames from video_path into output_dir.
 
@@ -269,9 +371,14 @@ def extract_frames(
 
     extraction_mode: "scene" or "interval".
     scene_threshold: FFmpeg scene-change threshold (0.0..1.0), used in scene mode.
+        0.12 rather than 0.35 on purpose: slide-based lectures change gradually
+        (a bullet appears, a line gets highlighted), and those edits never cross
+        a threshold tuned for hard cuts. At 0.35 a six-minute Python lecture
+        yielded four frames.
     interval_seconds: seconds between sampled frames.
-    keyframes_only: if True, decode keyframes only. Faster on long videos but
-        timestamps are less uniform than full decode.
+    keyframes_only: if True, decode keyframes only. Defaults to off: with it on,
+        FFmpeg only *sees* keyframes, so the scene detector is judging a small
+        sample and misses changes between them. Costs decode time, gains frames.
     max_width: if > 0, constrain output width while preserving aspect ratio.
     quality: JPEG q:v quality (2 best quality/larger files .. 31 lowest quality).
 
@@ -349,6 +456,14 @@ def extract_frames(
         timestamps = {}
         for i, frame_file in enumerate(frame_files):
             timestamps[frame_file.name] = pts_times[i] if i < len(pts_times) else None
+
+        frame_files, timestamps = _dedupe_frames(
+            frame_files,
+            timestamps,
+            min_gap_sec=min_gap_sec,
+            max_hash_distance=max_hash_distance,
+        )
+        frame_count = len(frame_files)
 
         print(f"Frames extracted successfully to {output_dir} (count={frame_count})")
         return frame_count, timestamps

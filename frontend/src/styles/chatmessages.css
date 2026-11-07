@@ -214,8 +214,8 @@
 }
 
 .markdown-container pre {
-  margin: 0.5rem 0 0;
-  padding: 0.65rem 0.75rem;
+  margin: 0.75rem 0 0.9rem;
+  padding: 0.7rem 0.85rem;
   border-radius: 0.6rem;
   background: rgba(13, 11, 30, 0.6);
   border: 1px solid rgba(124, 58, 237, 0.3);
@@ -244,4 +244,36 @@
   letter-spacing: 0.01em;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+
+
+/* Answers put a code block and its explanation right next to each other, so
+   every block needs air on both sides. Previously <pre> had no bottom margin,
+   which glued the following paragraph to the code. */
+.markdown-container p {
+  margin: 0 0 0.75rem;
+  line-height: 1.65;
+}
+
+.markdown-container > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-container > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-container pre + p {
+  margin-top: 0.1rem;
+}
+
+.markdown-container ul,
+.markdown-container ol {
+  margin: 0.5rem 0 0.8rem;
+  padding-left: 1.3rem;
+}
+
+.markdown-container li {
+  margin-bottom: 0.3rem;
+  line-height: 1.6;
 }

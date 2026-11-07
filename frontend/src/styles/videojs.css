@@ -102,3 +102,38 @@
   background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(255, 59, 154, 0.08));
   border-radius: 3px;
 }
+
+
+/* ── skip-forward control ────────────────────────────────────────────────
+   A plain "+10s" text button, sized like the other control-bar buttons so it
+   does not disturb the row. Right-clicking the video does the same thing. */
+.vjs-skip-forward {
+  width: 3.2em;
+  cursor: pointer;
+}
+
+.vjs-skip-forward .vjs-skip-label {
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+.vjs-skip-forward:hover .vjs-skip-label {
+  color: #c4b5fd;
+}
+
+.vjs-skip-forward:active .vjs-skip-label {
+  transform: scale(0.94);
+}
+
+/* Right-clicking the video skips forward, so suppress the browser menu and
+   keep the pointer from looking like a text cursor. */
+.vjs-tech {
+  cursor: pointer;
+}

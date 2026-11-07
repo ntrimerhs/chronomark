@@ -1,6 +1,7 @@
 import '../styles/proxeiro.css'
 import React,{useEffect, useMemo, useRef, useState} from 'react';
 import axios from 'axios';  ///do in terminal npm install axios
+import { API_BASE_URL } from '../config';
 import {
     CloudUpload,
     MessageCircle,
@@ -74,7 +75,7 @@ const Proxeiro = () => {
     });
 
     const pollUploadStatus = async (jobId) => {
-        const statusUrl = `http://localhost:8000/upload-status/${jobId}`;
+        const statusUrl = `${API_BASE_URL}/upload-status/${jobId}`;
 
         for (let attempt = 0; attempt < 600; attempt += 1) {
             const { data } = await axios.get(statusUrl);
@@ -88,7 +89,7 @@ const Proxeiro = () => {
 
             if (status === 'completed') {
                 const result = data?.result || {};
-                const fileUrl = `http://localhost:8000${result.file_url}?t=${Date.now()}`;
+                const fileUrl = `${API_BASE_URL}${result.file_url}?t=${Date.now()}`;
                 setUploadedFileURL(fileUrl);
                 setCurrentVideoId(result.video_id ?? null);
                 return;
@@ -105,7 +106,7 @@ const Proxeiro = () => {
     };
 
     const uploadVideo = async (fileToUpload) => {
-        const url = 'http://localhost:8000/uploadfile/';
+        const url = `${API_BASE_URL}/uploadfile/`;
         const formData = new FormData();
         formData.append('file_upload', fileToUpload);
         formData.append('filename', fileToUpload.name);
@@ -138,7 +139,7 @@ const Proxeiro = () => {
                 setProcessingStage('completed');
             } else if (response?.data?.file_url) {
                 // Backward-compatible path for synchronous backend responses.
-                const fileUrl = `http://localhost:8000${response.data.file_url}?t=${Date.now()}`;
+                const fileUrl = `${API_BASE_URL}${response.data.file_url}?t=${Date.now()}`;
                 setUploadedFileURL(fileUrl);
                 setCurrentVideoId(response?.data?.video_id ?? null);
                 setBackendProgress(100);
@@ -238,7 +239,7 @@ const Proxeiro = () => {
             setProcessingStage('downloading');
             setBackendProgress(3);
 
-            const response = await axios.post('http://localhost:8000/download-youtube/', { url });
+            const response = await axios.post(`${API_BASE_URL}/download-youtube/`, { url });
             const jobId = response?.data?.job_id;
             if (!jobId) throw new Error('No job_id returned from server');
 
@@ -285,6 +286,63 @@ const Proxeiro = () => {
     }), [uploadedFileURL]);
 
     const displayProgress = processingStage === 'uploading' ? uploadProgress : backendProgress;
+
+    // Keyboard control while watching. Space plays and pauses, the arrows move
+    // ten seconds either way, F and Escape toggle fullscreen. Anything typed in
+    // the chat box is left alone, otherwise a space in a question would pause
+    // the video.
+    React.useEffect(() => {
+        const SKIP = 10;
+
+        const isTyping = (target) => {
+            if (!target) return false;
+            const tag = target.tagName;
+            return (
+                tag === 'INPUT' ||
+                tag === 'TEXTAREA' ||
+                tag === 'SELECT' ||
+                target.isContentEditable
+            );
+        };
+
+        const handleKeyDown = (event) => {
+            const player = playerRef.current;
+            if (!player || player.isDisposed() || isTyping(event.target)) return;
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+            if (event.code === 'Space') {
+                event.preventDefault();
+                if (player.paused()) player.play();
+                else player.pause();
+                return;
+            }
+
+            if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                const duration = player.duration();
+                const target = player.currentTime() + SKIP;
+                player.currentTime(
+                    Number.isFinite(duration) && duration > 0 ? Math.min(target, duration) : target,
+                );
+                return;
+            }
+
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                player.currentTime(Math.max(0, player.currentTime() - SKIP));
+                return;
+            }
+
+            if (event.key === 'Escape' || event.key === 'f' || event.key === 'F') {
+                event.preventDefault();
+                if (player.isFullscreen()) player.exitFullscreen();
+                else player.requestFullscreen();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const handlePlayerReady = (player) => {
         playerRef.current = player;
@@ -623,6 +681,7 @@ const Proxeiro = () => {
                                     </div>
                                 </div>
                             </div>
+
                         </div>
                     )}
                 </div>

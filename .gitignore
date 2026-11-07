@@ -13,3 +13,15 @@ backend/__pycache__/
 *.pyc
 .venv
 temp_probe/
+
+# ffmpeg chunk scratch space, recreated per upload
+backend/temp_chunks/
+
+# the new frame-analysis pipeline keeps its run artefacts and secrets local
+video-analysis-pipeline/data/
+video-analysis-pipeline/.env
+
+# never commit any env file
+.env
+**/.env
+

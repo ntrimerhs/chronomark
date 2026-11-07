@@ -26,15 +26,27 @@ _ASR_MODEL = "openai/whisper-large-v3-turbo"
 _HF_ASR_FALLBACK_URL = f"https://router.huggingface.co/hf-inference/models/{_ASR_MODEL}"
 _OPENAI_TRANSCRIPTION_MODEL = os.getenv("OPENAI_TRANSCRIPTION_MODEL", "whisper-1")
 
+# Groq serves Whisper through an OpenAI-compatible endpoint at roughly a third
+# of OpenAI's price and much higher speed. Preferred whenever its key exists;
+# the OpenAI path stays as the fallback.
+_GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+_GROQ_MODEL = os.getenv("GROQ_WHISPER_MODEL", "whisper-large-v3")
+
 # OpenAI Whisper API — fastest option (truly parallel, ~2s/chunk)
 _openai_client = _OpenAI(api_key=_openai_api_key) if _openai_api_key else None
+_groq_client = (
+    _OpenAI(api_key=_GROQ_API_KEY, base_url=_GROQ_BASE_URL) if _GROQ_API_KEY else None
+)
 
 # Use dedicated Inference Endpoint when configured (always warm, no rate limits)
 _endpoint_url = os.getenv("HF_WHISPER_ENDPOINT_URL")
 _endpoint_token = os.getenv("HF_WHISPER_ENDPOINT_TOKEN")
 
 if _openai_client:
-    print("[Whisper] Using OpenAI Whisper API")
+    print(
+        f"[Whisper] Using {'Groq ' + _GROQ_MODEL if _groq_client else 'OpenAI Whisper API'}"
+    )
 elif _endpoint_url and _endpoint_token:
     _asr_url = _endpoint_url
     _asr_token = _endpoint_token
@@ -44,7 +56,10 @@ else:
     _asr_token = whisper_token
     print("[Whisper] Using HF Inference API (direct HTTP)")
 
-CHUNK_SECONDS = 30  # Whisper's reliable audio context is 30 seconds.
+# Five minutes per chunk. The API transcribes long audio happily, and a longer
+# chunk gives the model far more context than 30 seconds did -- a 13-minute
+# lecture becomes 3 parallel calls instead of 26, with better accuracy per call.
+CHUNK_SECONDS = 300
 
 # The shared HF "hf-inference" endpoint is serverless infra: on a cold start
 # (or under load) it can take longer to spin up whisper-large-v3 than the
@@ -177,7 +192,9 @@ def _language_from_probe(data):
 
 def _probe_language(audio_path):
     """Transcribe one chunk with auto-detect on and report what language it looks like."""
-    if _openai_client:
+    if _groq_client:
+        data = _transcribe_via_groq(audio_path, language)
+    elif _openai_client:
         data = _transcribe_via_openai(audio_path)
     else:
         data = _transcribe_via_http(audio_path)
@@ -289,6 +306,36 @@ def _coerce_to_dict(output):
     if hasattr(output, "__dict__"):
         return vars(output)
     return {"text": str(output)}
+
+
+def _normalize_words(raw_words):
+    """Flatten Whisper's word timings into {"w", "start", "end"} dicts."""
+    words = []
+    for item in raw_words or []:
+        if isinstance(item, dict):
+            word = item
+        elif hasattr(item, "model_dump"):
+            word = item.model_dump()
+        elif hasattr(item, "dict"):
+            word = item.dict()
+        elif hasattr(item, "__dict__"):
+            word = vars(item)
+        else:
+            continue
+
+        text = (word.get("word") or word.get("text") or "").strip()
+        start = word.get("start")
+        end = word.get("end")
+        if not text or not isinstance(start, (int, float)):
+            continue
+        words.append(
+            {
+                "w": text,
+                "start": float(start),
+                "end": float(end) if isinstance(end, (int, float)) else float(start),
+            }
+        )
+    return words
 
 
 def _normalize_segments(data):
@@ -458,8 +505,38 @@ def _transcribe_via_openai(audio_path: str, language: str | None = None) -> dict
         }
         if _OPENAI_TRANSCRIPTION_MODEL == "whisper-1":
             request["response_format"] = "verbose_json"
-            request["timestamp_granularities"] = ["segment"]
+            # Word timings are the accuracy floor for every citation
+            # downstream: a phrase can only be placed as precisely as the
+            # timings we keep. Segment boundaries here average 7.2s and reach
+            # 30s, so anything snapped to a segment start is seconds off by
+            # construction.
+            request["timestamp_granularities"] = ["word", "segment"]
         response = _openai_client.audio.transcriptions.create(**request)
+    return response.model_dump()
+
+
+def _transcribe_via_groq(audio_path: str, language: str | None = None) -> dict:
+    """Transcribe through Groq's Whisper endpoint."""
+    options = {}
+    if language:
+        options["language"] = language
+
+    def request(granularities):
+        with open(audio_path, "rb") as handle:
+            return _groq_client.audio.transcriptions.create(
+                file=(Path(audio_path).name, handle.read()),
+                model=_GROQ_MODEL,
+                response_format="verbose_json",
+                timestamp_granularities=granularities,
+                **options,
+            )
+
+    try:
+        response = request(["word", "segment"])
+    except Exception as exc:
+        # the endpoint may reject word granularity; segments alone are enough
+        print(f"[Whisper] Groq rejected word timestamps ({exc}); retrying with segments")
+        response = request(["segment"])
     return response.model_dump()
 
 
@@ -526,7 +603,9 @@ def transcribe_audio(audio_path: str, language: str | None = None):
     for attempt in range(1, ASR_MAX_RETRIES + 1):
         try:
             data = (
-                _transcribe_via_openai(audio_path, language=language)
+                _transcribe_via_groq(audio_path, language=language)
+                if _groq_client
+                else _transcribe_via_openai(audio_path, language=language)
                 if _openai_client
                 else _transcribe_via_http(audio_path, language=language)
             )
@@ -570,6 +649,7 @@ def transcribe_audio(audio_path: str, language: str | None = None):
         "text": text,
         "segments": kept,
         "timestamps": kept,
+        "words": _normalize_words(data.get("words")),
     }
 
 def _merge_chunk_segments(chunks, results):
@@ -626,6 +706,74 @@ def _merge_chunk_segments(chunks, results):
 MAX_WORKERS = 16 if _openai_client else 4
 
 
+_LOCAL_MODEL = None
+_LOCAL_MODEL_NAME = os.getenv("WHISPER_LOCAL_MODEL", "small")
+# Off by default. Local faster-whisper on CPU measured 0.73x realtime -- 18
+# minutes for a 13-minute lecture, against ~20 seconds for the API. Enable it
+# with WHISPER_LOCAL=1 only on a machine with a GPU, where it becomes faster
+# and free.
+_LOCAL_ENABLED = os.getenv("WHISPER_LOCAL", "0").strip().lower() in ("1", "true", "yes")
+
+
+def _get_local_model():
+    """Load faster-whisper once and keep it warm for the process."""
+    global _LOCAL_MODEL
+    if _LOCAL_MODEL is None:
+        from faster_whisper import WhisperModel
+
+        print(f"[Whisper] loading local model '{_LOCAL_MODEL_NAME}' (cpu, int8)")
+        _LOCAL_MODEL = WhisperModel(
+            _LOCAL_MODEL_NAME, device="cpu", compute_type="int8"
+        )
+    return _LOCAL_MODEL
+
+
+def _transcribe_via_local(audio_path: str, language: str | None = None) -> dict:
+    """Transcribe on this machine with faster-whisper.
+
+    Removes the per-minute API cost entirely. Word timings come for free, which
+    the API path has to request separately, and nothing leaves the machine.
+    """
+    import time
+
+    model = _get_local_model()
+    started = time.perf_counter()
+    segments_iter, info = model.transcribe(
+        audio_path,
+        language=language,
+        beam_size=5,
+        vad_filter=True,
+        word_timestamps=True,
+    )
+
+    segments, words = [], []
+    for segment in segments_iter:
+        segments.append({
+            "start": float(segment.start),
+            "end": float(segment.end),
+            "text": (segment.text or "").strip(),
+        })
+        for word in getattr(segment, "words", None) or []:
+            words.append({
+                "w": (word.word or "").strip(),
+                "start": float(word.start),
+                "end": float(word.end),
+            })
+
+    elapsed = time.perf_counter() - started
+    print(
+        f"[Whisper] local '{_LOCAL_MODEL_NAME}': {len(segments)} segments, "
+        f"{len(words)} words in {elapsed:.1f}s (lang={getattr(info, 'language', '?')})"
+    )
+    return {
+        "text": " ".join(s["text"] for s in segments).strip(),
+        "segments": segments,
+        "timestamps": segments,
+        "words": words,
+        "language": getattr(info, "language", language),
+    }
+
+
 def transcribe_audio_chunks(audio_path, language=None, on_progress=None):
     """Transcribe a WAV in parallel chunks.
 
@@ -636,6 +784,22 @@ def transcribe_audio_chunks(audio_path, language=None, on_progress=None):
     granular progress instead of only finding out once everything is done.
     """
     audio_path = Path(audio_path)
+
+    # Local transcription first when enabled: no per-minute cost, word timings
+    # included, and it runs the whole file in one pass instead of chunking for
+    # parallel API calls.
+    if _LOCAL_ENABLED:
+        try:
+            result = _transcribe_via_local(str(audio_path), language)
+            if on_progress:
+                try:
+                    on_progress(1, 1)
+                except Exception:
+                    pass
+            return result
+        except Exception as exc:
+            print(f"[Whisper] local transcription failed ({exc}); falling back to the API")
+
     # Give each video its own chunk subfolder (named after the audio file's
     # stem) instead of a single shared "temp_chunks" folder. With one shared
     # folder, leftover chunks from a crashed/previous run, or a second
@@ -710,6 +874,23 @@ def transcribe_audio_chunks(audio_path, language=None, on_progress=None):
 
     all_segments = _merge_chunk_segments(chunks, results)
 
+    # Word timings need the same chunk offset applied as segments, or a citation
+    # resolved against them lands at the wrong point in a long video.
+    all_words = []
+    for index in sorted(results):
+        offset = index * CHUNK_SECONDS
+        for word in (results[index] or {}).get("words") or []:
+            start = word.get("start")
+            end = word.get("end")
+            if not isinstance(start, (int, float)):
+                continue
+            all_words.append({
+                "w": word.get("w"),
+                "start": float(start) + offset,
+                "end": (float(end) if isinstance(end, (int, float)) else float(start)) + offset,
+            })
+    all_words.sort(key=lambda word: word["start"])
+
     print("Successful chunks:", len(results))
     print("Failed chunks:", len(chunks) - len(results))
 
@@ -744,5 +925,6 @@ def transcribe_audio_chunks(audio_path, language=None, on_progress=None):
         "text": full_text.strip(),
         "segments": all_segments,
         "timestamps": all_segments,
+        "words": all_words,
         "language": language,
     }

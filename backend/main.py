@@ -8,16 +8,22 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from fastapi.staticfiles import StaticFiles
 from video_processing import extract_audio
-from video_processing import extract_frames, normalize_video
+from video_processing import extract_frames, extract_frame_at, normalize_video
 from whisper import transcribe_audio_chunks
+import base64
 import json
+import math
 import uuid
 from bert import create_embeddings_from_transcript, embed_query, warm_up as warm_text_model
-from frame_embeddings import create_frame_embeddings, embed_text_clip, warm_up as warm_clip_model
-from qdrant_store import ensure_collections, store_text_embeddings, store_frame_embeddings, clear_collections
-from qdrant_store import client, TEXT_COLLECTION, FRAME_COLLECTION, search_text, search_frames, scroll_all_text
+from qdrant_store import ensure_collections, store_text_embeddings, clear_collections
+from qdrant_store import client, TEXT_COLLECTION, FRAME_COLLECTION, search_text, scroll_all_text
 
-from llama import ask_llama
+from llama import (
+    ask_llama,
+    extract_examples,
+    map_examples_to_excerpts,
+    transcribe_image,
+)
 
 from pydantic import BaseModel
 import sys
@@ -79,10 +85,6 @@ def _summary_query_for_language(language: str) -> str:
     return "give a summary of the video with the main points"
 
 
-def _clip_query_for_summary() -> str:
-    return "video summary"
-
-
 def _expand_with_neighbors(candidates, all_segments, window=1):
     """Pull in each matched segment's immediate chronological neighbors.
 
@@ -117,6 +119,575 @@ def _expand_with_neighbors(candidates, all_segments, window=1):
 
 
 _INLINE_TIMESTAMP_RE = re.compile(r"`(\d{1,2}):(\d{2})`")
+
+
+_TOKEN_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+
+def _bm25_scores(question: str, points) -> dict:
+    """BM25 over the video's own segments.
+
+    Vector similarity cannot separate "the string example" from "the integer
+    example": each such segment is prose saying "another example, I declare a
+    variable", and the words that distinguish them are rare. BM25 weights
+    exactly those rare terms -- "string.py", "is_pretty", "number1".
+    """
+    def tokenize(text):
+        return [t for t in _TOKEN_RE.findall((text or "").lower()) if len(t) >= 2]
+
+    docs = []
+    for point in points:
+        payload = getattr(point, "payload", None) or {}
+        docs.append((str(point.id), tokenize(payload.get("text"))))
+    if not docs:
+        return {}
+
+    total = len(docs)
+    average_len = sum(len(tokens) for _, tokens in docs) / max(total, 1)
+
+    document_frequency = {}
+    for _, tokens in docs:
+        for term in set(tokens):
+            document_frequency[term] = document_frequency.get(term, 0) + 1
+
+    scores = {}
+    for point_id, tokens in docs:
+        if not tokens:
+            continue
+        score = 0.0
+        for term in tokenize(question):
+            frequency = document_frequency.get(term)
+            if not frequency:
+                continue
+            idf = math.log(1 + (total - frequency + 0.5) / (frequency + 0.5))
+            appearances = tokens.count(term)
+            if not appearances:
+                continue
+            k1, b = 1.5, 0.75
+            denominator = appearances + k1 * (1 - b + b * len(tokens) / average_len)
+            score += idf * (appearances * (k1 + 1)) / denominator
+        if score > 0:
+            scores[point_id] = score
+    return scores
+
+
+class _Ranked:
+    """Minimal stand-in for a Qdrant scored point."""
+
+    __slots__ = ("id", "payload", "score")
+
+    def __init__(self, point_id, payload, score):
+        self.id = point_id
+        self.payload = payload
+        self.score = score
+
+
+def _quote_time(quote: str, words, min_match: float = 0.55):
+    """Exact start time of a quoted phrase, found in the word stream.
+
+    Token-set overlap over a sliding window, so a quote survives Whisper's
+    punctuation and casing without needing an exact string match.
+    """
+    if not quote or not words:
+        return None
+
+    wanted = [t for t in _TOKEN_RE.findall(str(quote).lower()) if len(t) >= 2]
+    if not wanted:
+        return None
+
+    windows = []
+    for word in words:
+        windows.append(set(t for t in _TOKEN_RE.findall(str(word.get("w") or "").lower()) if len(t) >= 2))
+    if len(windows) < len(wanted):
+        return None
+
+    wanted_set = set(wanted)
+    best_start = None
+    best_score = 0.0
+    span = len(wanted)
+    for index in range(len(windows) - span + 1):
+        combined = set()
+        for part in windows[index:index + span]:
+            combined |= part
+        if not combined:
+            continue
+        score = len(wanted_set & combined) / len(wanted_set)
+        if score > best_score:
+            best_score = score
+            best_start = words[index].get("start")
+
+    if best_score < min_match or best_start is None:
+        return None
+    return float(best_start)
+
+
+def _transcript_words(video_id=None):
+    """Word timings for the current video, or [] when unavailable."""
+    if not TRANSCRIPTS_PATH.exists():
+        return []
+    try:
+        with open(TRANSCRIPTS_PATH, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return []
+    return data.get("words") or []
+
+
+_EXAMPLE_BLOCK_RE = re.compile(
+    r"(?i)(?=^[^\n]*?(?:Παράδειγμα|ΠΑΡΑΔΕΙΓΜΑ|Example)\s*\d*)", re.MULTILINE
+)
+
+
+_OCR_EXAMPLE_RE = re.compile(
+    r"(?i)(?:Παράδειγμα|Example)\s*\d|string\.py|integer\.py|float\.py|boolean\.py"
+)
+
+
+def _mmss(seconds) -> str:
+    try:
+        total = max(0, int(float(seconds)))
+    except (TypeError, ValueError):
+        return "0:00"
+    return f"{total // 60}:{total % 60:02d}"
+
+
+def _excerpt_time(label: str, segments):
+    """Turn an excerpt label into the real segment start it refers to."""
+    if not label or not segments:
+        return None
+    match = re.match(r"\s*(\d{1,2}):(\d{2})", label)
+    if not match:
+        return None
+    wanted = int(match.group(1)) * 60 + int(match.group(2))
+
+    best, best_gap = None, 30.0
+    for segment in segments:
+        payload = getattr(segment, "payload", None) or {}
+        start = payload.get("start")
+        if not isinstance(start, (int, float)):
+            continue
+        gap = abs(start - wanted)
+        if gap <= best_gap:
+            best, best_gap = float(start), gap
+    return best
+
+
+def _cached_examples(video_id, points, limit=8):
+    """Model-found examples for a video, cached on disk per video.
+
+    The regex path is a fast guess; this is the answer. It costs one call per
+    video, not per question, because the examples a lesson contains do not
+    change between questions.
+    """
+    cache = FRAMES_DIR / str(video_id) / "examples.json"
+    if cache.exists():
+        try:
+            data = json.loads(cache.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return data
+        except (OSError, ValueError):
+            pass
+
+    on_screen = "\n\n".join(
+        (p.payload.get("text") or "").strip()
+        for p in sorted(points, key=lambda x: x.payload.get("start") or 0)
+        if (p.payload.get("text") or "").lstrip().startswith("[on screen]")
+    )
+    if not on_screen.strip():
+        return []
+
+    try:
+        examples = extract_examples(on_screen, limit=limit)
+    except Exception as error:  # noqa: BLE001 - never fail an answer over this
+        print(f"[Cite] example extraction failed: {error}")
+        return []
+
+    if examples:
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(json.dumps(examples, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+    print(f"[Cite] {len(examples)} examples found on screen")
+    return examples
+
+
+def _example_chunks(points, limit=8):
+    """The labelled on-screen example chunks, one per heading.
+
+    Two shapes exist in the wild: a slide that labels each example
+    ("Παράδειγμα 2: integer.py") and an IDE that simply opens the files
+    (string.py, boolean.py). Keying on the filename covers both, so the Greek
+    heading is a bonus rather than a requirement.
+    """
+    found = []
+    seen = set()
+    for point in points:
+        payload = getattr(point, "payload", None) or {}
+        text = payload.get("text") or ""
+        if not text.lstrip().startswith("[on screen]"):
+            continue
+
+        # Generic on purpose. The first version listed string/integer/float/
+        # boolean, i.e. the four file names of one specific lesson, and would
+        # find nothing in any other course. A heading word or any source
+        # filename now counts.
+        heading = re.search(
+            r"(?i)(?:Παράδειγμα|Παραδειγμα|Παραδείγματα|Άσκηση|Example|Examples|"
+            r"Demo|Sample|Exercise)\s*#?\s*\d*[^\n]{0,50}",
+            text,
+        )
+        filename = re.search(
+            r"(?i)\b[\w\-]{1,40}\.(?:py|ipynb|js|jsx|ts|tsx|java|c|cpp|cs|rb|php|"
+            r"go|rs|sql|html|css|json|sh|kt|swift|txt)\b",
+            text,
+        )
+        if not heading and not filename:
+            continue
+
+        matched = heading or filename
+        key = matched.group(0).lower().strip()
+        if key in seen:
+            continue
+        seen.add(key)
+        found.append((matched.group(0).strip(), point))
+        if len(found) >= limit:
+            break
+    return found
+
+def _frame_signature(frame_path, size=(64, 36)):
+    """Coarse luminance signature of a frame, for spotting near-duplicates."""
+    try:
+        import numpy as np
+        from PIL import Image
+
+        with Image.open(frame_path) as image:
+            small = image.convert("L").resize(size)
+            return np.asarray(small, dtype=np.int16)
+    except Exception:
+        return None
+
+
+def _signature_distance(left, right) -> float:
+    """Fraction of pixels whose luminance changed noticeably, 0..1.
+
+    Mean difference is the wrong measure: two different files open in the same
+    IDE window differ only in the code area, so the average stays near zero and
+    genuinely different screens get discarded. Counting changed pixels catches
+    a localized edit even when most of the frame is identical.
+    """
+    if left is None or right is None:
+        return 1.0
+    changed = (abs(left - right) > 14).mean()
+    return float(changed)
+
+
+def _build_digests(segments, video_id, window_sec=300.0):
+    """One structured digest per ~5-minute chunk, stored as a text segment.
+
+    Built once at upload. Questions then retrieve a compact outline instead of
+    dozens of raw segments, which is where the token saving comes from.
+    """
+    if not segments:
+        return 0
+
+    ordered = sorted(
+        (s for s in segments if isinstance(s.get("start"), (int, float))),
+        key=lambda s: s["start"],
+    )
+    if not ordered:
+        return 0
+
+    windows = {}
+    for segment in ordered:
+        bucket = int(float(segment["start"]) // window_sec)
+        windows.setdefault(bucket, []).append(segment)
+
+    digests = []
+    for bucket in sorted(windows):
+        chunk = windows[bucket]
+        start = float(chunk[0]["start"])
+        end = float(chunk[-1].get("end") or chunk[-1]["start"])
+        label = f"[{_mmss(start)}-{_mmss(end)}]"
+        transcript = "\n".join(
+            f"[{_mmss(s['start'])}] {(s.get('text') or '').strip()}"
+            for s in chunk
+            if (s.get("text") or "").strip()
+        )
+        if len(transcript) < 200:
+            continue
+        data = digest_segment(transcript, label=label)
+        if not data:
+            continue
+
+        parts = []
+        for key in ("topics", "definitions", "key_points"):
+            values = data.get(key) or []
+            if values:
+                parts.append(f"{key}: " + "; ".join(str(v) for v in values[:6]))
+        for example in (data.get("examples") or [])[:6]:
+            name = example.get("name")
+            when = example.get("start")
+            if name:
+                parts.append(f"example {name}" + (f" @ {when}" if when else ""))
+        if not parts:
+            continue
+
+        digests.append({
+            "text": f"[digest {_mmss(start)}-{_mmss(end)}] " + " | ".join(parts),
+            "timestamp": [start, end],
+        })
+
+    if not digests:
+        return 0
+
+    vectors = create_embeddings_from_transcript({"segments": digests})
+    store_text_embeddings(video_id, vectors, id_prefix="digest")
+    print(f"[Digest] {len(digests)} segment digests stored")
+    return len(digests)
+
+
+def _asks_for_examples(question: str) -> bool:
+    """True when the question is about the worked examples."""
+    return bool(
+        re.search(r"(?i)παραδείγμα|παραδειγμ|examples?|παραδειγματ", question or "")
+    )
+
+
+def _append_on_screen_examples(candidates, segments, limit=8):
+    """Fold the indexed on-screen example chunks into the model's context.
+
+    The transcript never names the examples -- the lecturer says "another
+    example, I declare a variable" -- so an answer built from speech alone lists
+    only whichever ones happened to be talked about and silently drops the rest.
+    The on-screen chunks carry all of them, verbatim.
+    """
+    existing = {str(getattr(r, "id", "")) for r in candidates}
+
+    # Clean single-example chunks only. An unsplit slide chunk also matches the
+    # pattern, but it holds several examples at once, so adding it makes the
+    # model repeat itself.
+    usable = []
+    for point in segments:
+        payload = getattr(point, "payload", None) or {}
+        text = payload.get("text") or ""
+        if not text.lstrip().startswith("[on screen]"):
+            continue
+        if not _OCR_EXAMPLE_RE.search(text):
+            continue
+        headings = len(re.findall(r"(?i)(?:Παράδειγμα|Example)\s*\d", text))
+        if headings > 1 or len(text) > 420:
+            continue
+        if str(getattr(point, "id", "")) in existing:
+            continue
+        usable.append((text, point))
+
+    # Prefer chunks that actually name an example. Terminal screenshots of the
+    # same code also match, and they crowd out the labelled ones.
+    headed = [
+        item for item in usable
+        if re.search(r"(?i)(?:Παράδειγμα|Example)\s*\d", item[0])
+    ]
+    if len(headed) >= 2:
+        usable = headed
+
+    usable.sort(key=lambda item: (item[1].payload.get("start") or 0, len(item[0])))
+    added = 0
+    seen_headings = set()
+    for text, point in usable:
+        if added >= limit:
+            break
+        match = re.search(r"(?i)(?:Παράδειγμα|Example)\s*\d[^\n]{0,40}", text)
+        key = re.sub(r"\s+", " ", match.group(0)).strip().lower() if match else None
+        if key and key in seen_headings:
+            continue
+        if key:
+            seen_headings.add(key)
+        candidates.append(point)
+        existing.add(str(getattr(point, "id", "")))
+        added += 1
+    return added
+
+
+def _example_timestamps(frames_dir, points, answer, refine_sec=120.0):
+    """One timestamp per worked example, from speech and screen together.
+
+    Speech locates WHICH example is being discussed and roughly when; the frames
+    pin down exactly when it is highlighted, which the transcript cannot show
+    because the examples share one slide. Each audio estimate is refined to the
+    nearest screen highlight within the window, and left alone when there is
+    none -- so a missing highlight degrades to the audio time instead of
+    inventing one.
+    """
+    audio_times = _example_moments(answer, points)
+    if not audio_times:
+        return []
+
+    highlights = []
+    try:
+        highlights = sorted(_underline_moments(frames_dir, limit=60))
+    except Exception as highlight_error:
+        print(f"[Cite] highlight detection failed: {highlight_error}")
+
+    fused = []
+    for moment in audio_times:
+        near = [h for h in highlights if abs(h - moment) <= refine_sec]
+        fused.append(near[0] if near else moment)
+        if near:
+            print(f"[Cite] {int(moment)}s refined to {int(near[0])}s by frame highlight")
+    return fused
+
+
+def _underline_moments(frames_dir, segments=10, min_step=1.2, limit=4):
+    """When each example starts being underlined on screen.
+
+    All four examples share one slide, so their text and their frame times are
+    identical. What differs is the red underline the lecturer draws under each
+    in turn. Splitting the frame into vertical slices and looking for the
+    largest jump in each slice's red share recovers the order and the timing --
+    which no text-based method can see.
+
+    Calibrated against hand-marked times on a real lecture: three of four
+    examples landed within 12s. The fourth (12:37) was missed because the video
+    cuts to black seconds later, so its underline has almost no frames.
+    """
+    manifest = Path(frames_dir) / "frames.json"
+    if not manifest.exists():
+        return []
+    try:
+        entries = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+    entries = sorted(entries, key=lambda entry: entry.get("t") or 0)
+    if len(entries) < 4:
+        return []
+
+    try:
+        import numpy as np
+        from PIL import Image
+    except ImportError:
+        return []
+
+    def profile(path):
+        try:
+            with Image.open(path) as image:
+                arr = np.asarray(image.convert("RGB"), dtype=np.int16)
+        except Exception:
+            return None
+        red, green, blue = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
+        mask = (red > 120) & (red - green > 50) & (red - blue > 50)
+        total = int(mask.sum())
+        if total < 200:
+            return None  # blank or near-blank frame
+        rows = mask.sum(axis=1)
+        height = arr.shape[0]
+        return [
+            float(rows[height * i // segments:height * (i + 1) // segments].sum()) / total * 100.0
+            for i in range(segments)
+        ]
+
+    series = []
+    for entry in entries:
+        values = profile(Path(frames_dir) / entry["file"])
+        if values is not None:
+            series.append((float(entry.get("t") or 0), values))
+    if len(series) < 4:
+        return []
+
+    # Largest positive step per slice, and when it happened. A step means "red
+    # appeared here that was not here before", which is the underline starting.
+    steps = {}
+    for index in range(1, len(series)):
+        moment, values = series[index]
+        _, previous = series[index - 1]
+        changes = [
+            slice_index for slice_index in range(segments)
+            if abs(values[slice_index] - previous[slice_index]) > 1.0
+        ]
+        # A slide change rewrites most of the frame and produces enormous
+        # deltas that would drown out the underlines. An underline touches one
+        # or two slices, so anything broader is a transition, not a highlight.
+        if len(changes) > 3:
+            continue
+        for slice_index in changes:
+            delta = values[slice_index] - previous[slice_index]
+            if delta < min_step:
+                continue
+            if slice_index not in steps or delta > steps[slice_index][1]:
+                steps[slice_index] = (moment, delta)
+
+    ordered = sorted(steps.values(), key=lambda item: item[1], reverse=True)[:limit]
+    return sorted(moment for moment, _ in ordered)
+
+
+def _ocr_example_timestamps(points, limit=8):
+    """Timestamps of the on-screen example chunks that were retrieved.
+
+    The examples are the OCR segments themselves, so their frame times ARE the
+    answer. This does not read the model's answer at all, which is why it cannot
+    be thrown off by how the answer happens to be formatted.
+    """
+    found = []
+    for point in points:
+        payload = getattr(point, "payload", None) or {}
+        text = payload.get("text") or ""
+        start = payload.get("start")
+        if not isinstance(start, (int, float)):
+            continue
+        if not text.lstrip().startswith("[on screen]"):
+            continue
+        if not _OCR_EXAMPLE_RE.search(text):
+            continue
+        # A properly split chunk is one example: short, and carrying code. An
+        # unsplit chunk holds a whole slide -- several examples plus prose -- and
+        # matches every query, which is what produced a row of times from the
+        # first two minutes.
+        if len(text) > 420:
+            continue
+        if "=" not in text and "print" not in text:
+            continue
+        if any(abs(start - existing) < 0.5 for existing in found):
+            continue
+        found.append(float(start))
+    return sorted(found)[:limit]
+
+
+def _example_moments(answer: str, points) -> list:
+    """One moment per worked example, in the order the answer presents them.
+
+    The code identifies the example: "is_pretty" or "number1" appears in exactly
+    one place on screen, so BM25 against the indexed segments resolves it
+    without guessing. This is the version that is deterministic -- matching on
+    prose paraphrases is not.
+    """
+    if not answer or not points:
+        return []
+
+    chunks = [
+        chunk.strip()
+        for chunk in _EXAMPLE_BLOCK_RE.split(answer)
+        if chunk.strip() and _EXAMPLE_BLOCK_RE.search(chunk)
+    ]
+    if not chunks:
+        return []
+
+    by_id = {str(getattr(p, "id", "")): p for p in points}
+    moments = []
+    for chunk in chunks:
+        scores = _bm25_scores(chunk, points)
+        if not scores:
+            continue
+        top_id, top_score = max(scores.items(), key=lambda item: item[1])
+        if top_score <= 0:
+            continue
+        holder = by_id.get(top_id)
+        payload = (holder.payload if holder else None) or {}
+        start_value = payload.get("start")
+        if isinstance(start_value, (int, float)):
+            moments.append(float(start_value))
+
+    return moments
 
 
 def _snap_inline_timestamps(answer: str, segments) -> str:
@@ -281,7 +852,6 @@ NORMALIZED_DIR.mkdir(parents=True, exist_ok=True)
 # after each video's title.
 TRANSCRIPTS_PATH = AUDIO_DIR / "output.json"
 EMBEDDINGS_PATH = AUDIO_DIR / "output_embeddings.json"
-FRAME_EMBEDDINGS_PATH = FRAMES_DIR / "output_frame_embeddings.json"
 
 CURRENT_VIDEO_ID = _initialize_current_video_id()
 
@@ -295,8 +865,7 @@ def _warm_models():
 
     Both load lazily on first use, so without this the first upload after every
     restart pays the text model inside the request. Measured on this machine:
-    39.3s to load MiniLM against 0.29s to actually embed 52 segments. CLIP is
-    the larger model and was landing inside the first /ask the same way.
+    39.3s to load MiniLM against 0.29s to actually embed 52 segments.
 
     Sequential, not parallel: they are memory-heavy and running them at once
     just makes both slower.
@@ -307,14 +876,13 @@ def _warm_models():
     except Exception as exc:
         print(f"[Warmup] text embedding model failed: {exc}")
 
-    try:
-        warm_clip_model()
-        print("[Warmup] CLIP model ready")
-    except Exception as exc:
-        print(f"[Warmup] CLIP model failed: {exc}")
 
 
-threading.Thread(target=_warm_models, daemon=True).start()
+# Blocking on purpose. The first upload used to compete with a background
+# warmup for the same 28s of model loading, so it looked like the upload itself
+# was slow. Paying it before the server binds makes startup honest: when the
+# log says ready, it is ready.
+_warm_models()
 
 # CORS is open here to simplify local frontend/backend integration.
 # In production this should be restricted to known frontend origins.
@@ -349,12 +917,67 @@ app.mount(
      name="frames"
 ) 
 
+@app.get('/debug/segments')
+def debug_segments(video_id: str | None = None):
+    """Dump the indexed segments so retrieval can be inspected directly."""
+    target = video_id or CURRENT_VIDEO_ID
+    try:
+        points = scroll_all_text(target)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    rows = []
+    for point in points:
+        payload = getattr(point, "payload", None) or {}
+        rows.append({
+            "start": payload.get("start"),
+            "end": payload.get("end"),
+            "text": (payload.get("text") or "")[:300],
+            "on_screen": (payload.get("text") or "").lstrip().startswith("[on screen]"),
+        })
+    rows.sort(key=lambda row: row["start"] if isinstance(row["start"], (int, float)) else 0)
+    return {"video_id": target, "count": len(rows), "segments": rows}
+
+
 @app.get('/debug/qdrant-counts')
 async def debug_qdrant_counts():
     return {
         "text_points": client.count(collection_name=TEXT_COLLECTION).count,
         "frame_points": client.count(collection_name=FRAME_COLLECTION).count,
     }
+
+@app.get('/video-frames/{video_id}')
+async def video_frames(video_id: str):
+    """Timestamped thumbnails for a processed video.
+
+    Reads the manifest _run_frame_pipeline writes beside the JPEGs, so this is
+    one small file read rather than a Qdrant query. Returns an empty list when
+    a video has no frames yet, which the UI treats as "no previews available"
+    rather than as an error.
+    """
+    # video_id arrives straight from the URL and is used to build a path, so
+    # keep it to a plain name and refuse anything that could traverse.
+    if not video_id or not all(ch.isalnum() or ch in "-_" for ch in video_id):
+        raise HTTPException(status_code=400, detail="Invalid video id")
+
+    manifest = FRAMES_DIR / video_id / "frames.json"
+    if not manifest.exists():
+        return {"video_id": video_id, "frames": []}
+
+    try:
+        entries = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"video_id": video_id, "frames": []}
+
+    return {
+        "video_id": video_id,
+        "frames": [
+            {"t": entry["t"], "url": f"/frames/{video_id}/{entry['file']}"}
+            for entry in entries
+            if entry.get("file")
+        ],
+    }
+
 
 JOBS = {}
 
@@ -410,6 +1033,27 @@ def _compact_transcript_for_json(transcript):
         )
 
     compact = {"segments": segments}
+
+    # Word timings drive citation precision: a quoted phrase is placed by
+    # locating it in this list, so dropping it here would cap accuracy back at
+    # the ~7s segment boundary.
+    words = []
+    for item in data.get("words") or []:
+        item_dict = to_dict(item)
+        if not isinstance(item_dict, dict):
+            continue
+        text = item_dict.get("w") or item_dict.get("word") or item_dict.get("text")
+        word_start = item_dict.get("start")
+        word_end = item_dict.get("end")
+        if not text or not isinstance(word_start, (int, float)):
+            continue
+        words.append({
+            "w": text,
+            "start": word_start,
+            "end": word_end if isinstance(word_end, (int, float)) else word_start,
+        })
+    if words:
+        compact["words"] = words
 
     # Keep the language Whisper was pinned to, so answers don't have to re-derive
     # it from the transcript's script on every question.
@@ -536,6 +1180,13 @@ def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
             store_text_embeddings(video_path.stem, embeddings)
             print(f"✓ Embeddings stored: {len(embeddings)} vectors  [{_time.perf_counter()-t1:.1f}s]")
 
+            # Compact outline per 5-minute chunk, so questions do not have to
+            # re-read the whole transcript every time.
+            try:
+                _build_digests(transcript_for_json.get("segments") or [], video_path.stem)
+            except Exception as digest_error:
+                print(f"[Digest] skipped: {digest_error}")
+
             if job_id:
                 _set_job_status(job_id, stage="embedding_text", progress=90)
     except Exception as e:
@@ -543,6 +1194,372 @@ def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
         print(f"✗ Transcription/embedding failed for {video_path.stem}: {e}")
 
     return transcript_for_json, embeddings, transcript_error
+
+
+# A lecture announces a concept before it explains one: "τι είναι X", "δηλαδή",
+# "για παράδειγμα", "θα δούμε". Those phrases mark the moments a learner would
+# want a still for, which is a different set from the frames a pixel-difference
+# detector picks -- on a slide lecture the biggest visual change is usually an
+# annotation appearing, so scene selection reliably keeps the red underlines and
+# drops the definitions.
+_CONCEPT_MARKERS = [
+    r"\bτι ε(ί|ι)ναι\b", r"\bορίζετ", r"\bορισμ", r"\bδηλαδ(ή|η)\b",
+    r"\bγια παράδειγμα\b", r"\bπαράδειγμα\b", r"\bας πούμε\b",
+    r"\bθα δούμε\b", r"\bτώρα θα\b", r"\bμάθαμε\b", r"\bπρόσεξ",
+    r"\bwhat is\b", r"\bdefinition\b", r"\bfor example\b",
+]
+_CONCEPT_PATTERN = re.compile("|".join(_CONCEPT_MARKERS), re.IGNORECASE)
+
+
+def _concept_moments(segments, min_gap_sec=20.0, limit=40):
+    """Timestamps of announced definitions and worked examples.
+
+    Deliberately falls back to nothing rather than guessing: if a transcript has
+    no markers this returns [], and the video simply keeps its scene frames.
+    """
+    moments = []
+
+    for segment in segments or []:
+        start = segment.get("start")
+        if start is None:
+            continue
+        if not _CONCEPT_PATTERN.search(segment.get("text") or ""):
+            continue
+        # One still per moment: markers cluster within a sentence or two.
+        if moments and (start - moments[-1]) < min_gap_sec:
+            continue
+        moments.append(float(start))
+        if len(moments) >= limit:
+            break
+
+    return moments
+
+
+_EXAMPLE_HEADING_RE = re.compile(
+    r"(?i)(?=^\s*#?\s*(?:Παράδειγμα|Example|ΠΑΡΑΔΕΙΓΜΑ)\s+\d+)", re.MULTILINE
+)
+
+
+def _example_key(chunk: str):
+    """Stable identity for an example chunk: its heading line.
+
+    OCR returns slightly different text for the same slide on every frame, so
+    exact-text dedupe never fires and a 56-frame video yields a hundred
+    near-identical chunks. The heading names the example, and only four of those
+    exist.
+    """
+    first_line = (chunk or "").strip().split("\n", 1)[0].strip()
+    if _OCR_EXAMPLE_RE.search(first_line):
+        return re.sub(r"\s+", " ", first_line).strip().lower()
+    return None
+
+
+def _split_on_example_headings(text: str):
+    """One chunk per worked example within a slide.
+
+    A single slide can carry four examples. Stored as one segment they share
+    one timestamp, so every example resolves to the same moment and none can be
+    cited individually. Splitting on the headings keeps each example its own
+    retrievable unit, all at the time that slide is on screen.
+    """
+    parts = [part.strip() for part in _EXAMPLE_HEADING_RE.split(text or "") if part.strip()]
+    return parts or [(text or "").strip()]
+
+
+def _add_concept_frames(
+    video_path,
+    transcript,
+    frames_dir,
+    lookahead_sec=2.0,
+    coverage_interval_sec=20.0,
+):
+    """Extract a still for each concept moment and add it to the manifest.
+
+    Named frame9NNNNN.jpg so they sort after, and cannot collide with,
+    ffmpeg's own frame000001-style numbering.
+    """
+    frames_dir = Path(frames_dir)
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = frames_dir / "frames.json"
+
+    entries = []
+
+    # Coverage pass runs FIRST, because extract_frames globs frame*.jpg from the
+    # directory and would otherwise count the concept frames as its own. A slide
+    # can sit on screen through an example whose name is never spoken, so
+    # concept moments alone leave gaps: on a 12-minute lecture they produced 16
+    # frames and captured only one of four code examples.
+    coverage = {}
+    if coverage_interval_sec and float(coverage_interval_sec) > 0:
+        try:
+            _, coverage = extract_frames(
+                video_path,
+                frames_dir,
+                interval_seconds=float(coverage_interval_sec),
+                extraction_mode="interval",
+                scene_threshold=0.12,
+                keyframes_only=False,
+                max_width=frame_max_width,
+                # Dedupe off for coverage: two code slides share a layout and
+                # differ only in a few lines, so an 8x8 perceptual hash calls
+                # them identical and drops the very frame that names the
+                # example. Uniform sampling has nothing to dedupe anyway.
+                min_gap_sec=0.0,
+                max_hash_distance=0,
+            )
+            for name, moment in (coverage or {}).items():
+                if moment is None:
+                    continue
+                entries.append({"file": name, "t": float(moment)})
+            print(f"[Frames] {len(coverage or {})} coverage frames every {coverage_interval_sec}s")
+        except Exception as coverage_error:
+            print(f"[Frames] coverage pass failed for {video_path.stem}: {coverage_error}")
+
+    moments = _concept_moments((transcript or {}).get("segments"))
+    if not moments:
+        if entries:
+            entries.sort(key=lambda entry: entry["t"])
+            manifest_path.write_text(json.dumps(entries), encoding="utf-8")
+        return 0
+
+    added = 0
+    for moment in moments:
+        # A sentence announces a concept slightly before the slide catches up,
+        # so the still is taken a beat later than the word that triggered it.
+        at = float(moment) + max(0.0, float(lookahead_sec))
+        target = frames_dir / f"frame9{added + 1:05d}.jpg"
+        if not extract_frame_at(video_path, at, target):
+            continue
+        entries.append({"file": target.name, "t": at})
+        added += 1
+
+    if entries:
+        entries.sort(key=lambda entry: entry["t"])
+        manifest_path.write_text(json.dumps(entries), encoding="utf-8")
+
+    return added
+
+
+def _nearest_frame(frames_dir, moment, max_gap_sec=45.0):
+    """The frame closest in time to `moment`, or None when nothing is close."""
+    manifest = Path(frames_dir) / "frames.json"
+    if not manifest.exists():
+        return None
+    try:
+        entries = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+    best = None
+    best_gap = max_gap_sec
+    for entry in entries:
+        try:
+            gap = abs(float(entry["t"]) - float(moment))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if gap <= best_gap:
+            best, best_gap = entry, gap
+    return best
+
+
+def _frame_data_url(frame_path):
+    """Inline a JPEG so a hosted model can see it.
+
+    A URL will not do: the frames are served from the dev machine, which the
+    OpenAI servers cannot reach. Inlining costs roughly 1k tokens per still.
+    """
+    try:
+        import base64
+
+        payload = base64.b64encode(Path(frame_path).read_bytes()).decode("ascii")
+    except Exception:
+        return None
+    return f"data:image/jpeg;base64,{payload}"
+
+
+# Sampling interval for the frames that get OCR'd. Independent of the scrubber
+# thumbnail interval, which can afford to be much denser.
+COVERAGE_INTERVAL_SEC = 20.0
+
+
+def _frame_halves_data_urls(frame_path, scale=3):
+    """The left and right halves of a frame, upscaled, as data URLs.
+
+    Half the width upscaled three times gives the vision model roughly six times
+    the pixels per character compared with the whole frame. On a 640x360 lecture
+    capture the whole frame read "x = 3+5" as "x = 345" -- the plus sign vanished
+    into the space around it. Reading the halves costs one extra call per frame
+    and recovers the punctuation, which is the whole point of indexing code.
+    """
+    try:
+        from PIL import Image
+        import io
+
+        with Image.open(frame_path) as image:
+            image = image.convert("RGB")
+            width, height = image.size
+            boxes = [
+                (0, 0, width // 2, height),
+                (width // 2, 0, width, height),
+            ]
+            urls = []
+            for index, box in enumerate(boxes):
+                piece = image.crop(box)
+                if scale != 1:
+                    piece = piece.resize(
+                        (piece.width * scale, piece.height * scale),
+                        Image.LANCZOS,
+                    )
+                buffer = io.BytesIO()
+                piece.save(buffer, format="JPEG", quality=92)
+                encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+                urls.append(
+                    (index, f"data:image/jpeg;base64,{encoded}")
+                )
+            return urls
+    except Exception as error:  # noqa: BLE001 - fall back to the whole frame
+        print(f"[OCR] half-crop failed for {frame_path.name}: {error}")
+        return []
+
+
+def _ocr_frames(frames_dir, video_id, stamps=None, workers=10):
+    """Read the on-screen text of every frame and index it.
+
+    Independent of the transcript, so the upload can run it alongside
+    transcription instead of after it -- OCR is the slowest stage.
+
+    `stamps` maps filename -> seconds and comes straight from extract_frames.
+    It has to be passed in: frames.json is written later, by the concept-frame
+    pass, so relying on it here silently returned zero OCR segments and the
+    answers lost every example but the one that happened to be spoken about.
+    """
+    if stamps:
+        entries = [
+            {"file": name, "t": float(moment)}
+            for name, moment in stamps.items()
+            if moment is not None
+        ]
+    else:
+        manifest = Path(frames_dir) / "frames.json"
+        if not manifest.exists():
+            print(f"[OCR] no frames manifest in {frames_dir}; nothing to read")
+            return 0
+        try:
+            entries = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return 0
+    if not entries:
+        return 0
+
+    # Skip frames that are visually the same as the previous one, measured by the
+    # FRACTION of pixels that changed rather than the average difference. The
+    # average stays near zero when only the code area changes inside an
+    # otherwise identical IDE window, which is exactly the case that matters.
+    prepared = []
+    previous = None
+    for entry in entries:
+        frame_path = Path(frames_dir) / entry["file"]
+        signature = _frame_signature(frame_path)
+        if signature is not None and previous is not None:
+            if _signature_distance(signature, previous) < 0.04:
+                continue
+        if signature is not None:
+            previous = signature
+        data_url = _frame_data_url(frame_path)
+        if data_url:
+            prepared.append((entry, data_url))
+    print(f"[OCR] reading {len(prepared)} of {len(entries)} frames (visually distinct)")
+
+    ocr_segments = []
+    if prepared:
+        def _read_frame(item):
+            entry, whole = item
+            halves = _frame_halves_data_urls(Path(frames_dir) / entry["file"])
+            if not halves:
+                return transcribe_image(whole)
+            # Both halves, joined in reading order.
+            parts = [transcribe_image(url) for _, url in halves]
+            return "\n".join(part for part in parts if part)
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            texts_read = list(pool.map(_read_frame, prepared))
+        seen_examples, seen_slides = set(), set()
+        for (entry, _), visible in zip(prepared, texts_read):
+            if not visible:
+                continue
+            moment = entry.get("t")
+            for chunk in _split_on_example_headings(visible):
+                key = _example_key(chunk)
+                if key:
+                    if key in seen_examples:
+                        continue
+                    seen_examples.add(key)
+                else:
+                    slug = re.sub(r"\W+", " ", chunk).strip().lower()[:120]
+                    if slug in seen_slides:
+                        continue
+                    seen_slides.add(slug)
+                ocr_segments.append({
+                    "text": f"[on screen] {chunk}",
+                    "timestamp": [moment, moment],
+                })
+
+    if not ocr_segments:
+        return 0
+
+    vectors = create_embeddings_from_transcript({"segments": ocr_segments})
+    store_text_embeddings(video_id, vectors, id_prefix="ocr")
+    print(f"[OCR] {len(ocr_segments)} on-screen texts indexed")
+    return len(ocr_segments)
+
+
+def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0):
+    """Add frames chosen from the transcript, then index everything in the dir.
+
+    Used by both orderings: in audio-first mode base_count is 0 and these are
+    the only frames; in the parallel mode they supplement the scene pass.
+    """
+    try:
+        added = _add_concept_frames(video_path, transcript, frames_dir)
+
+        if added == 0 and not base_count:
+            # Nothing was announced: no speech at all, or a language this
+            # heuristic misses. Fall back to sparse uniform frames so the video
+            # still has a visual index instead of none, which would also empty
+            # the frame collection and silently disable visual search.
+            count, stamps = extract_frames(
+                video_path,
+                Path(frames_dir),
+                interval_seconds=60.0,
+                extraction_mode="interval",
+                scene_threshold=0.12,
+                keyframes_only=False,
+                max_width=frame_max_width,
+            )
+            entries = [
+                {"file": name, "t": float(moment)}
+                for name, moment in stamps.items()
+                if moment is not None
+            ]
+            entries.sort(key=lambda item: item["t"])
+            if entries:
+                (Path(frames_dir) / "frames.json").write_text(
+                    json.dumps(entries), encoding="utf-8"
+                )
+            print(
+                f"[Frames] no concepts announced; using {count} interval frames instead"
+            )
+
+        manifest_path = Path(frames_dir) / "frames.json"
+        if not manifest_path.exists():
+            return base_count
+
+        entries = json.loads(manifest_path.read_text(encoding="utf-8"))
+        print(f"[Frames] {len(entries)} frames on disk ({added} chosen from what was said)")
+        return len(entries)
+    except Exception as frame_error:
+        print(f"[Frames] concept pass failed for {video_path.stem}: {frame_error}")
+        return base_count
 
 
 def _run_frame_pipeline(
@@ -554,7 +1571,7 @@ def _run_frame_pipeline(
     keyframes_only,
     frame_max_width,
 ):
-    """Extract frames and create/store CLIP embeddings.
+    """Extract frames and write their timestamp manifest.
 
     Runs on its own thread inside _process_upload_job, in parallel with
     _run_audio_pipeline. Nothing here depends on the transcript, so it can
@@ -570,14 +1587,20 @@ def _run_frame_pipeline(
         max_width=frame_max_width,
     )
 
-    frame_embeddings = create_frame_embeddings(
-        str(output_frames_dir),
-        timestamps=frame_timestamps,
+    # Persist frame -> timestamp so the UI can offer thumbnails straight off
+    # disk, without a Qdrant round-trip. Sorted by time: the scrubber and the
+    # strip both need them in playback order.
+    entries = sorted(
+        ({"file": name, "t": float(seconds)} for name, seconds in frame_timestamps.items()),
+        key=lambda item: item["t"],
+    )
+    (output_frames_dir / "frames.json").write_text(
+        json.dumps(entries), encoding="utf-8"
     )
 
-    store_frame_embeddings(video_path.stem, frame_embeddings)
-
-    return frame_count, frame_embeddings
+    # No CLIP vectors any more: visual matching was removed, so embedding here
+    # would cost ~3s per frame to build an index nothing queries.
+    return frame_count, frame_timestamps
 
 
 def _process_upload_job(
@@ -626,11 +1649,89 @@ def _process_upload_job(
             print(f"⚠ Could not prepare video for playback  [{time.perf_counter()-t_normalize:.1f}s], serving original file: {prep_error}")
 
         output_audio = AUDIO_DIR / f"{video_path.stem}.wav"
+        output_frames_dir = FRAMES_DIR / video_path.stem
 
-        # Only extract and process audio (no frame extraction for speed)
         _set_job_status(job_id, status="processing", stage="extracting_audio", progress=25)
 
-        transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(video_path, output_audio, job_id=job_id)
+        # Frames and audio are independent, so they run concurrently: the frame
+        # pass rides alongside transcription instead of adding to it. A frame failure must not fail the upload -- the transcript is
+        # the primary product, and /ask degrades to text-only without frames.
+        def _visual_only_task():
+            """Coverage frames plus OCR, independent of the transcript."""
+            try:
+                # 20 seconds, not frame_interval_sec: that one defaults to 5s
+                # for scrubbing thumbnails, and feeding it here produced 161
+                # frames for a 13-minute video -- 322 OCR calls and the upload
+                # crawled. 20s is enough to catch any slide that stays up.
+                count, coverage_stamps = extract_frames(
+                    video_path,
+                    output_frames_dir,
+                    interval_seconds=COVERAGE_INTERVAL_SEC,
+                    extraction_mode="interval",
+                    scene_threshold=scene_threshold,
+                    keyframes_only=False,
+                    max_width=frame_max_width,
+                    min_gap_sec=0.0,
+                    max_hash_distance=0,
+                )
+                print(f"[Frames] {count} coverage frames every {COVERAGE_INTERVAL_SEC:.0f}s")
+                _ocr_frames(output_frames_dir, video_path.stem, coverage_stamps)
+                return count
+            except Exception as visual_error:
+                print(f"[Frames] coverage pass failed: {visual_error}")
+                return 0
+
+        def _frames_task():
+            try:
+                count, _frame_stamps = _run_frame_pipeline(
+                    video_path,
+                    output_frames_dir,
+                    frame_interval_sec,
+                    frame_strategy,
+                    scene_threshold,
+                    keyframes_only,
+                    frame_max_width,
+                )
+                print(f"[Frames] {count} frames for {video_path.stem}")
+                return count
+            except Exception as frame_error:
+                print(f"[Frames] extraction failed for {video_path.stem}: {frame_error}")
+                return 0
+
+        audio_first = str(frame_strategy or "").strip().lower() == "audio"
+
+        if audio_first:
+            # Frames + OCR do not need the transcript, and OCR is now the slowest
+            # stage (~100 vision calls). Running it alongside transcription turns
+            # the total from "transcribe then OCR" into whichever finishes last.
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                visual_future = pool.submit(_visual_only_task)
+                transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
+                    video_path, output_audio, job_id=job_id
+                )
+                try:
+                    visual_future.result()
+                except Exception as visual_error:
+                    print(f"[Frames] visual pass failed: {visual_error}")
+
+            frame_count = _sync_concept_frames(
+                video_path, transcript_for_json, output_frames_dir
+            )
+        else:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                frame_future = pool.submit(_frames_task)
+                transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
+                    video_path, output_audio, job_id=job_id
+                )
+                frame_count = frame_future.result()
+
+            frame_count = _sync_concept_frames(
+                video_path, transcript_for_json, output_frames_dir, base_count=frame_count
+            )
+            try:
+                _ocr_frames(output_frames_dir, video_path.stem)
+            except Exception as ocr_error:
+                print(f"[OCR] failed: {ocr_error}")
 
         _set_job_status(job_id, status="processing", stage="finalizing", progress=95)
 
@@ -648,7 +1749,7 @@ def _process_upload_job(
             "embeddings_url": "/audio/output_embeddings.json",
             "transcript": transcript_for_json,
             "transcript_error": transcript_error,
-            "frame_count": 0,
+            "frame_count": frame_count,
             "total_time_sec": round(total_time_sec, 1),
         }
         _set_job_status(job_id, status="completed", stage="completed", progress=100, result=result)
@@ -668,10 +1769,10 @@ def _process_upload_job(
 class YoutubeRequest(BaseModel):
     url: str
     frame_interval_sec: float = 5.0
-    frame_strategy: str = "scene"
-    scene_threshold: float = 0.35
-    keyframes_only: bool = True
-    frame_max_width: int = 640
+    frame_strategy: str = "audio"
+    scene_threshold: float = 0.12
+    keyframes_only: bool = False
+    frame_max_width: int = 0  # 0 = keep the video's own resolution
 
 
 @app.post('/download-youtube/')
@@ -729,10 +1830,19 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
             # makes the downloader brittle and triggers the 403s you are seeing.
             # Prefer generic best formats first, then fall back to a more general
             # combined-video/audio selector, instead of forcing a single client.
+            # Highest resolution first. "best" on its own is a single combined
+            # stream, and YouTube caps those at 360p or 720p -- that is why an
+            # imported lecture arrived as 640x360 with unreadable code. Anything
+            # above 720p exists only as separate video and audio streams that
+            # yt-dlp merges with ffmpeg.
             format_attempts = [
-                "best[ext=mp4]/best",
+                (
+                    "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/"
+                    "bestvideo[height<=1080]+bestaudio/"
+                    "best[height<=1080]/best"
+                ),
                 "bestvideo+bestaudio/best",
-                "bv*+ba/b",
+                "best[ext=mp4]/best",
             ]
 
             result = None
@@ -815,10 +1925,10 @@ async def create_upload_file(
     background_tasks: BackgroundTasks,
     file_upload: UploadFile,
     frame_interval_sec: float = 10.0,
-    frame_strategy: str = "scene",
-    scene_threshold: float = 0.35,
-    keyframes_only: bool = True,
-    frame_max_width: int = 640,
+    frame_strategy: str = "audio",
+    scene_threshold: float = 0.12,
+    keyframes_only: bool = False,
+    frame_max_width: int = 0,  # 0 = keep the video's own resolution
 ):
     """Process one uploaded video and return URLs for all generated artifacts.
 
@@ -937,7 +2047,43 @@ async def ask(req: Question):
             context_candidates = all_segments
         else:
             query_embedding = embed_query(question)
+            all_points = []
             text_results = search_text(query_embedding, limit=12, video_id=current_video_id)
+
+            # Hybrid rerank: vector search alone cannot separate the examples --
+            # every segment reads "another example, I declare a variable" -- and
+            # the terms that distinguish them are rare.
+            try:
+                all_points = scroll_all_text(current_video_id)
+                lexical = _bm25_scores(question, all_points)
+                peak = max(lexical.values(), default=0.0)
+                payloads = {str(p.id): (p.payload or {}) for p in all_points}
+
+                merged = {}
+                for result in text_results:
+                    point_id = str(result.id)
+                    vector_score = float(getattr(result, "score", 0.0) or 0.0)
+                    lexical_score = (lexical.get(point_id, 0.0) / peak) if peak else 0.0
+                    merged[point_id] = 0.45 * vector_score + 0.55 * lexical_score
+
+                for point_id, raw in lexical.items():
+                    if point_id in merged or peak <= 0:
+                        continue
+                    normalized = raw / peak
+                    if normalized < 0.40:
+                        continue
+                    merged[point_id] = 0.55 * normalized
+
+                ranked = sorted(merged.items(), key=lambda item: item[1], reverse=True)[:24]
+                text_results = [
+                    _Ranked(point_id, payloads.get(point_id, {}), score)
+                    for point_id, score in ranked
+                    if payloads.get(point_id)
+                ]
+                print(f"[Retrieval] hybrid ranked {len(ranked)} candidates")
+            except Exception as hybrid_error:
+                print(f"[Retrieval] hybrid rerank failed: {hybrid_error}")
+
             CONTEXT_MIN_SCORE = 0.15
             context_candidates = [
                 r for r in text_results if r.score >= CONTEXT_MIN_SCORE
@@ -948,6 +2094,13 @@ async def ask(req: Question):
             # states, a data structure's operations) instead of isolated
             # sentences that happened to score highest individually.
             all_video_segments = scroll_all_text(video_id=current_video_id)
+
+            if _asks_for_examples(question):
+                added_examples = _append_on_screen_examples(
+                    context_candidates, all_video_segments
+                )
+                if added_examples:
+                    print(f"[Context] {added_examples} on-screen example chunks added")
             expanded_candidates = _expand_with_neighbors(context_candidates, all_video_segments, window=1)
             sorted_results = sorted(expanded_candidates, key=lambda r: r.payload.get("start") or 0)
 
@@ -957,10 +2110,19 @@ async def ask(req: Question):
             minutes, secs = divmod(int(seconds), 60)
             return f"{minutes}:{secs:02d}"
 
+        # On-screen text is labelled WITHOUT a time on purpose. Its timestamp is
+        # when the slide appeared, not when the lecturer explained the thing, and
+        # a bare [mm:ss] label invited the model to cite 0:20 for every example on
+        # a slide that was visible from the start.
         context = "\n".join(
-            f"[{_format_ts(r.payload.get('start'))}-{_format_ts(r.payload.get('end'))}] {r.payload.get('text', '').strip()}"
+            (
+                f"[on screen] {text}"
+                if text.lstrip().startswith("[on screen]")
+                else f"[{_format_ts(r.payload.get('start'))}-{_format_ts(r.payload.get('end'))}] {text}"
+            )
             for r in sorted_results
-            if r.payload.get("text")
+            for text in [(r.payload.get("text") or "").strip()]
+            if text
         )
         print("Context:", context)
 
@@ -970,9 +2132,40 @@ async def ask(req: Question):
         transcript_available = bool(context.strip())
 
         try:
+            # Stills of the moments the answer is about to point at, so the model
+            # can read what is on screen -- code, a diagram, a slide -- rather
+            # than only what was said. Gated on the transcript being weak: when
+            # retrieval already scores well, images add cost without adding
+            # answer.
+            vision_images = []
+            top_context_score = max(
+                (getattr(r, "score", 0.0) for r in context_candidates), default=0.0
+            )
+            if not summary_mode and current_video_id and top_context_score < 0.55:
+                frames_dir = FRAMES_DIR / current_video_id
+                ranked = sorted(
+                    context_candidates,
+                    key=lambda r: getattr(r, "score", 0.0),
+                    reverse=True,
+                )[:2]
+                for candidate in ranked:
+                    start_sec = (candidate.payload or {}).get("start")
+                    if start_sec is None:
+                        continue
+                    frame = _nearest_frame(frames_dir, start_sec)
+                    if not frame:
+                        continue
+                    data_url = _frame_data_url(frames_dir / frame["file"])
+                    if data_url:
+                        vision_images.append(data_url)
+
+            if vision_images:
+                print(f"[Vision] sending {len(vision_images)} stills with the question")
+
             answer = ask_llama(
                 question=question,
                 context=context,
+                images=vision_images or None,
                 history=history,
                 answer_language=answer_language,
                 summary_mode=summary_mode,
@@ -991,54 +2184,6 @@ async def ask(req: Question):
         answer = _snap_inline_timestamps(answer, sorted_results)
 
         print(answer)
-
-        frame_query_text = _clip_query_for_summary() if summary_mode else question
-        frame_query_embedding = embed_text_clip(frame_query_text)
-        frame_candidates = search_frames(frame_query_embedding, limit=20, video_id=current_video_id)
-
-        for r in frame_candidates:
-            print(f"CLIP score={r.score:.4f}  {r.payload.get('frame')}")
-
-        TEXT_MIN_SCORE = 0.50
-        CLIP_MIN_SCORE = 0.18
-
-        # scroll results (summary mode) have no .score attribute
-        strong_text = [r for r in text_results if getattr(r, 'score', 1.0) >= TEXT_MIN_SCORE]
-        if text_results:
-            top_score = getattr(text_results[0], 'score', None)
-            score_str = f"top score={top_score:.4f}" if top_score is not None else "(no scores)"
-            print(f"Strong text hits: {len(strong_text)}  {score_str}")
-
-        if strong_text and frame_candidates:
-            selected: dict = {}
-            for seg in strong_text:
-                mid = ((seg.payload.get("start") or 0) + (seg.payload.get("end") or 0)) / 2
-                closest = min(
-                    frame_candidates,
-                    key=lambda f: abs((f.payload.get("timestamp") or 0) - mid),
-                )
-                selected[closest.id] = closest
-
-            relevant_frames = sorted(selected.values(), key=lambda r: r.payload.get("timestamp") or 0)
-        else:
-            if len(frame_candidates) >= 2:
-                scores = [r.score for r in frame_candidates]
-                gaps = [scores[i] - scores[i + 1] for i in range(len(scores) - 1)]
-                largest_gap_pos = gaps.index(max(gaps))
-                cutoff = scores[largest_gap_pos + 1]
-                relevant_frames = [
-                    r for r in frame_candidates
-                    if r.score > cutoff and r.score >= CLIP_MIN_SCORE
-                ]
-                if not relevant_frames and frame_candidates[0].score >= CLIP_MIN_SCORE:
-                    relevant_frames = [frame_candidates[0]]
-            else:
-                relevant_frames = [r for r in frame_candidates if r.score >= CLIP_MIN_SCORE]
-
-        for r in relevant_frames:
-            ts = r.payload.get("timestamp")
-            ts_str = f"{ts:.2f}" if ts is not None else "N/A"
-            print(f"-> frame: {r.payload.get('frame')}  ts={ts_str}")
 
         max_response_timestamps = 8  # hard cap so a very long tail of similar scores can't return everything
 
@@ -1068,16 +2213,129 @@ async def ask(req: Question):
             RELATIVE_SCORE_BAND = 0.85  # keep anything scoring >= 85% of the top score
             top_score = getattr(by_score[0], "score", 0) if by_score else 0
             by_score = [r for r in by_score if getattr(r, "score", 0) >= top_score * RELATIVE_SCORE_BAND]
-            top_matches = sorted(by_score[:max_response_timestamps], key=lambda r: r.payload.get("start") or 0)
+            top_matches = sorted(
+                by_score[:max_response_timestamps],
+                key=lambda r: r.payload.get("start") or 0,
+            )
 
-        answer_timestamps = [] if summary_mode else sorted(
-            [
-                {"start": r.payload.get("start"), "end": r.payload.get("end")}
-                for r in top_matches
-                if r.payload.get("start") is not None
-            ],
-            key=lambda t: t["start"],
-        )
+        seen_starts = set()
+        answer_timestamps = []
+
+        def _dedupe_timestamps(items, tolerance=2.0):
+            """Drop pills that point at the same moment."""
+            kept = []
+            for item in sorted(items, key=lambda x: x.get("start") or 0):
+                start = item.get("start")
+                if start is None:
+                    continue
+                if any(abs(start - other["start"]) < tolerance for other in kept):
+                    continue
+                kept.append(item)
+            return kept
+
+        # Best source when the question is about examples: match each known
+        # example to the excerpt that discusses it, then snap that label to a
+        # real segment. The examples are already identified from the slides, so
+        # this only asks "where is this one explained?" -- a far narrower
+        # question than "find the example in the video".
+        if not summary_mode and all_points and _asks_for_examples(question):
+            try:
+                labelled = _example_chunks(all_points)
+                if len(labelled) < 2:
+                    # The regex only recognises headings and file names it has
+                    # seen. Ask the model what the screen actually shows: that
+                    # works for any language, any file type, and for lessons
+                    # with inline code and no files at all.
+                    found_examples = _cached_examples(current_video_id, all_points)
+                    labelled = [(item["name"], None) for item in found_examples]
+                    print(f"[Cite] using {len(labelled)} model-found examples")
+                if len(labelled) >= 2:
+                    # Both kinds of excerpt are needed, for different reasons:
+                    # the on-screen chunks say which examples exist (code on a
+                    # slide is never spoken aloud), and the speech says when each
+                    # one is explained. Only the speech carries a time now, so the
+                    # model cannot answer "it is shown at 0:20" any more.
+                    #
+                    # Measured on a 13-minute Greek lecture: 4 of 4 examples
+                    # mapped to 4 distinct speech moments (3:07, 11:08, 11:19,
+                    # 12:39), which is exactly what was asked for.
+                    # The whole timeline, not the retrieved context. A retrieved
+                    # window is a dozen segments around the question, and the
+                    # moment that explains a given example is usually elsewhere:
+                    # the examples sit on one slide while the lecturer explains
+                    # them minutes later. Against the full timeline this mapped
+                    # 4 of 4 examples to 4 distinct moments; against the retrieved
+                    # window it mapped none.
+                    timeline_lines = []
+                    for point in sorted(
+                        all_points, key=lambda p: p.payload.get("start") or 0
+                    ):
+                        text = (point.payload.get("text") or "").strip()
+                        if not text:
+                            continue
+                        if text.lstrip().startswith("[on screen]"):
+                            timeline_lines.append(text)
+                        else:
+                            timeline_lines.append(
+                                f"[{_mmss(point.payload.get('start'))}-"
+                                f"{_mmss(point.payload.get('end'))}] {text}"
+                            )
+                    mapping = map_examples_to_excerpts(
+                        [name for name, _ in labelled], "\n".join(timeline_lines)
+                    )
+                    resolved = []
+                    for name, _ in labelled:
+                        label = mapping.get(name)
+                        # Resolve against every point, not the retrieved window:
+                        # the moment that explains an example is usually outside
+                        # it, and a mapped label pointing there returned None.
+                        moment = _excerpt_time(label, all_points) if label else None
+                        if moment is not None and all(abs(moment - x) > 1.0 for x in resolved):
+                            resolved.append(moment)
+                            print(f"[Cite] {name} -> {label} -> {int(moment)}s")
+                    if len(resolved) >= 2:
+                        answer_timestamps = [
+                            {"start": moment, "end": moment + 9.0}
+                            for moment in sorted(resolved)
+                        ]
+                        print(f"[Cite] {len(resolved)} example timestamps from mapping")
+            except Exception as mapping_error:
+                print(f"[Cite] example mapping skipped: {mapping_error}")
+
+        if not summary_mode and not answer_timestamps and all_points and current_video_id:
+            try:
+                example_times = _example_timestamps(
+                    FRAMES_DIR / current_video_id, all_points, answer
+                )
+                if not example_times:
+                    example_times = _example_moments(answer, all_points)
+                # Deliberately NOT falling back to _ocr_example_timestamps: the
+                # on-screen timestamp of an example is when its slide appeared,
+                # which for a slide visible from the start is the same for every
+                # example (0:20 four times). Showing that is worse than showing
+                # nothing, because it looks authoritative and is wrong.
+                if len(example_times) >= 2:
+                    answer_timestamps = [
+                        {"start": moment, "end": moment + 9.0}
+                        for moment in example_times
+                    ]
+                    print(
+                        f"[Cite] {len(example_times)} examples -> "
+                        f"{[int(t) for t in example_times]}"
+                    )
+            except Exception as example_error:
+                print(f"[Cite] example matching failed: {example_error}")
+        if not summary_mode and not answer_timestamps:
+            for r in top_matches:
+                start = r.payload.get("start")
+                if start is None or start in seen_starts:
+                    continue
+                seen_starts.add(start)
+                answer_timestamps.append({"start": start, "end": r.payload.get("end")})
+            answer_timestamps.sort(key=lambda item: item["start"])
+
+        answer_timestamps = _dedupe_timestamps(answer_timestamps)
+
         return {
             "answer": answer,
             "timestamps": answer_timestamps,
@@ -1089,14 +2347,6 @@ async def ask(req: Question):
                     "score": getattr(r, 'score', None),
                 }
                 for r in text_results
-            ],
-            "frame_results": [
-                {
-                    "frame": r.payload.get("frame"),
-                    "timestamp": r.payload.get("timestamp"),
-                    "score": r.score,
-                }
-                for r in relevant_frames
             ],
         }
     except HTTPException:
