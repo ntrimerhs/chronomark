@@ -103,6 +103,38 @@ on first run.
 curl http://localhost:8000/debug/qdrant-counts   # {"text_points":0,"frame_points":0}
 ```
 
+## Checking that two machines run the same thing
+
+The commit alone answers "same code?":
+
+```bash
+git rev-parse --short=12 HEAD      # must match on both machines
+git status --porcelain             # empty on both, otherwise local edits exist
+```
+
+"Same behaviour" also depends on dependencies, models and ffmpeg, so
+`fingerprint.sh` prints one line that covers all of it:
+
+```bash
+./fingerprint.sh           # report + FINGERPRINT: xxxx
+./fingerprint.sh --short   # only the FINGERPRINT line
+```
+
+It hashes the commit, the git tree, the tracked blobs, any uncommitted edits,
+`frontend/package-lock.json`, `pip freeze` of the venv, the model revisions in
+`models/hub`, and the ffmpeg build. Equal fingerprints = equal checkouts.
+
+Do **not** compare with `sha256sum` over the working files: with
+`core.autocrlf=true` the same file is CRLF here and LF in another checkout, so
+the hashes differ for identical code. Git's own blob/tree hashes are normalised
+and do not have that problem.
+
+To see whether the remote has moved past you:
+
+```bash
+git fetch origin && git rev-list --count HEAD..origin/main   # 0 = up to date
+```
+
 ## Keeping keys out of git
 
 `backend/.env` holds the real keys and is ignored by `.gitignore` rule `**/.env`;
