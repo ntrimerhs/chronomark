@@ -1,3 +1,4 @@
+import { memo, createContext, useContext } from 'react';
 import Markdown from 'react-markdown';
 import useAutoScroll from '../hooks/useAutoScroll';
 import { User, Bot, Loader2 } from 'lucide-react';
@@ -26,94 +27,103 @@ function reportCitationClick() {
   }
 }
 
+const SeekContext = createContext(null);
+
+// Module scope on purpose. The video fires `timeupdate` about four times a
+// second, which re-renders everything above the chat. When this renderer was
+// defined inside ChatMessages it got a new function identity on every render,
+// react-markdown treated it as a new element type and remounted the <button> --
+// so a marker under the cursor lost :hover for a frame and its colour
+// transition restarted, which is the white/pink blink. A stable component type
+// keeps the same DOM node, and the marker stops blinking.
+function MarkdownCode({ children, className }) {
+  const onSeek = useContext(SeekContext);
+  const text = String(children);
+  // A fenced block always carries a language tag: its body is real code.
+  const isFenced =
+    typeof className === 'string' && className.startsWith('language-');
+  const seconds = isFenced ? null : parseTimestampToSeconds(text);
+
+  if (seconds != null) {
+    return (
+      <button
+        type="button"
+        className="chat-message-inline-timestamp"
+        title={`Jump to ${text.trim()}`}
+        onClick={() => {
+          reportCitationClick();
+          if (onSeek) onSeek(seconds);
+        }}
+      >
+        {text.trim()}
+      </button>
+    );
+  }
+
+  // Only className/children are forwarded on purpose: react-markdown also passes
+  // a `node` AST handle, and spreading it leaks node="[object Object]" into the
+  // HTML.
+  return <code className={className}>{children}</code>;
+}
+
+const markdownComponents = { code: MarkdownCode };
+
 function ChatMessages({ messages, isLoading, onSeek }) {
   const scrollContentRef = useAutoScroll(isLoading);
 
-  // The LLM is instructed to write a bare `mm:ss` marker (inline code) at the
-  // end of every paragraph that describes the video. Intercept it here and
-  // render it as white bracketed text -- [0:28] -- that turns pink on hover and
-  // seeks the player on click, so the jump-to time sits inside the sentence it
-  // belongs to instead of in a separate row of pills under the answer.
-  const markdownComponents = {
-    // Only className/children are forwarded on purpose: react-markdown also
-    // passes a `node` AST handle, and spreading it onto the DOM tag leaks an
-    // invalid node="[object Object]" attribute into the HTML.
-    code({ children, className }) {
-      const text = String(children);
-      // A fenced block always carries a language tag: its body is real code.
-      const isFenced =
-        typeof className === 'string' && className.startsWith('language-');
-      const seconds = isFenced ? null : parseTimestampToSeconds(text);
-
-      if (seconds != null) {
-        return (
-          <button
-            type="button"
-            className="chat-message-inline-timestamp"
-            title={`Jump to ${text.trim()}`}
-            onClick={() => {
-              reportCitationClick();
-              if (onSeek) onSeek(seconds);
-            }}
-          >
-            {text.trim()}
-          </button>
-        );
-      }
-
-      return <code className={className}>{children}</code>;
-    },
-  };
-
   return (
-    <div ref={scrollContentRef} className="chat-messages">
-      {messages.map(({ role, content, loading, error, streaming }, idx) => {
-        if (loading && !content) {
-          return (
-            <div key={idx} className="chat-message chat-message-thinking">
-              <div className="chat-message-avatar chat-message-avatar-assistant">
-                <Bot size={14} />
+    <SeekContext.Provider value={onSeek}>
+      <div ref={scrollContentRef} className="chat-messages">
+        {messages.map(({ role, content, loading, error, streaming }, idx) => {
+          if (loading && !content) {
+            return (
+              <div key={idx} className="chat-message chat-message-thinking">
+                <div className="chat-message-avatar chat-message-avatar-assistant">
+                  <Bot size={14} />
+                </div>
+                <div className="chat-message-thinking-bubble">
+                  <Loader2 className="chat-message-thinking-spinner" size={14} />
+                  <span>Thinking…</span>
+                </div>
               </div>
-              <div className="chat-message-thinking-bubble">
-                <Loader2 className="chat-message-thinking-spinner" size={14} />
-                <span>Thinking…</span>
+            );
+          }
+
+          return (
+            <div
+              key={idx}
+              className={`chat-message ${role === 'user' ? 'chat-message-user' : ''}`}
+            >
+              <div className={`chat-message-avatar ${role === 'user' ? 'chat-message-avatar-user' : 'chat-message-avatar-assistant'}`}>
+                {role === 'user' ? <User size={14} /> : <Bot size={14} />}
+              </div>
+
+              <div className="chat-message-content">
+                <div className="markdown-container">
+                  {role === 'assistant' && !streaming ? (
+                    <Markdown components={markdownComponents}>{content}</Markdown>
+                  ) : (
+                    <div className="chat-message-text">{content}</div>
+                  )}
+                </div>
+
+                {error && (
+                  <div
+                    className={`chat-message-error ${content ? 'chat-message-error-with-margin' : ''}`}
+                  >
+                    <CircleX className="chat-message-error-icon"/>
+                    <span>Error generating the response</span>
+                  </div>
+                )}
               </div>
             </div>
           );
-        }
-
-        return (
-          <div
-            key={idx}
-            className={`chat-message ${role === 'user' ? 'chat-message-user' : ''}`}
-          >
-            <div className={`chat-message-avatar ${role === 'user' ? 'chat-message-avatar-user' : 'chat-message-avatar-assistant'}`}>
-              {role === 'user' ? <User size={14} /> : <Bot size={14} />}
-            </div>
-
-            <div className="chat-message-content">
-              <div className="markdown-container">
-                {role === 'assistant' && !streaming ? (
-                  <Markdown components={markdownComponents}>{content}</Markdown>
-                ) : (
-                  <div className="chat-message-text">{content}</div>
-                )}
-              </div>
-
-              {error && (
-                <div
-                  className={`chat-message-error ${content ? 'chat-message-error-with-margin' : ''}`}
-                >
-                  <CircleX className="chat-message-error-icon"/>
-                  <span>Error generating the response</span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+        })}
+      </div>
+    </SeekContext.Provider>
   );
 }
 
-export default ChatMessages;
+// The chat only changes when a message does; a playing video must not re-render
+// (let alone re-parse) every answer four times a second.
+export default memo(ChatMessages);

@@ -1,5 +1,5 @@
 import '../styles/proxeiro.css'
-import React,{useEffect, useMemo, useRef, useState} from 'react';
+import React,{useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import axios from 'axios';  ///do in terminal npm install axios
 import { API_BASE_URL } from '../config';
 import {
@@ -452,14 +452,17 @@ const Proxeiro = () => {
         return `${m}:${s}`;
     };
 
-    const seekTo = (seconds) => {
+    // Stable identity on purpose: the chat below is memoised, and a new function
+    // on every render would defeat it and re-render every answer at the video's
+    // timeupdate rate.
+    const seekTo = useCallback((seconds) => {
         const player = playerRef.current;
         if (!player || typeof seconds !== 'number' || Number.isNaN(seconds)) {
             return;
         }
         player.currentTime(seconds);
         player.play();
-    };
+    }, []);
 
     return(
         <section className="upload-shell">
