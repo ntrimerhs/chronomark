@@ -29,11 +29,11 @@ function reportCitationClick() {
 function ChatMessages({ messages, isLoading, onSeek }) {
   const scrollContentRef = useAutoScroll(isLoading);
 
-  // The LLM is instructed to write a bare `mm:ss` marker right above every code
-  // snippet or example it produces. Intercept that inline code and render it as
-  // clickable text in place, so each jump-to time stays attached to the section
-  // it belongs to instead of being collected into a separate row of pills under
-  // the answer.
+  // The LLM is instructed to write a bare `mm:ss` marker (inline code) at the
+  // end of every paragraph that describes the video. Intercept it here and
+  // render it as white bracketed text -- [0:28] -- that turns pink on hover and
+  // seeks the player on click, so the jump-to time sits inside the sentence it
+  // belongs to instead of in a separate row of pills under the answer.
   const markdownComponents = {
     // Only className/children are forwarded on purpose: react-markdown also
     // passes a `node` AST handle, and spreading it onto the DOM tag leaks an

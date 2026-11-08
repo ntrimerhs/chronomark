@@ -105,9 +105,9 @@
   margin-top: 0.5rem;
 }
 
-/* Inline "jump to" marker. Clickable text, not a pill: the LLM writes a bare
-   `mm:ss` line above the snippet or example it belongs to, so the control lives
-   inside the message at that section instead of in a row at the bottom. */
+/* Inline "jump to" marker: [0:28] in the middle of the sentence it belongs to.
+   White time, pink brackets -- the brackets are what separate a timestamp from
+   the surrounding text without turning it into a pill or an underlined link. */
 .chat-message-inline-timestamp {
   display: inline;
   margin: 0;
@@ -115,37 +115,40 @@
   border: 0;
   background: none;
   font: inherit;
-  font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  color: #c4b5f5;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.22em;
+  letter-spacing: 0.02em;
+  color: #ffffff;
   cursor: pointer;
   transition: color 0.15s ease;
 }
 
-/* A play arrow, so the line reads as "jump here" rather than as a stray time. */
-.chat-message-inline-timestamp::before {
-  content: '▶';
-  margin-right: 0.32em;
-  font-size: 0.72em;
-  opacity: 0.75;
+.chat-message-inline-timestamp::before,
+.chat-message-inline-timestamp::after {
+  color: #ff3b9a;
+  font-weight: 600;
 }
 
-.chat-message-inline-timestamp:hover {
-  color: #ff9ad0;
-  text-decoration-style: solid;
+.chat-message-inline-timestamp::before {
+  content: '[';
+}
+
+.chat-message-inline-timestamp::after {
+  content: ']';
+}
+
+/* Hovering is the only affordance, so it has to be unmistakable: the whole
+   marker -- brackets and time -- goes pink. */
+.chat-message-inline-timestamp:hover,
+.chat-message-inline-timestamp:focus-visible {
+  color: #ff3b9a;
 }
 
 .chat-message-inline-timestamp:active {
-  transform: scale(0.98);
+  opacity: 0.8;
 }
 
 .chat-message-inline-timestamp:focus-visible {
-  outline: 1px dashed rgba(196, 181, 245, 0.8);
+  outline: 1px dashed rgba(255, 59, 154, 0.8);
   outline-offset: 2px;
   border-radius: 0.2rem;
 }
