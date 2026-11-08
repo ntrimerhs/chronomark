@@ -24,6 +24,25 @@ Both launchers put `tools/ffmpeg` on `PATH` and set `HF_HOME` to `models/`. The
 `.sh` versions also locate `node`/`npm` when the Windows PATH is not inherited,
 which is the default in MSYS2.
 
+### Use the official Node, not MSYS2's
+
+MSYS2 ships a MinGW build of Node at `C:\msys64\mingw64\bin\node.exe` (v24.13),
+and a plain MSYS2 shell puts it first in `PATH`. That build reports
+`process.config.variables.shlib_suffix = "dll.a"`, which is exactly what rolldown
+uses to decide which native binding to load: it then requires
+`@rolldown/binding-win32-x64-gnu`, while `npm install` fetched the `-msvc`
+binding that the official Node needs. Vite dies with:
+
+```
+Cannot find module '@rolldown/binding-win32-x64-gnu'
+Cannot find native binding ...
+```
+
+`run-frontend.sh` now detects a MinGW node and switches to
+`C:\Program Files\nodejs` before starting Vite. If you run `npm run dev` by hand,
+make sure `node --version` resolves to `C:\Program Files\nodejs\node.exe`
+(official, `shlib_suffix` = `so.137`), not the `mingw64` one.
+
 The frontend talks to `http://localhost:8000` by default (`frontend/src/config.js`).
 Point it elsewhere with `$env:VITE_API_URL = "http://..."` (PowerShell) or
 `VITE_API_URL=... ./run-frontend.sh` (shell) before starting it.
