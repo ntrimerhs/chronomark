@@ -1,19 +1,8 @@
-import { useState } from 'react';
 import Markdown from 'react-markdown';
 import useAutoScroll from '../hooks/useAutoScroll';
-//import userIcon from '../icons/logo.png';
 import { User, Bot, Loader2 } from 'lucide-react';
-//import errorIcon from '../icons/logo.png';
 import { CircleX } from 'lucide-react';
 import '../styles/chatmessages.css';
-
-function formatTimestamp(seconds) {
-  if (seconds == null || isNaN(seconds)) return null;
-  const s = Math.floor(seconds);
-  const m = Math.floor(s / 60);
-  const ss = String(s % 60).padStart(2, '0');
-  return `${m}:${ss}`;
-}
 
 const INLINE_TIMESTAMP_RE = /^(\d{1,2}):(\d{2})$/;
 
@@ -25,44 +14,43 @@ function parseTimestampToSeconds(text) {
 
 function ChatMessages({ messages, isLoading, onSeek }) {
   const scrollContentRef = useAutoScroll(isLoading);
-  const [expandedTimestamps, setExpandedTimestamps] = useState({});
 
-  const toggleTimestampGroup = (idx) => {
-    setExpandedTimestamps((prev) => ({
-      ...prev,
-      [idx]: !prev[idx],
-    }));
-  };
-
-  // The LLM is instructed to write a bare `mm:ss` inline-code marker right
-  // before any code snippet it generates -- intercept it here and render a
-  // clickable seek badge instead of a plain monospace pill.
+  // The LLM is instructed to write a bare `mm:ss` marker right above every code
+  // snippet or example it produces. Intercept that inline code and render it as
+  // clickable text in place, so each jump-to time stays attached to the section
+  // it belongs to instead of being collected into a separate row of pills under
+  // the answer.
   const markdownComponents = {
-    code({ children, className, ...props }) {
+    // Only className/children are forwarded on purpose: react-markdown also
+    // passes a `node` AST handle, and spreading it onto the DOM tag leaks an
+    // invalid node="[object Object]" attribute into the HTML.
+    code({ children, className }) {
       const text = String(children);
-      const seconds = parseTimestampToSeconds(text);
+      // A fenced block always carries a language tag: its body is real code.
+      const isFenced =
+        typeof className === 'string' && className.startsWith('language-');
+      const seconds = isFenced ? null : parseTimestampToSeconds(text);
+
       if (seconds != null) {
         return (
           <button
             type="button"
-            className="chat-message-timestamp-badge chat-message-inline-timestamp"
+            className="chat-message-inline-timestamp"
+            title={`Jump to ${text.trim()}`}
             onClick={() => onSeek && onSeek(seconds)}
           >
-            ⏱ {text.trim()}
+            {text.trim()}
           </button>
         );
       }
-      return (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
+
+      return <code className={className}>{children}</code>;
     },
   };
 
   return (
     <div ref={scrollContentRef} className="chat-messages">
-      {messages.map(({ role, content, loading, error, timestamps, streaming }, idx) => {
+      {messages.map(({ role, content, loading, error, streaming }, idx) => {
         if (loading && !content) {
           return (
             <div key={idx} className="chat-message chat-message-thinking">
@@ -94,33 +82,6 @@ function ChatMessages({ messages, isLoading, onSeek }) {
                   <div className="chat-message-text">{content}</div>
                 )}
               </div>
-
-              {role === 'assistant' && !loading && timestamps && timestamps.length > 0 && (
-                <div className="chat-message-timestamp-wrapper">
-                  <div className="chat-message-timestamp">
-                    {(expandedTimestamps[idx] ? timestamps : timestamps.slice(0, 2)).map((ts, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className="chat-message-timestamp-badge"
-                        onClick={() => onSeek && onSeek(ts.start)}
-                      >
-                        ⏱ {formatTimestamp(ts.start)}
-                      </button>
-                    ))}
-                  </div>
-
-                  {timestamps.length > 2 && (
-                    <button
-                      type="button"
-                      className="chat-message-timestamp-toggle"
-                      onClick={() => toggleTimestampGroup(idx)}
-                    >
-                      {expandedTimestamps[idx] ? 'Show less' : `Show all (${timestamps.length})`}
-                    </button>
-                  )}
-                </div>
-              )}
 
               {error && (
                 <div
