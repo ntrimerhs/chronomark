@@ -5,6 +5,9 @@ backend/qdrant_data/
 backend/uploads/
 backend/frames/
 backend/qdrant_storage/
+# citation counters written at runtime by backend/metrics.py
+backend/metrics.json
+backend/metrics.json.tmp
 # Generated per upload by ffmpeg, and replaced each time -- same category as
 # uploads/ and audio/ above. Tracking it committed a ~17MB video per upload.
 backend/normalized/

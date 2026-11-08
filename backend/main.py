@@ -17,6 +17,7 @@ import uuid
 from bert import create_embeddings_from_transcript, embed_query, warm_up as warm_text_model
 from qdrant_store import ensure_collections, store_text_embeddings, clear_collections
 from qdrant_store import client, TEXT_COLLECTION, FRAME_COLLECTION, search_text, scroll_all_text
+import metrics
 
 from llama import (
     ask_llama,
@@ -355,6 +356,29 @@ def _example_chunks(points, limit=8):
             break
     return found
 
+def _frame_has_content(frame_path, min_std=6.0) -> bool:
+    """False for a blank or near-blank frame, which must never be sent to OCR.
+
+    A vision model asked to read a solid black frame does not answer "nothing":
+    it invents plausible content. Measured here: a test clip with a plain dark
+    frame produced a full Python solution ("class Solution: def
+    suggestedProducts...") that was then indexed as on-screen text and quoted
+    back in answers as if it came from the video. Any uniform frame -- a cut to
+    black, a colour card, the first frame before the slides load -- has a
+    luminance spread near zero, so the spread is a cheap and reliable gate.
+    """
+    try:
+        import numpy as np
+        from PIL import Image
+
+        with Image.open(frame_path) as image:
+            small = image.convert("L").resize((64, 36))
+            values = np.asarray(small, dtype=np.float32)
+    except Exception:
+        return True  # never block OCR on a decoding problem
+    return float(values.std()) >= min_std
+
+
 def _frame_signature(frame_path, size=(64, 36)):
     """Coarse luminance signature of a frame, for spotting near-duplicates."""
     try:
@@ -690,27 +714,93 @@ def _example_moments(answer: str, points) -> list:
     return moments
 
 
-def _snap_inline_timestamps(answer: str, segments) -> str:
-    """Replace every inline `mm:ss` marker (the LLM writes one above each code
-    snippet, see llama.py's system prompt) with the nearest REAL transcript
-    segment start time from `segments` -- the LLM only paraphrases the
-    "[mm:ss-mm:ss]" tags it was given and can drift to a plausible-looking
-    time that isn't an actual moment in the video.
+_CITATION_TOLERANCE_SEC = 1.0
+
+
+def _context_segment_starts(segments) -> list[float]:
+    """Start times of the segments the model was actually given."""
+    starts = []
+    for segment in segments or []:
+        payload = getattr(segment, "payload", None) or {}
+        start = payload.get("start")
+        if isinstance(start, (int, float)):
+            starts.append(float(start))
+    return sorted(set(starts))
+
+
+def _enforce_citations(
+    answer: str,
+    segments,
+    fallback_start=None,
+    tolerance: float = _CITATION_TOLERANCE_SEC,
+):
+    """Keep only the inline `mm:ss` markers that point at a real excerpt.
+
+    The old behaviour snapped every marker to the nearest segment start, which
+    always succeeded -- so a timestamp the model invented was silently "fixed"
+    into a different, equally plausible moment, and the user clicked through to
+    the wrong part of the video. A citation that is close to an excerpt it was
+    given is accepted (and rewritten to that excerpt's exact start, so the jump
+    is exact); anything further away is a fabricated time and is removed.
+
+    When nothing survives, one citation is attached to the first prose
+    paragraph, taken from the best-scoring excerpt, so no answer is uncited.
+
+    Returns (answer, kept, dropped, used_fallback).
     """
-    starts = sorted(
-        start for start in (seg.payload.get("start") for seg in segments)
-        if isinstance(start, (int, float))
-    )
-    if not starts:
-        return answer
+    starts = _context_segment_starts(segments)
+    kept = 0
+    dropped = 0
 
-    def _replace(match):
-        requested = int(match.group(1)) * 60 + int(match.group(2))
-        nearest = min(starts, key=lambda s: abs(s - requested))
-        minutes, secs = divmod(int(nearest), 60)
-        return f"`{minutes}:{secs:02d}`"
+    def _rewrite(outside: str) -> str:
+        nonlocal kept, dropped
 
-    return _INLINE_TIMESTAMP_RE.sub(_replace, answer)
+        def _replace(match):
+            nonlocal kept, dropped
+            requested = int(match.group(1)) * 60 + int(match.group(2))
+            if starts:
+                nearest = min(starts, key=lambda value: abs(value - requested))
+                if abs(nearest - requested) <= tolerance:
+                    kept += 1
+                    return f"`{_mmss(nearest)}`"
+            dropped += 1
+            return ""
+
+        text = _INLINE_TIMESTAMP_RE.sub(_replace, outside)
+        # Removing a marker can leave "()" or a double space behind.
+        text = re.sub(r"\(\s*[,;]?\s*\)", "", text)
+        text = re.sub(r"(?<=\S)[ \t]{2,}", " ", text)
+        text = re.sub(r"[ \t]+\n", "\n", text)
+        return text
+
+    # A fenced block is code: a `mm:ss` inside it is not a citation.
+    parts = answer.split("```")
+    for index in range(0, len(parts), 2):
+        parts[index] = _rewrite(parts[index])
+    result = "```".join(parts)
+
+    used_fallback = False
+    if kept == 0 and starts:
+        anchor = fallback_start if isinstance(fallback_start, (int, float)) else starts[0]
+        marker = f"`{_mmss(anchor)}`"
+        paragraphs = result.split("\n\n")
+        for index, block in enumerate(paragraphs):
+            stripped = block.strip()
+            # Only prose paragraphs: a heading, list, quote or fence is not a
+            # place to hang the answer's first citation.
+            if not stripped or stripped.startswith(("```", "#", "|", ">", "-", "*")):
+                continue
+            paragraphs[index] = block.rstrip() + " " + marker
+            used_fallback = True
+            break
+        if used_fallback:
+            result = "\n\n".join(paragraphs)
+        else:
+            result = result.rstrip() + "\n\n" + marker
+            used_fallback = True
+
+    return result, kept, dropped, used_fallback
+
 
 
 def _initialize_current_video_id() -> str | None:
@@ -945,6 +1035,20 @@ async def debug_qdrant_counts():
         "text_points": client.count(collection_name=TEXT_COLLECTION).count,
         "frame_points": client.count(collection_name=FRAME_COLLECTION).count,
     }
+
+
+@app.get('/metrics')
+async def metrics_snapshot():
+    """Citation quality counters: how often an answer is jumpable, and how many
+    timestamps the model invented and had to be dropped."""
+    return metrics.snapshot()
+
+
+@app.post('/metrics/citation-click')
+async def metrics_citation_click():
+    """Called by the UI when a jump-to-time citation is clicked."""
+    metrics.bump("citation_clicks")
+    return {"ok": True}
 
 @app.get('/video-frames/{video_id}')
 async def video_frames(video_id: str):
@@ -1458,8 +1562,12 @@ def _ocr_frames(frames_dir, video_id, stamps=None, workers=10):
     # otherwise identical IDE window, which is exactly the case that matters.
     prepared = []
     previous = None
+    blank = 0
     for entry in entries:
         frame_path = Path(frames_dir) / entry["file"]
+        if not _frame_has_content(frame_path):
+            blank += 1
+            continue
         signature = _frame_signature(frame_path)
         if signature is not None and previous is not None:
             if _signature_distance(signature, previous) < 0.04:
@@ -1469,6 +1577,8 @@ def _ocr_frames(frames_dir, video_id, stamps=None, workers=10):
         data_url = _frame_data_url(frame_path)
         if data_url:
             prepared.append((entry, data_url))
+    if blank:
+        print(f"[OCR] skipped {blank} blank/near-blank frame(s)")
     print(f"[OCR] reading {len(prepared)} of {len(entries)} frames (visually distinct)")
 
     ocr_segments = []
@@ -2142,7 +2252,9 @@ async def ask(req: Question):
         # a slide that was visible from the start.
         context = "\n".join(
             (
-                f"[on screen] {text}"
+                # Already carries the label from _ocr_frames; re-adding it produced
+                # "[on screen] [on screen] ..." in the model's context.
+                text
                 if text.lstrip().startswith("[on screen]")
                 else f"[{_format_ts(r.payload.get('start'))}-{_format_ts(r.payload.get('end'))}] {text}"
             )
@@ -2201,13 +2313,24 @@ async def ask(req: Question):
             print(f"LLM error: {e}")
             raise HTTPException(status_code=502, detail=f"LLM provider error: {e}")
 
-        # The LLM writes an inline `mm:ss` marker (in backticks) above any code
-        # snippet, but it's just paraphrasing the excerpt tags in `context` --
-        # it can drift to a nearby-sounding time that isn't an actual segment.
-        # Snap every such marker to the closest REAL segment start from the
-        # same excerpts the answer was grounded in, so the jump link it
-        # produces always lands on an actual transcript moment.
-        answer = _snap_inline_timestamps(answer, sorted_results)
+        # The LLM writes inline `mm:ss` markers (in backticks) citing the
+        # excerpts it was given. It paraphrases those "[mm:ss-mm:ss]" tags and
+        # can drift to a plausible-sounding time that is not an actual moment,
+        # so every marker is checked against the starts of the segments that
+        # were really in `context`: close enough is rewritten to the exact
+        # start, anything else is a fabricated citation and is dropped.
+        best_context = max(
+            sorted_results, key=lambda r: getattr(r, "score", 0) or 0, default=None
+        )
+        fallback_start = ((best_context.payload or {}).get("start") if best_context else None)
+        answer, kept, dropped, used_fallback = _enforce_citations(
+            answer, sorted_results, fallback_start=fallback_start
+        )
+        metrics.record_answer(kept, dropped, used_fallback)
+        print(
+            f"[Cite] {kept} citation(s) kept, {dropped} dropped"
+            + (", 1 fallback added" if used_fallback else "")
+        )
 
         print(answer)
 

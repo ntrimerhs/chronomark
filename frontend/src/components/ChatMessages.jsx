@@ -2,6 +2,7 @@ import Markdown from 'react-markdown';
 import useAutoScroll from '../hooks/useAutoScroll';
 import { User, Bot, Loader2 } from 'lucide-react';
 import { CircleX } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 import '../styles/chatmessages.css';
 
 const INLINE_TIMESTAMP_RE = /^(\d{1,2}):(\d{2})$/;
@@ -10,6 +11,19 @@ function parseTimestampToSeconds(text) {
   const match = INLINE_TIMESTAMP_RE.exec(text.trim());
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);
+}
+
+// Fire-and-forget: a citation click is the only signal that says the jump link
+// is actually used, but telemetry must never delay or break the seek itself.
+function reportCitationClick() {
+  try {
+    fetch(`${API_BASE_URL}/metrics/citation-click`, {
+      method: 'POST',
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* the seek still has to happen */
+  }
 }
 
 function ChatMessages({ messages, isLoading, onSeek }) {
@@ -37,7 +51,10 @@ function ChatMessages({ messages, isLoading, onSeek }) {
             type="button"
             className="chat-message-inline-timestamp"
             title={`Jump to ${text.trim()}`}
-            onClick={() => onSeek && onSeek(seconds)}
+            onClick={() => {
+              reportCitationClick();
+              if (onSeek) onSeek(seconds);
+            }}
           >
             {text.trim()}
           </button>
