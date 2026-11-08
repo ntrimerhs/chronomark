@@ -622,7 +622,14 @@ const Proxeiro = () => {
                                 </div>
                             )}
 
-                            <h2 className="upload-video-title">{file?.name ?? 'Uploaded video'}</h2>
+                            {/* Only show a heading when there is a real file
+                                name to show. The "Uploaded video" fallback
+                                appeared above the player after an upload that
+                                had no File object behind it, saying nothing the
+                                player did not already say. */}
+                            {file?.name && (
+                                <h2 className="upload-video-title">{file.name}</h2>
+                            )}
 
                             <div className={`video-stage${isPlaying ? ' video-stage-playing' : ''}`} onClick={togglePlay}>
                                 <div className='video-container'>
