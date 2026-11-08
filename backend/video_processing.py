@@ -1,8 +1,37 @@
 import re
 import math
+import subprocess
 import wave
+from functools import lru_cache
+
 import ffmpeg
 from pathlib import Path
+
+
+@lru_cache(maxsize=1)
+def _ffmpeg_major_version() -> int:
+    """Major version of the ffmpeg binary on PATH, or 0 when it cannot be read."""
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-version"], capture_output=True, text=True, timeout=15
+        )
+    except Exception:
+        return 0
+    match = re.search(r"ffmpeg version n?(\d+)\.", result.stdout or "")
+    return int(match.group(1)) if match else 0
+
+
+def _frame_timing_args() -> dict:
+    """Keep one output frame per surviving input frame, on any ffmpeg version.
+
+    `-vsync` was removed in FFmpeg 9 ("Unrecognized option 'vsync'"), which made
+    every frame extraction fail with ffmpeg 9.x and left the visual index empty.
+    `-fps_mode` replaces it from 5.1 onwards; older builds only know `-vsync`.
+    """
+    if _ffmpeg_major_version() >= 5:
+        return {"fps_mode": "vfr"}
+    return {"vsync": "vfr"}
+
 
 
 def _probe_duration_seconds(video_path: Path):
@@ -427,7 +456,7 @@ def extract_frames(
                 str(output_pattern),
                 vf=",".join(vf_parts),
                 format="image2",
-                vsync="vfr",
+                **_frame_timing_args(),
                 **{"q:v": max(2, min(int(quality), 31))},
                 start_number=1,
             )
@@ -471,4 +500,17 @@ def extract_frames(
         raise RuntimeError(f"Frame extraction failed: {e}") from e
     except ffmpeg.Error as e:
         stderr = e.stderr.decode(errors="replace") if e.stderr else str(e)
+        # Sampling a short clip at a long interval (a 10s video at fps=1/60)
+        # legitimately yields no frames, and ffmpeg surfaces that as an encoder
+        # failure: "Nothing was written into output file". That is an empty
+        # result, not a failure -- raising here failed the whole frame pass and
+        # threw away the frames that had already been extracted.
+        if "Nothing was written into output file" in stderr or "No filtered frames" in stderr:
+            existing = sorted(output_dir.glob("frame*.jpg")) if output_dir.exists() else []
+            if not existing:
+                print(
+                    f"No frames matched these extraction settings in {output_dir} "
+                    "(0 frames) -- interval too long for this video's duration"
+                )
+                return 0, {}
         raise RuntimeError(f"Frame extraction failed: {stderr}") from e

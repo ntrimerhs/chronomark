@@ -195,12 +195,16 @@ def _language_from_probe(data):
 
 def _probe_language(audio_path):
     """Transcribe one chunk with auto-detect on and report what language it looks like."""
+    # language=None on purpose: the whole point of the probe is to let Whisper
+    # auto-detect. It used to read an undefined `language` name here and raise
+    # NameError, which the caller logged as "language probe failed" and then fell
+    # back to per-chunk auto-detect -- i.e. the probe never ran.
     if _groq_client:
-        data = _transcribe_via_groq(audio_path, language)
+        data = _transcribe_via_groq(audio_path, None)
     elif _openai_client:
-        data = _transcribe_via_openai(audio_path)
+        data = _transcribe_via_openai(audio_path, None)
     else:
-        data = _transcribe_via_http(audio_path)
+        data = _transcribe_via_http(audio_path, None)
     return _language_from_probe(data)
 
 

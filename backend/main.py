@@ -1272,6 +1272,7 @@ def _add_concept_frames(
     frames_dir,
     lookahead_sec=2.0,
     coverage_interval_sec=20.0,
+    max_width=0,
 ):
     """Extract a still for each concept moment and add it to the manifest.
 
@@ -1299,7 +1300,7 @@ def _add_concept_frames(
                 extraction_mode="interval",
                 scene_threshold=0.12,
                 keyframes_only=False,
-                max_width=frame_max_width,
+                max_width=max_width,
                 # Dedupe off for coverage: two code slides share a layout and
                 # differ only in a few lines, so an 8x8 perceptual hash calls
                 # them identical and drops the very frame that names the
@@ -1513,14 +1514,37 @@ def _ocr_frames(frames_dir, video_id, stamps=None, workers=10):
     return len(ocr_segments)
 
 
-def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0):
+def _fallback_frame_interval(video_path, ceiling=60.0, minimum=2.0, target_frames=8):
+    """Sampling interval for the "nothing was announced" fallback pass.
+
+    A fixed 60s is right for an hour-long lecture and wrong for a short clip:
+    on a 10s video fps=1/60 selects nothing, ffmpeg exits with "Nothing was
+    written into output file", and the frame pass aborted with no visual index
+    at all. Scaling to the duration keeps the ceiling for long videos and still
+    produces frames for short ones.
+    """
+    try:
+        from video_processing import _probe_duration_seconds
+
+        duration = _probe_duration_seconds(video_path)
+    except Exception:
+        duration = None
+
+    if not duration or duration <= 0:
+        return ceiling
+    return max(minimum, min(ceiling, float(duration) / target_frames))
+
+
+def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0, max_width=0):
     """Add frames chosen from the transcript, then index everything in the dir.
 
     Used by both orderings: in audio-first mode base_count is 0 and these are
     the only frames; in the parallel mode they supplement the scene pass.
     """
     try:
-        added = _add_concept_frames(video_path, transcript, frames_dir)
+        added = _add_concept_frames(
+            video_path, transcript, frames_dir, max_width=max_width
+        )
 
         if added == 0 and not base_count:
             # Nothing was announced: no speech at all, or a language this
@@ -1530,11 +1554,11 @@ def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0):
             count, stamps = extract_frames(
                 video_path,
                 Path(frames_dir),
-                interval_seconds=60.0,
+                interval_seconds=_fallback_frame_interval(video_path),
                 extraction_mode="interval",
                 scene_threshold=0.12,
                 keyframes_only=False,
-                max_width=frame_max_width,
+                max_width=max_width,
             )
             entries = [
                 {"file": name, "t": float(moment)}
@@ -1715,7 +1739,8 @@ def _process_upload_job(
                     print(f"[Frames] visual pass failed: {visual_error}")
 
             frame_count = _sync_concept_frames(
-                video_path, transcript_for_json, output_frames_dir
+                video_path, transcript_for_json, output_frames_dir,
+                max_width=frame_max_width,
             )
         else:
             with ThreadPoolExecutor(max_workers=2) as pool:
@@ -1726,7 +1751,8 @@ def _process_upload_job(
                 frame_count = frame_future.result()
 
             frame_count = _sync_concept_frames(
-                video_path, transcript_for_json, output_frames_dir, base_count=frame_count
+                video_path, transcript_for_json, output_frames_dir,
+                base_count=frame_count, max_width=frame_max_width,
             )
             try:
                 _ocr_frames(output_frames_dir, video_path.stem)
