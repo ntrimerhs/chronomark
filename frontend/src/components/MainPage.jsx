@@ -3,7 +3,6 @@ import Footer from './Footer.jsx'
 import ParticlesBackground from './ParticlesBackground.jsx';
 import HeroOrbit from './HeroOrbit.jsx';
 import HowItWorks from './HowItWorks.jsx';
-import AboutUs from './AboutUs.jsx';
 import ChronoMarkLogo from '../icons/ChronoMarkLogo.jsx';
 import '../styles/hero-split.css';
 import { Fragment, useEffect, useRef, useState } from 'react';
@@ -515,7 +514,6 @@ function MainPage() {
 
       <HowItWorks />
 
-      <AboutUs />
     </div>
   )
 }

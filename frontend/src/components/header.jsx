@@ -8,7 +8,6 @@ import CommandPalette from './CommandPalette';
 
 const NAV_LINKS = [
   { href: '/#features', label: '01 Discover' },
-  { href: '/#about', label: '02 About' },
 ];
 
 export default function Header() {

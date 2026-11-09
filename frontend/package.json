@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-three/fiber": "^9.7.0",
     "@tailwindcss/vite": "^4.2.2",
     "@tsparticles/react": "^4.4.0",
     "@tsparticles/slim": "^4.4.0",
@@ -25,7 +24,6 @@
     "tailwind": "^4.0.0",
     "tailwindcss": "^4.2.2",
     "theatre": "^0.2.3",
-    "three": "^0.185.1",
     "use-immer": "^0.11.0",
     "video.js": "^8.23.7"
   },

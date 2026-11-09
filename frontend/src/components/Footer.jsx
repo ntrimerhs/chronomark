@@ -29,7 +29,7 @@ const Footer = () => {
             <div className='footer-column'>
               <h4>Explore</h4>
               <a href='#features'>Features</a>
-              <a href='#about'>About Us</a>
+              
               <a href='#get-started'>Get Started</a>
             </div>
             <div className='footer-column'>
