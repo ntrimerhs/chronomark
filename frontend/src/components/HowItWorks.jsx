@@ -91,12 +91,17 @@ export default function HowItWorks() {
     check()
     scroller?.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('scroll', onScroll, { passive: true })
+    // an in-page anchor jump does not always raise a scroll event on #root
+    window.addEventListener('hashchange', onScroll)
+    const ticks = [80, 260, 700, 1400].map((ms) => window.setTimeout(check, ms))
 
     /* Nothing may be left invisible if something upstream swallows the events. */
     const guard = window.setTimeout(reveal, 6000)
 
     return () => {
       window.clearTimeout(guard)
+      ticks.forEach(window.clearTimeout)
+      window.removeEventListener('hashchange', onScroll)
       scroller?.removeEventListener('scroll', onScroll)
       window.removeEventListener('scroll', onScroll)
     }
