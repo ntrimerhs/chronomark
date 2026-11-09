@@ -1,5 +1,6 @@
 import "../styles/footer.css"
-import { Play, Aperture } from 'lucide-react';
+import { Aperture } from 'lucide-react';
+import ChronoMarkLogo from '../icons/ChronoMarkLogo.jsx';
 
 const Footer = () => {
   return (
@@ -8,11 +9,9 @@ const Footer = () => {
         <div className='footer-up'>
           <div className='footer-brand'>
             <a href='/' className='footer-logo-link'>
-              <div className='footer-logo-square'>
-                <Play className='footer-logo-svg' />
-              </div>
+              <ChronoMarkLogo className='footer-logo-mark' height={44} decorative />
               <div>
-                <span className='footer-logo-label'>Ctrl + Vid</span>
+                <ChronoMarkLogo variant='wordmark' className='footer-logo-word' height={17} />
                 <p className='footer-tagline'>Make video insight feel effortless for every team.</p>
               </div>
             </a>
@@ -43,7 +42,7 @@ const Footer = () => {
         </div>
 
         <div className='footer-down'>
-          <p className='footer-bottom-text'>© 2026 Ctrl + Vid. All rights reserved.</p>
+          <p className='footer-bottom-text'>© 2026 ChronoMark. All rights reserved.</p>
           <div className='footer-legal-links'>
             <a className='footer-legal-link' href='#'>Privacy</a>
             <a className='footer-legal-link' href='#'>Terms</a>

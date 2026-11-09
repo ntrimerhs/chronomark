@@ -166,6 +166,47 @@
   flex: none;
 }
 
+/* ── Logo pop ──
+   A short overshoot: the mark lifts and grows a little, the wordmark follows by
+   a hair so the pair reads as one object. 180ms with an ease-out-quart curve, so
+   it settles rather than wobbles. */
+.logo-mark,
+.logo-word {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), filter 0.18s ease;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.logo-link:hover .logo-mark,
+.logo-link:focus-visible .logo-mark {
+  transform: translateY(-2px) scale(1.12);
+  filter: drop-shadow(0 8px 16px rgba(255, 59, 167, 0.35));
+}
+
+.logo-link:hover .logo-word,
+.logo-link:focus-visible .logo-word {
+  transform: translateX(1px) scale(1.03);
+}
+
+.logo-link:active .logo-mark {
+  transform: translateY(-1px) scale(1.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-mark,
+  .logo-word {
+    transition: none;
+  }
+
+  .logo-link:hover .logo-mark,
+  .logo-link:focus-visible .logo-mark,
+  .logo-link:hover .logo-word,
+  .logo-link:focus-visible .logo-word,
+  .logo-link:active .logo-mark {
+    transform: none;
+  }
+}
+
 @media (max-width: 720px) {
   .nav-link {
     display: none;
@@ -173,5 +214,47 @@
 
   .cell-search span {
     display: none;
+  }
+}
+
+/* ── Reference pass: spaced uppercase identity ──
+   The supplied wordmark PNG is replaced by live text so it can carry the wide
+   tracking the reference uses, and so it stays selectable. */
+.logo-name {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #F5F5F8;
+}
+
+.nav-link {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 10.5px;
+}
+
+.cta {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 10.5px;
+  color: #F42FA7;
+}
+
+.cta:hover {
+  color: #FF6BC4;
+}
+
+.cell-search span {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 10.5px;
+}
+
+@media (max-width: 760px) {
+  .logo-name {
+    font-size: 13px;
+    letter-spacing: 0.16em;
   }
 }

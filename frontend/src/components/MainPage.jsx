@@ -1,25 +1,15 @@
 import Header from './header.jsx'
 import Footer from './Footer.jsx'
 import ParticlesBackground from './ParticlesBackground.jsx';
+import HeroOrbit from './HeroOrbit.jsx';
+import HowItWorks from './HowItWorks.jsx';
+import ChronoMarkLogo from '../icons/ChronoMarkLogo.jsx';
+import '../styles/hero-split.css';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from "react-router-dom";
 
-// ASCII brand mark for the hero. Kept as JS constants rather than inline JSX
-// text because JSX strips the per-line indentation that makes the art line up
-// inside <pre>. Wide variant for desktop, compact badge for narrow screens.
-const HERO_ASCII_WIDE = [
-  '  ____   _____   ____    _                    __     __  ___   ____',
-  ' / ___| |_   _| |  _ \\  | |           |       \\ \\   / / |_ _| |  _ \\',
-  '| |       | |   | |_) | | |          -+-       \\ \\ / /   | |  | | | |',
-  '| |___    | |   |  _ <  | |___        |         \\ V /    | |  | |_| |',
-  ' \\____|   |_|   |_| \\_\\ |_____|                  \\_/    |___| |____/',
-].join('\n');
-
-const HERO_ASCII_COMPACT = [
-  '+---------------+',
-  '|  >  CTRL+VID  |',
-  '+---------------+',
-].join('\n');
+// The hero carries the supplied ChronoMark lockup instead of the old ASCII
+// rendering of the previous name.
 
 const ABOUT_QUESTIONS = [
   {
@@ -92,7 +82,7 @@ function AboutAnswer({ item }) {
     <div className="prompt-card">
       <div className="prompt-bar">
         <span className="prompt-dot" />
-        <span className="prompt-label">about — ctrl+vid</span>
+        <span className="prompt-label">about — chronomark</span>
       </div>
 
       <div className="prompt-body">
@@ -443,7 +433,7 @@ function MainPage() {
     return () => cancelAnimationFrame(rafId);
   }, []);
 
-  const typeText = 'Ctrl + Vid transforms how you understand visual content. Discover patterns, extract meaning and unlock insights from video data like never before.';
+  const typeText = 'ChronoMark transforms how you understand visual content. Discover patterns, extract meaning and unlock insights from video data like never before.';
 
   useEffect(() => {
     const el = typeRef.current;
@@ -518,123 +508,11 @@ function MainPage() {
         <div className="page-stepper-node psn-3" />
       </div>
       <main className="main-hero" ref={heroRef} onMouseMove={handleHeroMouseMove}>
-        <div className="hero-mesh" aria-hidden="true">
-          <span className="mesh-blob mesh-blob-1" />
-          <span className="mesh-blob mesh-blob-2" />
-          <span className="mesh-blob mesh-blob-3" />
-          <span className="mesh-blob mesh-blob-4" />
-        </div>
-        {/* The hero carried no field of its own — the particles visible just
-            below the fold belong to Discover. This one flows on a single axis,
-            so it reads as footage passing rather than as drifting dots. */}
-        <ParticlesBackground id="hero-particles" flow />
-        <div className={`hero-scrubber${tsReady ? ' hero-scrubber-active' : ''}`}>
-          <div className="hero-scrubber-labels">
-            {scrubTicks.map(({ label, pct }) => (
-              <span key={label} className="hero-scrubber-label" style={{ left: `${pct}%` }}>{label}</span>
-            ))}
-          </div>
-          <div ref={trackRef} className="hero-scrubber-track">
-            <div ref={scrubFillRef} className="hero-scrubber-fill" />
-            <div ref={playheadRef} className="hero-scrubber-playhead">
-              <div className="hero-ts-badge">
-                <span ref={labelRef} className="hero-ts-label">0:00</span>
-              </div>
-              <div className="hero-scrubber-dot" />
-            </div>
-          </div>
-        </div>
-        <section className="hero-panel">
-          <div className="hero-copy">
-            <pre className="hero-ascii hero-ascii-wide" role="img" aria-label="Ctrl + Vid">{HERO_ASCII_WIDE}</pre>
-            <pre className="hero-ascii hero-ascii-compact" role="img" aria-label="Ctrl + Vid">{HERO_ASCII_COMPACT}</pre>
-            <h1>
-              See what video<br />
-              analysis <span className="hero-gradient">can</span><br />
-              <span className={`hero-gradient hero-word${wordVisible ? '' : ' hero-word-out'}`}>
-                {heroWords[wordIdx]}
-              </span>
-            </h1>
-            <p>
-              <span ref={typeRef} /><span ref={cursorRef} className="type-cursor">|</span>
-            </p>
-            <div className="hero-actions">
-              <a className="btn btn-primary" href="/upload" onClick={navToUpload}>Try Now</a>
-              <a className="btn btn-secondary" href="#features">Learn</a>
-            </div>
-          </div>
-        </section>
+        {/* The hero carries its own backdrop (washes + grid) inside HeroOrbit. */}
+        <HeroOrbit />
       </main>
 
-      <section id="features" className="discover-section">
-        <ParticlesBackground id="features-particles" />
-        <div className="discover-inner">
-          <ChapterHead
-            text="Ask the video anything"
-            accentFrom={3}
-            scrubber={false}
-            lede="Ctrl + Vid turns a recording into something you can question. Every answer points back at the second it came from."
-          />
-
-          <div className="cue-track reveal reveal-delay-1">
-            <div className="cue-rail" aria-hidden="true" />
-            <ol className="cue-list">
-              <li className="cue">
-                <span className="cue-time">00:41</span>
-                <span className="cue-node" />
-                <h3 className="cue-title">Ask in plain language</h3>
-                <p className="cue-copy">No keywords, no timestamps, no scrubber.</p>
-                <div className="cue-art cue-art-console">
-                  <span className="cue-prompt">&gt;</span>
-                  <span className="cue-query">where does she define recursion?</span>
-                </div>
-              </li>
-
-              <li className="cue">
-                <span className="cue-time">12:41</span>
-                <span className="cue-node" />
-                <h3 className="cue-title">Answers cite their second</h3>
-                <p className="cue-copy">Grounded in the transcript and tagged with the moment it used.</p>
-                <div className="cue-art">
-                  <span className="cue-chip">12:41</span>
-                  <span className="cue-chip">48:52</span>
-                </div>
-              </li>
-
-              <li className="cue">
-                <span className="cue-time">31:20</span>
-                <span className="cue-node" />
-                <h3 className="cue-title">Greek and English, mixed</h3>
-                <p className="cue-copy">One multilingual index, so a mid-sentence switch still gets found.</p>
-                <div className="cue-art">
-                  <span className="cue-tag">Ελληνικά</span>
-                  <span className="cue-tag">English</span>
-                </div>
-              </li>
-
-              <li className="cue">
-                <span className="cue-time">48:52</span>
-                <span className="cue-node" />
-                <h3 className="cue-title">Code and diagrams come back whole</h3>
-                <p className="cue-copy">A coding answer returns the block; a data-structure answer returns a diagram.</p>
-                <div className="cue-art">
-                  <span className="cue-code">fib(n - 1) + fib(n - 2)</span>
-                </div>
-              </li>
-
-              <li className="cue">
-                <span className="cue-time">1:12:04</span>
-                <span className="cue-node" />
-                <h3 className="cue-title">Frames, not only words</h3>
-                <p className="cue-copy">Keyframes are embedded too, so a visual moment stays findable.</p>
-                <div className="cue-art cue-art-frames">
-                  <span /><span /><span /><span /><span />
-                </div>
-              </li>
-            </ol>
-          </div>
-        </div>
-      </section>
+      <HowItWorks />
 
       <section id="about" className="about-section">
         <ParticlesBackground id="about-particles" />

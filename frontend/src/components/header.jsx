@@ -1,20 +1,21 @@
 import '../styles/header.css';
-import { ArrowUpRight, Play } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import CommandPalette from './CommandPalette';
 
+/* The navigation, to the hero reference: the mark stays the supplied artwork,
+   the name is set as spaced uppercase type beside it, and the sections are
+   divided by hairlines rather than boxes. */
+
 const NAV_LINKS = [
-  { href: '/#features', label: '01 discover' },
-  { href: '/#about', label: '02 about' },
+  { href: '/#features', label: '01 Discover' },
+  { href: '/#about', label: '02 About' },
 ];
 
 export default function Header() {
   return (
     <header className="main-header">
       <a href="/" className="logo-link">
-        <div className="logo-icon">
-          <Play className="logo-icon-svg" />
-        </div>
-        <span className="logo-label">Ctrl + Vid</span>
+        <span className="logo-name">ChronoMark</span>
       </a>
 
       {NAV_LINKS.map((link) => (

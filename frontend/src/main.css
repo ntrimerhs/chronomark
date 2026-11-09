@@ -1223,3 +1223,38 @@
     animation: none;
   }
 }
+
+/* ── ChronoMark logo sizing ──
+   Sizing only: the rename does not touch layout, palette or typography. */
+.hero-lockup-logo {
+  display: block;
+  height: clamp(96px, 12vw, 150px);
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.logo-mark {
+  height: 40px;
+  width: auto;
+  flex: none;
+}
+
+.logo-word {
+  height: 15px;
+  width: auto;
+  flex: none;
+}
+
+.footer-logo-mark {
+  height: 44px;
+  width: auto;
+  flex: none;
+}
+
+.footer-logo-word {
+  display: block;
+  height: 17px;
+  width: auto;
+  margin-bottom: 6px;
+}

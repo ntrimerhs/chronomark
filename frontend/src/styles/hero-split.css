@@ -1,0 +1,607 @@
+/* Centred editorial hero: one column, text and actions on the middle axis. */
+
+.hero-split {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  align-items: center;
+  text-align: center;
+  justify-items: center;
+}
+
+/* ── Left: editorial ── */
+
+.hero-editorial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 0;
+}
+
+
+.hero-editorial h1 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(52px, 6vw, 104px);
+  font-weight: 620;
+  letter-spacing: -0.07em;
+  line-height: 1.03;
+  color: #F8F8FB;
+  max-width: 100%;
+}
+
+.hero-editorial h1 em {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.08em;
+  color: #FB5DB5;
+}
+
+/* "moment." carries the brand gradient. The solid colour above is the fallback:
+   the gradient only applies where background-clip: text exists, so a browser
+   without it still shows pink text instead of nothing. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .hero-editorial h1 em {
+    background-image: linear-gradient(96deg, #FF3BA7 0%, #FF6BBF 38%, #8B4DFF 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    /* the gradient sits a touch brighter than the flat pink, so it keeps a
+       faint bloom rather than reading as a printed swatch */
+    filter: drop-shadow(0 6px 26px rgba(255, 59, 167, 0.22));
+  }
+}
+
+.he-lede {
+  max-width: 560px;
+  margin: 28px auto 0;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #B4B6C7;
+}
+
+.he-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 32px;
+}
+
+.he-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 6px 6px 6px 22px;
+  border-radius: 999px;
+  background: #F8F8FB;
+  color: #12040C;
+  font-size: 13.5px;
+  font-weight: 620;
+  text-decoration: none;
+  box-shadow: 0 20px 40px -22px rgba(0, 0, 0, 0.9);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.he-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 26px 46px -22px rgba(0, 0, 0, 0.95);
+}
+
+.he-arrow {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #FF3BA7;
+  color: #12040C;
+  flex: none;
+}
+
+.he-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(248, 248, 251, 0.86);
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.he-ghost:hover {
+  color: #F8F8FB;
+}
+
+.he-play {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(248, 248, 251, 0.34);
+  flex: none;
+}
+
+
+/* ── Right: the dial, open on the page ──
+   No card, no border, no toolbar, no uppercase micro-labels: the stage is the
+   hero background itself, so this reads as one editorial composition rather
+   than a dashboard widget dropped in. */
+
+/* ── Right: the transcript reel ──
+   No card, no toolbar, no uppercase micro-labels. The lecture is type: lines
+   scroll through a masked window and the answering line locks. */
+
+/* ── Right: the lecture as audio ──
+   The waveform is the interface: it breathes while it plays, you can drag it to
+   scrub, and the second the answer came from is marked on the track itself. No
+   card, no chart, no dial, no labels. */
+
+.preview-panel {
+  width: 100%;
+  max-width: 500px;
+  justify-self: end;
+  min-width: 0;
+}
+
+.sq-question {
+  margin: 0 0 18px;
+  font-size: clamp(19px, 1.6vw, 23px);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: rgba(248, 248, 251, 0.92);
+}
+
+.sq-now {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sq-stamp {
+  display: inline-block;
+  font-size: clamp(34px, 3.4vw, 46px);
+  font-weight: 620;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: #FF5FB8;
+  opacity: 0.4;
+  transform: scale(0.94);
+  transform-origin: left center;
+  transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The end state is the default once the mark is reached, so nothing can leave
+   the time or the answer invisible. */
+.sq-stamp.is-on {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sq-of {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: rgba(248, 248, 251, 0.34);
+}
+
+/* ── The track ── */
+
+.sq-wave {
+  position: relative;
+  height: 148px;
+  margin: 10px 0 0;
+  cursor: ew-resize;
+  touch-action: none;
+  display: flex;
+  align-items: flex-end;
+}
+
+.sq-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.sq-bar {
+  flex: 1 1 0;
+  min-width: 1px;
+  border-radius: 999px;
+  background: rgba(248, 248, 251, 0.16);
+  transform-origin: center;
+  transition: background 0.3s ease;
+}
+
+.sq-bar.is-played {
+  background: linear-gradient(180deg, #FF5FB8, #8B4DFF);
+}
+
+.sq-mark {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: rgba(248, 248, 251, 0.55);
+  pointer-events: none;
+  transition: left 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sq-mark::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -2.5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #F8F8FB;
+}
+
+/* The playhead. */
+.sq-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #F8F8FB;
+  box-shadow: 0 0 18px rgba(255, 59, 167, 0.55);
+  pointer-events: none;
+  transition: left 0.1s linear;
+}
+
+.sq-wave.is-locked .sq-head {
+  background: #FF5FB8;
+}
+
+.sq-wave:focus-visible {
+  outline: 2px solid #FF3BA7;
+  outline-offset: 6px;
+  border-radius: 8px;
+}
+
+/* ── The answer it found ── */
+
+.sq-answer {
+  min-height: 52px;
+  margin-top: 18px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sq-answer.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+.sq-answer p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(248, 248, 251, 0.66);
+}
+
+/* ── The asks ── */
+
+.sq-asks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 22px;
+}
+
+.sq-ask {
+  border: 0;
+  background: none;
+  padding: 0 0 2px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: rgba(248, 248, 251, 0.45);
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.sq-ask:hover {
+  color: rgba(248, 248, 251, 0.85);
+}
+
+.sq-ask[aria-pressed='true'] {
+  color: #FF9BD0;
+  border-bottom-color: #FF5FB8;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 1080px) {
+  .hero-split {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 0.9fr);
+    gap: 3vw;
+  }
+
+  .hero-editorial h1 {
+    font-size: clamp(44px, 5.4vw, 72px);
+  }
+}
+
+@media (max-width: 900px) {
+  .hero-split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 44px;
+    max-width: 720px;
+    text-align: center;
+    justify-items: center;
+  }
+
+  .preview-panel {
+    justify-self: stretch;
+    max-width: 100%;
+  }
+
+  .hero-editorial h1 {
+    font-size: clamp(40px, 7.4vw, 58px);
+  }
+}
+
+@media (max-width: 560px) {
+  .hero-editorial h1 {
+    font-size: clamp(36px, 10.4vw, 48px);
+    letter-spacing: -0.055em;
+  }
+
+  .he-lede {
+    font-size: 14.5px;
+  }
+
+  .sq-wave {
+    height: 110px;
+  }
+
+  .sq-bars {
+    gap: 2px;
+  }
+}
+
+@media (max-width: 560px) {
+  .flow {
+    margin-top: 40px;
+  }
+
+  .flow-label {
+    font-size: 9.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sq-stamp,
+  .sq-answer,
+  .sq-mark,
+  .sq-head,
+  .sq-bar {
+    transition: none;
+  }
+
+  .he-primary {
+    transition: none;
+  }
+}
+
+/* ── The pipeline, in miniature ──
+   Fills the space under the CTAs with the whole story: upload, transcribe,
+   index, ask, and the moment it returns. Every stage is visible by default, so
+   a blocked animation still leaves a complete diagram. */
+
+.flow {
+  position: relative;
+  margin-top: 54px;
+  width: 100%;
+  max-width: 470px;
+}
+
+.flow-rail {
+  position: relative;
+  height: 1px;
+  background: rgba(248, 248, 251, 0.12);
+  overflow: hidden;
+}
+
+.flow-rail span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #7A3CFF, #FF3BA7);
+  transform-origin: left center;
+}
+
+.flow-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: -14px;
+}
+
+.flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-right: 8px;
+}
+
+.flow-glyph {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #0F1424;
+  border: 1px solid rgba(248, 248, 251, 0.16);
+  color: rgba(248, 248, 251, 0.85);
+}
+
+.flow-glyph svg {
+  width: 16px;
+  height: 16px;
+}
+
+.flow-label {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: rgba(248, 248, 251, 0.45);
+}
+
+.flow-out {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+}
+
+.flow-stamp {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #FF5FB8;
+  border-bottom: 1px solid rgba(255, 95, 184, 0.45);
+  padding-bottom: 2px;
+}
+
+.flow-answer {
+  margin: 0;
+  flex: 1 1 240px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: rgba(248, 248, 251, 0.45);
+}
+
+@media (max-width: 900px) {
+  .analysis-section {
+    padding: 4px 4% 72px;
+  }
+}
+
+/* ── The animated backdrop ──
+   Two slow aurora blobs under the particles: the hero is never a flat plate, but
+   nothing in it competes with the type. */
+.hero-aurora {
+  position: absolute;
+  inset: -12%;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.aurora {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.55;
+}
+
+.aurora-a {
+  width: 56vw;
+  height: 56vw;
+  left: -12%;
+  top: -18%;
+  background: radial-gradient(circle, rgba(255, 59, 167, 0.34) 0%, rgba(255, 59, 167, 0) 66%);
+  animation: aurora-drift 34s ease-in-out infinite;
+}
+
+.aurora-b {
+  width: 50vw;
+  height: 50vw;
+  right: -10%;
+  bottom: -20%;
+  background: radial-gradient(circle, rgba(139, 77, 255, 0.32) 0%, rgba(139, 77, 255, 0) 66%);
+  animation: aurora-drift 46s ease-in-out infinite reverse;
+}
+
+@keyframes aurora-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(4%, -3%, 0) scale(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-mark,
+  .aurora {
+    animation: none;
+  }
+
+  .hero-mark {
+    opacity: 1;
+  }
+}
+
+/* The grid is what makes the hero feel designed rather than empty: a fine mesh
+   that is only visible where the beam passes, so the background has structure
+   without a figure drawn in it. */
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(248, 248, 251, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(248, 248, 251, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(72% 78% at 50% 44%, #000 18%, transparent 88%);
+  mask-image: radial-gradient(72% 78% at 50% 44%, #000 18%, transparent 88%);
+}
+
+/* One very large, very slow cone of light crossing the grid. */
+.hero-beam {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 140vmax;
+  height: 140vmax;
+  margin: -70vmax 0 0 -70vmax;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 59, 167, 0) 0deg,
+    rgba(255, 59, 167, 0.14) 40deg,
+    rgba(139, 77, 255, 0.1) 90deg,
+    rgba(255, 59, 167, 0) 150deg,
+    rgba(255, 59, 167, 0) 360deg
+  );
+  filter: blur(46px);
+  opacity: 0.55;
+  animation: beam-turn 64s linear infinite;
+}
+
+@keyframes beam-turn {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-beam {
+    animation: none;
+  }
+}
+
+/* The hero must be full bleed and free of the old scrubber padding, or it reads
+   as a plate sitting inside the page. Two classes so it beats main.css. */
+.main-hero.main-hero {
+  padding: 0;
+  justify-content: center;
+  align-items: stretch;
+  background: transparent;
+  min-height: 0;
+}
