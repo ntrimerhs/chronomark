@@ -1,0 +1,479 @@
+/* About us.
+
+   Shares the hero's plate, grid and glow, but its own picture: three light
+   trails meeting at one bracketed point. */
+
+.au {
+  position: relative;
+  width: 100%;
+  padding: 96px 5.2% 110px;
+  overflow: hidden;
+  isolation: isolate;
+  background: #0A121C;
+}
+
+/* ── backdrop ── */
+
+.au-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(245, 245, 248, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(245, 245, 248, 0.045) 1px, transparent 1px);
+  background-size: 96px 96px;
+  -webkit-mask-image: radial-gradient(82% 88% at 50% 46%, #000 20%, transparent 92%);
+  mask-image: radial-gradient(82% 88% at 50% 46%, #000 20%, transparent 92%);
+}
+
+.au-blobs {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+}
+
+.au-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: au-drift 34s ease-in-out infinite;
+}
+
+.au-blob-a {
+  width: 42vw;
+  height: 42vw;
+  left: 2%;
+  top: 18%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.42) 0%, rgba(168, 85, 247, 0) 70%);
+}
+
+.au-blob-b {
+  width: 40vw;
+  height: 40vw;
+  right: 0%;
+  bottom: 6%;
+  background: radial-gradient(circle, rgba(244, 47, 167, 0.34) 0%, rgba(244, 47, 167, 0) 70%);
+  animation-delay: -12s;
+}
+
+@keyframes au-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(2%, -3%, 0) scale(1.06); }
+}
+
+/* the small precision marks in the corners */
+.au-cross {
+  position: absolute;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, rgba(245, 245, 248, 0.45) 8px, transparent 8px) center / 100% 1px no-repeat,
+    linear-gradient(to bottom, rgba(245, 245, 248, 0.45) 8px, transparent 8px) center / 1px 100% no-repeat;
+}
+
+.au-cross-tl { top: 46px; left: 3.4%; }
+.au-cross-tr { top: 46px; right: 3.4%; }
+.au-cross-bl { bottom: 46px; left: 3.4%; }
+.au-cross-br { bottom: 46px; right: 3.4%; }
+
+/* ── reveal ── */
+
+.au-content {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 0 auto;
+  opacity: 0;
+  transform: translateY(40px);
+  transition:
+    opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.au.is-inview .au-content {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── heading ── */
+
+.au-head {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.au-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 0 0 24px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.45);
+}
+
+.au-dash {
+  width: 34px;
+  height: 1px;
+  background: rgba(245, 245, 248, 0.28);
+}
+
+.au-title {
+  margin: 0;
+  font-size: clamp(30px, 4.4vw, 62px);
+  font-weight: 500;
+  letter-spacing: 0.26em;
+  text-indent: 0.26em;
+  text-transform: uppercase;
+  color: #F5F5F8;
+}
+
+.au-sub {
+  margin: 20px 0 0;
+  font-size: clamp(13px, 1.3vw, 18px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.72);
+}
+
+.au-sub em {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  background-image: linear-gradient(96deg, #F42FA7 0%, #C25BF5 55%, #A855F7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── body ── */
+
+.au-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 400px) minmax(0, 1fr);
+  gap: clamp(28px, 3vw, 56px);
+  align-items: center;
+}
+
+.au-ideas {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  display: grid;
+  gap: 34px;
+}
+
+.au-rail {
+  position: absolute;
+  left: 9px;
+  top: 30px;
+  bottom: 30px;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(244, 47, 167, 0.5) 0%,
+    rgba(168, 85, 247, 0.4) 100%
+  );
+}
+
+.au-idea {
+  position: relative;
+  padding-left: 40px;
+}
+
+.au-node {
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #0A121C;
+  border: 1px solid rgba(245, 245, 248, 0.4);
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.au-idea.is-active .au-node {
+  background: #F42FA7;
+  border-color: #F42FA7;
+  box-shadow: 0 0 0 5px rgba(244, 47, 167, 0.16), 0 0 20px rgba(244, 47, 167, 0.75);
+}
+
+.au-idea-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.au-idea-btn:focus-visible {
+  outline: 2px solid #F42FA7;
+  outline-offset: 4px;
+}
+
+.au-idea-title {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.55);
+  transition: color 0.3s ease;
+}
+
+.au-idea.is-active .au-idea-title {
+  color: #F5F5F8;
+}
+
+.au-idea-copy {
+  display: block;
+  max-width: 280px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  line-height: 1.9;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.38);
+  transition: color 0.3s ease;
+}
+
+.au-idea.is-active .au-idea-copy {
+  color: rgba(245, 245, 248, 0.6);
+}
+
+/* ── the convergence diagram ── */
+
+.au-visual {
+  position: relative;
+  min-width: 0;
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+}
+
+.au-svg {
+  display: block;
+  width: 100%;
+  /* An SVG with height:auto inside a centred grid item collapses to zero in
+     some layouts; the aspect-ratio keeps its box definite. */
+  aspect-ratio: 760 / 420;
+  height: auto;
+  overflow: visible;
+}
+
+.au-halo {
+  opacity: 0.9;
+  animation: au-fade-in 900ms ease 700ms both;
+}
+
+@keyframes au-fade-in {
+  from { opacity: 0; }
+  to { opacity: 0.9; }
+}
+
+.au-trail {
+  fill: none;
+  stroke: #F42FA7;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0.5;
+  /* The drawn state is the default, so the diagram is never invisible: the
+     reveal only runs on top of it. */
+  stroke-dasharray: 620;
+  stroke-dashoffset: 0;
+  transition: opacity 400ms ease, stroke-width 400ms ease;
+}
+
+.au.is-inview .au-trail {
+  animation: au-draw 1200ms cubic-bezier(0.65, 0, 0.35, 1) var(--delay, 0ms) both;
+}
+
+.au-trail-glow {
+  fill: none;
+  stroke: #F42FA7;
+  stroke-width: 6;
+  stroke-linecap: round;
+  opacity: 0.14;
+  stroke-dasharray: 620;
+  stroke-dashoffset: 0;
+}
+
+.au.is-inview .au-trail-glow {
+  animation: au-draw 1200ms cubic-bezier(0.65, 0, 0.35, 1) var(--delay, 0ms) both;
+}
+
+@keyframes au-draw {
+  from { stroke-dashoffset: 620; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* the second and third trails are violet rather than pink */
+.au-trail-group:nth-of-type(2) .au-trail {
+  stroke: #A855F7;
+}
+
+.au-trail-group:nth-of-type(2) .au-trail-glow {
+  stroke: #A855F7;
+}
+
+/* the active idea lights its own trail */
+.au-trail-group.is-active .au-trail {
+  opacity: 1;
+  stroke-width: 2.4;
+}
+
+.au-trail-group.is-active .au-trail-glow {
+  opacity: 0.24;
+}
+
+.au-beam {
+  fill: none;
+  stroke: #F42FA7;
+  stroke-width: 1.4;
+  opacity: 0.75;
+}
+
+.au-target {
+  opacity: 1;
+}
+
+.au.is-inview .au-halo,
+.au.is-inview .au-target {
+  animation: au-fade-in 700ms ease 700ms both;
+}
+
+.au-dot {
+  fill: #F42FA7;
+  filter: drop-shadow(0 0 18px rgba(244, 47, 167, 0.95));
+}
+
+.au-dot-core {
+  fill: #FFF0F8;
+}
+
+.au-brackets path {
+  fill: none;
+  stroke: rgba(245, 245, 248, 0.45);
+  stroke-width: 1.1;
+}
+
+.au.is-inview .au.is-inview .au-halo,
+.au.is-inview .au-target {
+  animation: au-fade-in 700ms ease 700ms both;
+}
+
+.au-dot {
+  animation: au-pulse 2600ms ease-out 1600ms 1;
+}
+
+@keyframes au-pulse {
+  0% { filter: drop-shadow(0 0 18px rgba(244, 47, 167, 0.95)); }
+  40% { filter: drop-shadow(0 0 34px rgba(244, 47, 167, 1)); }
+  100% { filter: drop-shadow(0 0 18px rgba(244, 47, 167, 0.95)); }
+}
+
+/* ── responsive ── */
+
+@media (max-width: 900px) {
+  .au {
+    padding: 68px 5% 78px;
+  }
+
+  .au-head {
+    margin-bottom: 44px;
+  }
+
+  .au-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 42px;
+  }
+
+  .au-visual {
+    order: 2;
+  }
+
+  .au-title {
+    letter-spacing: 0.18em;
+    text-indent: 0.18em;
+  }
+
+  .au-sub {
+    letter-spacing: 0.1em;
+  }
+
+  .au-cross {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .au-content {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  /* the draw and fade animations must be off, not just their transitions */
+  .au.is-inview .au-trail,
+  .au.is-inview .au-trail-glow,
+  .au.is-inview .au-halo,
+  .au.is-inview .au-target {
+    animation: none;
+  }
+
+  .au-trail,
+  .au-trail-glow {
+    stroke-dashoffset: 0;
+  }
+
+  .au-halo {
+    opacity: 0.9;
+  }
+
+  .au-target {
+    opacity: 1;
+  }
+
+  .au-trail,
+  .au-trail-glow {
+    transition: none;
+    stroke-dashoffset: 0;
+  }
+
+  .au-halo,
+  .au-target,
+  .au-beam {
+    opacity: 1;
+    transition: none;
+  }
+
+  .au-blob,
+  .au.is-inview .au-halo,
+.au.is-inview .au-target {
+  animation: au-fade-in 700ms ease 700ms both;
+}
+
+.au-dot {
+    animation: none;
+  }
+}
+
+

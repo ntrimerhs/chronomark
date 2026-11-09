@@ -3,6 +3,7 @@ import Footer from './Footer.jsx'
 import ParticlesBackground from './ParticlesBackground.jsx';
 import HeroOrbit from './HeroOrbit.jsx';
 import HowItWorks from './HowItWorks.jsx';
+import AboutUs from './AboutUs.jsx';
 import ChronoMarkLogo from '../icons/ChronoMarkLogo.jsx';
 import '../styles/hero-split.css';
 import { Fragment, useEffect, useRef, useState } from 'react';
@@ -514,19 +515,7 @@ function MainPage() {
 
       <HowItWorks />
 
-      <section id="about" className="about-section">
-        <ParticlesBackground id="about-particles" />
-        <div className="about-section-inner">
-          <ChapterHead
-            text="About Us"
-            accentFrom={1}
-            align="left"
-            lede="Re-watching two hours of recording to find one explanation is absurd. So we built the thing we wanted. Ask it anything below."
-          />
-
-          <AboutPrompts />
-        </div>
-      </section>
+      <AboutUs />
     </div>
   )
 }
