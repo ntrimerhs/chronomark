@@ -1,0 +1,1096 @@
+/* Upload page — visual skin only.
+
+   Nothing here changes layout structure or behaviour: every selector already
+   exists in the page, so the player and the chat keep their DOM, their sizes and
+   their wiring. Only surfaces, borders, type and colour are restyled, to sit in
+   the same world as the hero and How It Works: flat #0A121C, hairline borders,
+   squared corners, mono micro-labels, one pink accent. */
+
+/* ── the page surface ── */
+
+.upload-shell {
+  --upload-panel: rgba(10, 18, 28, 0.72);
+  --upload-panel-strong: rgba(10, 18, 28, 0.9);
+  --upload-border: rgba(245, 245, 248, 0.14);
+  --upload-border-strong: rgba(244, 47, 167, 0.42);
+  --upload-text: #f5f5f8;
+  --upload-muted: rgba(245, 245, 248, 0.56);
+  --upload-pink: #f42fa7;
+  --upload-violet: #a855f7;
+  position: relative;
+  padding: 120px clamp(24px, 5vw, 84px) 96px;
+  background:
+    radial-gradient(ellipse 40% 50% at 2% 24%, rgba(244, 47, 167, 0.16), transparent 74%),
+    radial-gradient(ellipse 36% 44% at 100% 76%, rgba(168, 85, 247, 0.14), transparent 76%),
+    #0a121c;
+  isolation: isolate;
+}
+
+.upload-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(245, 245, 248, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(245, 245, 248, 0.045) 1px, transparent 1px);
+  background-size: 96px 96px;
+  -webkit-mask-image: radial-gradient(86% 92% at 50% 44%, #000 18%, transparent 92%);
+  mask-image: radial-gradient(86% 92% at 50% 44%, #000 18%, transparent 92%);
+}
+
+/* ── the intro ── */
+
+.upload-hero {
+  position: relative;
+  max-width: 760px;
+  margin: 0 0 52px;
+  text-align: left;
+}
+
+.upload-eyebrow {
+  display: block;
+  margin: 0 0 22px;
+  padding-left: 50px;
+  position: relative;
+}
+
+/* the rule that sits beside the kicker, as in How It Works */
+.upload-eyebrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 34px;
+  height: 1px;
+  background: rgba(245, 245, 248, 0.35);
+}
+
+.upload-eyebrow {
+  color: rgba(245, 245, 248, 0.5);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+}
+
+.upload-hero h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.3vw, 2.2rem);
+  font-weight: 500;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  color: #f5f5f8;
+}
+
+.upload-hero h1 em {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background-image: linear-gradient(96deg, #f42fa7 0%, #c25bf5 55%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.upload-subtitle {
+  max-width: 470px;
+  margin: 20px 0 0;
+  font-size: 14px;
+  line-height: 1.72;
+  color: rgba(245, 245, 248, 0.56);
+}
+
+/* ── the panels: squared, hairline, no heavy glass ── */
+
+.upload-center-card,
+.chat-panel,
+.upload-chat-placeholder {
+  border: 1px solid var(--upload-border);
+  border-radius: 4px;
+  background: rgba(10, 18, 28, 0.66);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 30px 80px -50px rgba(0, 0, 0, 0.9);
+}
+
+.upload-center-card {
+  padding: 22px;
+}
+
+/* ── the drop target ── */
+
+.upload-dropzone {
+  gap: 18px;
+}
+
+.upload-dropzone-button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 46px 24px;
+  border: 1px dashed rgba(245, 245, 248, 0.2);
+  border-radius: 2px;
+  background: radial-gradient(ellipse 60% 60% at 50% 100%, rgba(244, 47, 167, 0.08), transparent 80%);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.upload-dropzone-button:hover {
+  border-color: rgba(244, 47, 167, 0.45);
+  background: radial-gradient(ellipse 60% 60% at 50% 100%, rgba(244, 47, 167, 0.14), transparent 80%);
+}
+
+/* corner brackets, drawn with a single gradient ring */
+.upload-dropzone-button::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background:
+    linear-gradient(#f42fa7, #f42fa7) top left / 22px 2px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) top left / 2px 22px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) top right / 22px 2px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) top right / 2px 22px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) bottom left / 22px 2px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) bottom left / 2px 22px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) bottom right / 22px 2px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) bottom right / 2px 22px no-repeat;
+  opacity: 0.75;
+}
+
+.upload-dropzone-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(245, 245, 248, 0.16);
+  border-radius: 50%;
+  background: rgba(245, 245, 248, 0.03);
+  color: #f0d7ec;
+}
+
+.upload-dropzone-title {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #f5f5f8;
+}
+
+.upload-dropzone-copy {
+  max-width: 430px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(245, 245, 248, 0.52);
+}
+
+/* ── buttons ── */
+
+.yt-open-btn,
+.upload-submit,
+.upload-secondary-action {
+  border: 1px solid rgba(245, 245, 248, 0.16);
+  border-radius: 2px;
+  background: rgba(245, 245, 248, 0.03);
+  color: rgba(245, 245, 248, 0.82);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+  transition: border-color 0.25s ease, background 0.25s ease, color 0.25s ease;
+}
+
+.yt-open-btn:hover,
+.upload-secondary-action:hover {
+  border-color: rgba(244, 47, 167, 0.5);
+  color: #f8d6ea;
+}
+
+.upload-submit {
+  border-color: rgba(244, 47, 167, 0.5);
+  background: rgba(244, 47, 167, 0.12);
+  color: #f9d9ec;
+  gap: 10px;
+}
+
+.upload-submit:hover:not(:disabled) {
+  background: rgba(244, 47, 167, 0.22);
+}
+
+.upload-submit:disabled {
+  border-color: rgba(245, 245, 248, 0.12);
+  background: rgba(245, 245, 248, 0.02);
+  color: rgba(245, 245, 248, 0.34);
+}
+
+/* ── file row and progress ── */
+
+.upload-form-footer {
+  padding-top: 18px;
+  border-top: 1px solid rgba(245, 245, 248, 0.1);
+}
+
+.upload-file-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.42);
+}
+
+.upload-file-meta strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: #eee9f6;
+}
+
+.upload-progress-labels {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.5);
+}
+
+.upload-progress-block progress {
+  width: 100%;
+  height: 2px;
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+  background: rgba(245, 245, 248, 0.12);
+}
+
+.upload-progress-block progress::-webkit-progress-bar {
+  background: rgba(245, 245, 248, 0.12);
+}
+
+.upload-progress-block progress::-webkit-progress-value {
+  background: #f42fa7;
+  box-shadow: 0 0 10px rgba(244, 47, 167, 0.6);
+}
+
+.upload-progress-block progress::-moz-progress-bar {
+  background: #f42fa7;
+}
+
+/* ── the placeholder chat ── */
+
+.upload-chat-placeholder {
+  border-radius: 2px;
+  padding: 12px 14px;
+}
+
+.upload-chat-placeholder input {
+  background: none;
+  border: 0;
+  outline: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(245, 245, 248, 0.45);
+}
+
+.upload-chat-placeholder button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(245, 245, 248, 0.14);
+  border-radius: 50%;
+  background: rgba(245, 245, 248, 0.04);
+  color: rgba(245, 245, 248, 0.4);
+  cursor: not-allowed;
+}
+
+/* ── the loaded state keeps the same skin ── */
+
+.upload-grid-loaded .upload-center-card,
+.upload-grid-loaded .chat-panel,
+.upload-grid-loaded .upload-chat-shell-inline {
+  border-radius: 4px;
+}
+
+.upload-video-title {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #eee9f6;
+}
+
+.upload-error {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #ff9dbb;
+}
+
+/* ── responsive ── */
+
+@media (max-width: 900px) {
+  .upload-shell {
+    padding: 96px 20px 72px;
+  }
+
+  .upload-center-card {
+    padding: 16px;
+  }
+
+  .upload-dropzone-button {
+    padding: 34px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-dropzone-button,
+  .yt-open-btn,
+  .upload-submit,
+  .upload-secondary-action {
+    transition: none;
+  }
+}
+
+/* ── motion ──
+   Everything here is decorative and reversible: entrance, a scan sweep across the
+   drop target, breathing brackets, a slow drift in the backdrop. No layout or
+   logic depends on any of it, and it all stops under reduced motion. */
+
+.upload-hero,
+.upload-center-card,
+.upload-lower-panel {
+  max-width: 820px;
+  margin: 26px 0 0;
+  animation: upload-rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.upload-center-card {
+  animation-delay: 120ms;
+}
+
+.upload-lower-panel {
+  max-width: 820px;
+  margin: 26px 0 0;
+  animation-delay: 220ms;
+}
+
+@keyframes upload-rise {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* the backdrop breathes, very slowly, so the page is never entirely still */
+.upload-shell::after {
+  content: '';
+  position: absolute;
+  inset: -10%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 22% 30%, rgba(244, 47, 167, 0.12), transparent 42%),
+    radial-gradient(circle at 78% 68%, rgba(168, 85, 247, 0.12), transparent 44%);
+  filter: blur(40px);
+  animation: upload-drift 26s ease-in-out infinite alternate;
+}
+
+@keyframes upload-drift {
+  0% { transform: translate3d(-2%, -1%, 0) scale(1); }
+  100% { transform: translate3d(2%, 2%, 0) scale(1.06); }
+}
+
+/* the brackets answer the scan */
+.upload-dropzone-button::before {
+  animation: upload-brackets 7.5s ease-in-out infinite;
+}
+
+@keyframes upload-brackets {
+  0%, 10%, 100% { opacity: 0.55; }
+  18% { opacity: 1; }
+  60% { opacity: 1; }
+  70% { opacity: 0.55; }
+}
+
+/* the upload glyph floats, just enough to read as alive */
+.upload-dropzone-icon {
+  animation: upload-float 6s ease-in-out infinite;
+}
+
+@keyframes upload-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* the progress line carries a travelling highlight while work is happening */
+.upload-progress-block progress {
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-progress-block progress::-webkit-progress-value {
+  animation: upload-shimmer 2.4s ease-in-out infinite;
+}
+
+@keyframes upload-shimmer {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.45); }
+}
+
+/* the placeholder chat invites a click without moving */
+.upload-chat-placeholder {
+  animation: upload-breathe 5.5s ease-in-out infinite;
+}
+
+@keyframes upload-breathe {
+  0%, 100% { border-color: rgba(245, 245, 248, 0.14); }
+  50% { border-color: rgba(244, 47, 167, 0.34); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-hero,
+  .upload-center-card,
+  .upload-lower-panel,
+  .upload-shell::after,
+  .upload-dropzone-button::before,
+  .upload-dropzone-icon,
+  .upload-progress-block progress::-webkit-progress-value,
+  .upload-chat-placeholder {
+    animation: none;
+  }
+}
+
+/* ── the loud layer ──
+   A beam travelling around the panel border, concentric instrument rings behind
+   it, drifting dust in the backdrop, and a slow pulse in the drop target. All
+   pseudo-elements and gradients: the DOM never changes. */
+
+.upload-center-card,
+.chat-panel {
+  position: relative;
+  isolation: isolate;
+}
+
+/* the beam: a conic gradient masked down to the 1px border */
+.upload-center-card::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  border-radius: 6px;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--au-angle, 0deg),
+    rgba(244, 47, 167, 0) 0deg,
+    rgba(244, 47, 167, 0) 250deg,
+    rgba(244, 47, 167, 0.9) 320deg,
+    rgba(168, 85, 247, 0.9) 350deg,
+    rgba(244, 47, 167, 0) 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: upload-beam 7s linear infinite;
+}
+
+@property --au-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes upload-beam {
+  to { --au-angle: 360deg; }
+}
+
+/* rings behind the panel, turning slowly in opposite directions */
+.upload-center-card::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: min(1180px, 150%);
+  aspect-ratio: 1;
+  margin: -59% 0 0 -59%;
+  pointer-events: none;
+  background:
+    repeating-radial-gradient(circle at 50% 50%, rgba(245, 245, 248, 0.055) 0 1px, transparent 1px 64px),
+    radial-gradient(circle at 50% 50%, rgba(244, 47, 167, 0.09), transparent 46%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 32%, #000 44%, #000 72%, transparent 88%);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 32%, #000 44%, #000 72%, transparent 88%);
+  animation: upload-rings 60s linear infinite;
+}
+
+@keyframes upload-rings {
+  to { transform: rotate(360deg); }
+}
+
+/* a second, tighter ring set that counter-rotates */
+.upload-grid::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: min(760px, 96%);
+  aspect-ratio: 1;
+  margin: -38% 0 0 -38%;
+  pointer-events: none;
+  background:
+    repeating-conic-gradient(from 0deg, rgba(245, 245, 248, 0.028) 0deg 0.4deg, transparent 0.4deg 7deg);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 70%, #000 74%, #000 84%, transparent 88%);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 70%, #000 74%, #000 84%, transparent 88%);
+  animation: upload-rings-rev 90s linear infinite;
+}
+
+@keyframes upload-rings-rev {
+  to { transform: rotate(-360deg); }
+}
+
+/* dust: a few dozen drifting specks, made of gradients rather than elements */
+.upload-shell::after {
+  background:
+    radial-gradient(1.5px 1.5px at 12% 22%, rgba(255, 255, 255, 0.35), transparent 60%),
+    radial-gradient(1.5px 1.5px at 28% 74%, rgba(244, 47, 167, 0.4), transparent 60%),
+    radial-gradient(1.5px 1.5px at 46% 34%, rgba(255, 255, 255, 0.22), transparent 60%),
+    radial-gradient(1.5px 1.5px at 62% 82%, rgba(168, 85, 247, 0.4), transparent 60%),
+    radial-gradient(1.5px 1.5px at 78% 28%, rgba(255, 255, 255, 0.3), transparent 60%),
+    radial-gradient(1.5px 1.5px at 88% 62%, rgba(244, 47, 167, 0.32), transparent 60%),
+    radial-gradient(1.5px 1.5px at 6% 58%, rgba(255, 255, 255, 0.2), transparent 60%),
+    radial-gradient(1.5px 1.5px at 54% 12%, rgba(168, 85, 247, 0.3), transparent 60%),
+    radial-gradient(circle at 22% 30%, rgba(244, 47, 167, 0.1), transparent 42%),
+    radial-gradient(circle at 78% 68%, rgba(168, 85, 247, 0.1), transparent 44%);
+  filter: none;
+}
+
+/* the drop target breathes light up from its floor */
+.upload-dropzone-button {
+  animation: upload-inner-glow 6.5s ease-in-out infinite;
+}
+
+@keyframes upload-inner-glow {
+  0%, 100% { box-shadow: inset 0 -30px 60px -70px rgba(244, 47, 167, 0.35); }
+  50% { box-shadow: inset 0 -50px 90px -70px rgba(244, 47, 167, 0.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-center-card::after,
+  .upload-center-card::before,
+  .upload-grid::before,
+  .upload-dropzone-button {
+    animation: none;
+  }
+}
+
+/* the panel follows the text block instead of floating in the middle */
+.upload-grid {
+  max-width: 820px;
+  margin: 0;
+}
+
+.upload-lower-panel {
+  max-width: 820px;
+  margin: 24px 0 0;
+}
+
+.upload-grid-loaded {
+  max-width: 100%;
+  margin: 0;
+}
+
+/* ── two columns ──
+   The heading, the copy and the drop panel were all stacked on the left, which
+   left the right half of a wide screen empty. They are siblings, so the shell
+   itself becomes the grid: text in the first column, instrument in the second,
+   the placeholder chat under the instrument. The loaded view spans both. */
+
+.upload-shell {
+  display: grid;
+  grid-template-columns: minmax(280px, 430px) minmax(0, 780px);
+  justify-content: center;
+  align-content: center;
+  min-height: calc(100vh - 76px);
+  grid-template-areas:
+    'intro panel'
+    'intro chat';
+  align-items: start;
+  column-gap: clamp(32px, 4.6vw, 84px);
+  row-gap: 22px;
+}
+
+.upload-hero {
+  grid-area: intro;
+  max-width: 520px;
+  margin: 0;
+  padding-top: 6px;
+}
+
+.upload-grid {
+  grid-area: panel;
+  max-width: none;
+  margin: 0;
+}
+
+.upload-lower-panel {
+  grid-area: chat;
+  max-width: none;
+  margin: 0;
+}
+
+/* after an upload the player and the chat need the full width */
+.upload-grid.upload-grid-loaded {
+  grid-area: 1 / 1 / span 2 / -1;
+  max-width: 100%;
+}
+
+.upload-grid.upload-grid-loaded + .upload-lower-panel {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .upload-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'intro'
+      'panel'
+      'chat';
+    row-gap: 30px;
+  }
+
+  .upload-hero {
+    max-width: 620px;
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-spec-note,
+  .upload-meter span {
+    animation: none;
+  }
+}
+
+/* ── what the pipeline is made of ──
+   Four readouts with dotted leaders, then a meter that idles. It fills the lower
+   half of the text column with something the product actually says. */
+
+.upload-spec {
+  margin-top: 40px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(245, 245, 248, 0.1);
+}
+
+.upload-spec-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.upload-spec-row span {
+  color: rgba(245, 245, 248, 0.36);
+}
+
+.upload-spec-row i {
+  height: 1px;
+  transform: translateY(-2px);
+  background-image: linear-gradient(
+    90deg,
+    rgba(245, 245, 248, 0.22) 0 2px,
+    transparent 2px 6px
+  );
+  background-size: 6px 1px;
+  background-repeat: repeat-x;
+}
+
+.upload-spec-row strong {
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: rgba(245, 245, 248, 0.78);
+  white-space: nowrap;
+}
+
+/* the meter: bars that rise and fall on their own phases, like an idle input */
+.upload-meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 54px;
+  margin: 26px 0 0;
+}
+
+.upload-meter span {
+  flex: 1;
+  height: var(--h, 40%);
+  min-height: 3px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, rgba(244, 47, 167, 0.85), rgba(168, 85, 247, 0.35));
+  transform-origin: bottom;
+  animation: upload-meter-idle 3.4s ease-in-out infinite;
+  animation-delay: var(--d, 0ms);
+  opacity: 0.75;
+}
+
+@keyframes upload-meter-idle {
+  0%, 100% { transform: scaleY(0.55); opacity: 0.45; }
+  50% { transform: scaleY(1); opacity: 0.9; }
+}
+
+.upload-spec-note {
+  margin: 14px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.3);
+}
+
+@media (max-width: 1080px) {
+  .upload-spec {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-meter span {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ── the four-stop track ──
+   Four dots joined by a hairline, with the labels beneath. It replaces the
+   progress bar: the stops are the real pipeline stages, not an interpolated
+   percentage, so the line fills as the backend advances. */
+
+.upload-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin: 22px 0 18px;
+}
+
+/* the rail runs through the centre of the dots */
+.upload-track::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  left: 6px;
+  right: 6px;
+  top: 5px;
+  height: 1px;
+  background: rgba(245, 245, 248, 0.18);
+}
+
+.upload-stop {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.upload-stop:last-child {
+  align-items: flex-end;
+}
+
+.upload-stop-dot {
+  position: relative;
+  z-index: 2;
+  width: 11px;
+  height: 11px;
+  border: 1px solid rgba(245, 245, 248, 0.35);
+  border-radius: 50%;
+  /* an opaque plate on the brand background: the rail stops at the circle
+     instead of running through it */
+  background: #0a121c;
+  box-shadow: 0 0 0 4px #0a121c;
+  transition: border-color 0.35s ease, background 0.35s ease, box-shadow 0.35s ease;
+}
+
+.upload-stop-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.34);
+  transition: color 0.35s ease;
+}
+
+.upload-stop.is-done .upload-stop-dot,
+.upload-stop.is-active .upload-stop-dot {
+  border-color: #f42fa7;
+  background: #f42fa7;
+  box-shadow: 0 0 12px rgba(244, 47, 167, 0.55);
+}
+
+.upload-stop.is-done .upload-stop-label,
+.upload-stop.is-active .upload-stop-label {
+  color: rgba(245, 245, 248, 0.8);
+}
+
+/* the stop that is being worked on breathes */
+.upload-stop.is-active .upload-stop-dot {
+  animation: upload-stop-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes upload-stop-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 47, 167, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(244, 47, 167, 0); }
+}
+
+@media (max-width: 560px) {
+  .upload-stop-label {
+    font-size: 7.5px;
+    letter-spacing: 0.12em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-stop.is-active .upload-stop-dot {
+    animation: none;
+  }
+}
+
+/* the number carries the accent, the label stays quiet behind it */
+.upload-progress-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+  color: #f42fa7;
+  text-shadow: 0 0 14px rgba(244, 47, 167, 0.45);
+}
+
+.upload-progress-labels > span:first-child {
+  color: rgba(245, 245, 248, 0.42);
+}
+
+/* the rail fills with colour as work advances, rather than only marking stops */
+.upload-track::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  height: 2px;
+  width: calc((100% - 12px) * var(--fill, 0) / 100);
+  max-width: calc(100% - 12px);
+  background: linear-gradient(90deg, #f42fa7 0%, #c25bf5 60%, #a855f7 100%);
+  box-shadow: 0 0 12px rgba(244, 47, 167, 0.55);
+  transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ══ the loaded view ══
+   Once a lecture exists the page becomes one instrument made of two panels: a
+   framed player and a framed conversation, the same height, the same header
+   rail, the same mono micro-labels as the hero and the drop panel. Still a
+   skin: no markup, no handlers. The player keeps its own controls, the chat
+   keeps its own state. */
+
+/* the idle entrance margin lifted only the left card, so the pair sat crooked */
+.upload-grid.upload-grid-loaded {
+  gap: 18px;
+  align-items: start;
+}
+
+.upload-grid-loaded .upload-center-card {
+  margin: 0;
+  max-width: none;
+  padding: 0;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.upload-grid-loaded .upload-loaded-stage {
+  height: 100%;
+  gap: 0;
+}
+
+/* ── the header rail ── */
+
+.upload-grid-loaded .upload-loaded-header {
+  flex: 0 0 56px;
+  width: 100%;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(245, 245, 248, 0.1);
+}
+
+.upload-grid-loaded .upload-secondary-action,
+.upload-grid-loaded .yt-open-btn {
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid rgba(245, 245, 248, 0.14);
+  border-radius: 2px;
+  background: transparent;
+  color: rgba(245, 245, 248, 0.68);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transition: border-color 0.25s ease, color 0.25s ease, background 0.25s ease;
+}
+
+.upload-grid-loaded .upload-secondary-action svg,
+.upload-grid-loaded .yt-open-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.upload-grid-loaded .upload-secondary-action:hover,
+.upload-grid-loaded .yt-open-btn:hover {
+  border-color: rgba(244, 47, 167, 0.45);
+  background: rgba(244, 47, 167, 0.07);
+  color: #F5F5F8;
+}
+
+/* ── the file name as a readout ── */
+
+.upload-grid-loaded .upload-video-title {
+  margin: 0;
+  padding: 13px 18px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.5);
+}
+
+/* ── the screen: inset, framed, viewfinder corners ── */
+
+.upload-grid-loaded .video-stage {
+  flex: 1;
+  margin: 12px 18px 18px;
+  border: 1px solid rgba(245, 245, 248, 0.1);
+  border-radius: 3px;
+  background:
+    radial-gradient(ellipse 72% 72% at 50% 45%, rgba(124, 47, 188, 0.16), transparent 74%),
+    #05080f;
+}
+
+.upload-grid-loaded .video-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(#f42fa7, #f42fa7) left top / 16px 1px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) left top / 1px 16px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) right top / 16px 1px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) right top / 1px 16px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) left bottom / 16px 1px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) left bottom / 1px 16px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) right bottom / 16px 1px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) right bottom / 1px 16px no-repeat;
+  opacity: 0.8;
+}
+
+/* the poster option carries a string, so the element it builds is always
+   broken; the first frame of the video is the poster */
+.upload-grid-loaded .vjs-poster {
+  display: none;
+}
+
+/* the picture keeps its aspect instead of being stretched into the frame */
+.upload-grid-loaded .video-container video,
+.upload-grid-loaded .video-js video {
+  object-fit: contain;
+}
+
+.upload-grid-loaded .video-js,
+.upload-grid-loaded .video-container {
+  background: transparent;
+}
+
+/* the centre control is a ring, not a pink blob */
+.upload-grid-loaded .video-center-btn {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 1px solid rgba(244, 47, 167, 0.5);
+  background: rgba(5, 8, 15, 0.45);
+  color: #F42FA7;
+  box-shadow: 0 0 0 6px rgba(244, 47, 167, 0.06), 0 0 42px rgba(244, 47, 167, 0.18);
+  backdrop-filter: blur(6px);
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.upload-grid-loaded .video-center-btn:hover {
+  background: #F42FA7;
+  border-color: #F42FA7;
+  color: #0A121C;
+  box-shadow: 0 0 0 8px rgba(244, 47, 167, 0.12), 0 0 54px rgba(244, 47, 167, 0.4);
+}
+
+/* ── the transport stays exactly as it was ──
+   The rounded track, the gradient fill and the round YouTube-style head are the
+   player's own look; only the frame around them changed. */
+
+/* ── the conversation panel joins the pair ── */
+
+.upload-grid-loaded .upload-chat-shell-inline {
+  margin-top: 0;
+}
+
+/* the travelling beam belongs to the drop panel only; on a playing lecture a
+   moving border competes with the picture */
+.upload-grid-loaded .upload-center-card::after {
+  display: none;
+}
+
+.upload-grid-loaded .chat-panel {
+  border-radius: 4px;
+  border-color: rgba(245, 245, 248, 0.12);
+  background: rgba(10, 18, 28, 0.72);
+}
+
+/* a single hot line along the top marks the live panel */
+.upload-grid-loaded .chat-panel::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(90deg, #F42FA7 0%, #A855F7 52%, rgba(168, 85, 247, 0) 100%);
+}
+
+/* the same viewfinder corners as the player, so the two panels read as a pair */
+.upload-grid-loaded .chat-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(#f42fa7, #f42fa7) left top / 16px 1px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) left top / 1px 16px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) right top / 16px 1px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) right top / 1px 16px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) left bottom / 16px 1px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) left bottom / 1px 16px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) right bottom / 16px 1px no-repeat,
+    linear-gradient(#f42fa7, #f42fa7) right bottom / 1px 16px no-repeat;
+  opacity: 0.8;
+}
+
