@@ -28,7 +28,7 @@
 /* ── Back to Top button: plain vertical text on the right, fades in once scrolled ── */
 .back-to-top {
   position: fixed;
-  right: 40px;
+  right: 16px;
   bottom: 32px;
   z-index: 300;
   display: flex;

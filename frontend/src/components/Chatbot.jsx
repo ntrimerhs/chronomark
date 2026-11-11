@@ -7,6 +7,7 @@ import ChatMessages from './ChatMessages';
 import ChatInput from './ChatInput';
 import { API_BASE_URL } from '../config';
 import '../styles/chatbot.css';
+import '../styles/chatTheme.css';
 
 const QUICK_ACTIONS = [
   {

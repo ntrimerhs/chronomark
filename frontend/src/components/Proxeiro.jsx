@@ -1,4 +1,5 @@
 import '../styles/proxeiro.css'
+import '../styles/uploadTheme.css'
 import React,{useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import axios from 'axios';  ///do in terminal npm install axios
 import { API_BASE_URL } from '../config';
@@ -26,6 +27,33 @@ const YtIcon = () => (
 //npm i video.js
 import VideoJSPlayer from './VideoJSPlayer';
 import ChatBot from './Chatbot.jsx'
+
+/* What the pipeline is made of, and a meter that idles until a file arrives. */
+/* The four stops of the track, and where each backend stage lands on it. */
+const TRACK_STEPS = ['INPUT', 'EXTRACT', 'INDEX', 'READY']
+
+const STAGE_TO_STEP = {
+    idle: 0,
+    uploading: 0,
+    queued: 0,
+    downloading: 0,
+    extracting_audio: 1,
+    processing_audio_and_frames: 1,
+    transcribing_audio: 1,
+    embedding_text: 2,
+    finalizing: 2,
+    completed: 3,
+    failed: 0,
+}
+
+const PIPELINE_SPEC = [
+    ['ASR', 'whisper · large-v3'],
+    ['INDEX', 'qdrant · local'],
+    ['EMBED', 'minilm · 384d'],
+    ['ANSWER', 'deepseek · cited'],
+]
+
+const METER_BARS = [18, 34, 26, 48, 62, 41, 55, 73, 46, 58, 36, 66, 82, 54, 44, 68, 90, 61, 47, 72, 52, 38, 64, 49, 30, 57, 42, 70]
 
 const Proxeiro = () => {
 
@@ -265,7 +293,6 @@ const Proxeiro = () => {
     const videoJsOptions = useMemo(() => ({
         //https://legacy.videojs.org/guides/options/
         autoplay: false,
-        poster: true,
         loop: true,
         controls: false,
         // Disable video.js's own click-to-toggle so it doesn't double-fire
@@ -468,9 +495,36 @@ const Proxeiro = () => {
         <section className="upload-shell">
             {!uploadedFileURL && (
                 <div className="upload-hero">
-                    {/*<p className="upload-eyebrow">Video Research Workspace</p>*/}
-                    <h1>Ask questions <span className="feature-heading-accent">about your videos</span></h1>
-                    <p className="upload-subtitle">Upload a clip, extract the audio pipeline, and move straight into the AI-assisted review flow.</p>
+                                        <h1>
+                        Add a recording.
+                        <br />
+                        <em>Ask it anything.</em>
+                    </h1>
+                    <p className="upload-subtitle">
+                        A file from this machine or a YouTube link. The pipeline transcribes it,
+                        indexes every passage, and hands you the second an answer came from.
+                    </p>
+
+                            <div className="upload-spec" aria-hidden="true">
+                                {PIPELINE_SPEC.map(([key, value]) => (
+                                    <div className="upload-spec-row" key={key}>
+                                        <span>{key}</span>
+                                        <i />
+                                        <strong>{value}</strong>
+                                    </div>
+                                ))}
+
+                                <div className="upload-meter">
+                                    {METER_BARS.map((height, index) => (
+                                        <span
+                                            key={`bar-${index}`}
+                                            style={{ '--h': `${height}%`, '--d': `${index * 62}ms` }}
+                                        />
+                                    ))}
+                                </div>
+
+                                <p className="upload-spec-note">Idle / waiting for a source</p>
+                            </div>
                 </div>
             )}
 
@@ -553,10 +607,36 @@ const Proxeiro = () => {
 
                             <div className="upload-progress-block">
                                 <div className="upload-progress-labels">
-                                    <span>{processingStage === 'uploading' ? 'Upload progress' : 'Backend progress'}</span>
-                                    <span>{displayProgress}%</span>
+                                    <span>Process / status</span>
+                                    <span className="upload-progress-value">{displayProgress}%</span>
                                 </div>
-                                <progress value={displayProgress} max="100"></progress>
+
+                                <div
+                                    className="upload-track"
+                                    role="progressbar"
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    aria-valuenow={displayProgress}
+                                    style={{ '--fill': Math.max(0, Math.min(100, displayProgress)) }}
+                                >
+                                    {TRACK_STEPS.map((step, index) => {
+                                        const current = STAGE_TO_STEP[processingStage] ?? 0
+                                        const done = index < current || (index === current && processingStage === 'completed')
+                                        const idle = processingStage === 'idle'
+                                        const active =
+                                            index === current && !idle && processingStage !== 'completed'
+                                        return (
+                                            <div
+                                                key={step}
+                                                className={`upload-stop${done ? ' is-done' : ''}${active ? ' is-active' : ''}`}
+                                            >
+                                                <span className="upload-stop-dot" />
+                                                <span className="upload-stop-label">{step}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
                                 {stageLabel(processingStage) && (
                                     <p className="upload-file-label">{stageLabel(processingStage)}</p>
                                 )}
