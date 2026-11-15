@@ -1,9 +1,12 @@
 from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pathlib import Path
+import os
 import re
 import shutil
+import tempfile
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -930,7 +933,7 @@ def _ensure_text_artifacts(video_id: str | None):
 # - frames/: extracted image frames grouped by video stem
 # - normalized/: re-encoded MP4s produced when a video needs format
 #   normalization or its audio stream turns out to be corrupted
-#   (see normalize_video's `force` fallback in _process_upload_job)
+#   (the local-flow normalize fallback in _run_audio_pipeline)
 #
 # Using Path(__file__).parent keeps paths stable regardless of where the
 # process is started from.
@@ -1214,35 +1217,6 @@ def _update_shared_json(path: Path, data, video_id: str | None = None):
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=2, ensure_ascii=False)
         tmp_path.replace(path)
-
-def _clear_previous_uploads(current_video):
-    for file in UPLOAD_DIR.iterdir():
-        if file.is_file() and file.name != current_video:
-            file.unlink(missing_ok=True)
-
-
-def _clear_previous_video_files(current_stem: str):
-    """Remove on-disk audio/frame/normalized artifacts left behind by any
-    video other than the one currently being processed.
-
-    This app only keeps one active video's data at a time (same reasoning as
-    clear_collections() and _update_shared_json() above), but audio/*.wav,
-    frames/<stem>/, and normalized/*.mp4 were never being cleaned up, so old
-    uploads just accumulated on disk indefinitely even though the JSON
-    stores looked "current". This brings the filesystem in line with that
-    same rule.
-    """
-    for wav_file in AUDIO_DIR.glob("*.wav"):
-        if wav_file.stem != current_stem:
-            wav_file.unlink(missing_ok=True)
-
-    for frame_dir in FRAMES_DIR.iterdir():
-        if frame_dir.is_dir() and frame_dir.name != current_stem:
-            shutil.rmtree(frame_dir, ignore_errors=True)
-
-    for normalized_file in NORMALIZED_DIR.glob("*.mp4"):
-        if normalized_file.stem != f"{current_stem}_normalized":
-            normalized_file.unlink(missing_ok=True)
 
 
 
@@ -1744,210 +1718,6 @@ def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0, max_w
         return base_count
 
 
-def _run_frame_pipeline(
-    video_path: Path,
-    output_frames_dir: Path,
-    frame_interval_sec,
-    frame_strategy,
-    scene_threshold,
-    keyframes_only,
-    frame_max_width,
-):
-    """Extract frames and write their timestamp manifest.
-
-    Runs on its own thread inside _process_upload_job, in parallel with
-    _run_audio_pipeline. Nothing here depends on the transcript, so it can
-    run fully concurrently with the audio/text pipeline.
-    """
-    frame_count, frame_timestamps = extract_frames(
-        video_path,
-        output_frames_dir,
-        interval_seconds=frame_interval_sec,
-        extraction_mode=frame_strategy,
-        scene_threshold=scene_threshold,
-        keyframes_only=keyframes_only,
-        max_width=frame_max_width,
-    )
-
-    # Persist frame -> timestamp so the UI can offer thumbnails straight off
-    # disk, without a Qdrant round-trip. Sorted by time: the scrubber and the
-    # strip both need them in playback order.
-    entries = sorted(
-        ({"file": name, "t": float(seconds)} for name, seconds in frame_timestamps.items()),
-        key=lambda item: item["t"],
-    )
-    (output_frames_dir / "frames.json").write_text(
-        json.dumps(entries), encoding="utf-8"
-    )
-
-    # No CLIP vectors any more: visual matching was removed, so embedding here
-    # would cost ~3s per frame to build an index nothing queries.
-    return frame_count, frame_timestamps
-
-
-def _process_upload_job(
-    job_id,
-    filename,
-    video_path,
-    frame_interval_sec,
-    frame_strategy,
-    scene_threshold,
-    keyframes_only,
-    frame_max_width,
-    start_time=None,
-):
-    if start_time is None:
-        start_time = time.perf_counter()
-    try:
-        video_path = Path(video_path)
-        global CURRENT_VIDEO_ID
-        CURRENT_VIDEO_ID = video_path.stem
-
-        # Multi-video mode: nothing is wiped here. Every video keeps its own
-        # uploads/audio/frames files and its own Qdrant points (keyed by
-        # video_id, and /ask already filters by video_id), so concurrent
-        # uploads never delete each other's data mid-pipeline.
-
-        # Ensure the file the frontend actually plays is seek-friendly
-        # (faststart MP4 / H.264 / AAC). Otherwise the browser's seek bar
-        # can land on the wrong timestamp when dragged, since the moov atom
-        # (the index mapping time -> byte offset) may sit at the end of the
-        # raw upload.
-        t_normalize = time.perf_counter()
-        try:
-            playable_video = Path(normalize_video(video_path, NORMALIZED_DIR))
-            print(f"✓ Faststart prep done  [{time.perf_counter()-t_normalize:.1f}s]")
-            if playable_video != video_path:
-                served_filename = f"{video_path.stem}.mp4"
-                served_path = UPLOAD_DIR / served_filename
-                shutil.copyfile(playable_video, served_path)
-                if video_path.suffix.lower() != ".mp4":
-                    video_path.unlink(missing_ok=True)
-                filename = served_filename
-                video_path = served_path
-        except Exception as prep_error:
-            print(f"⚠ Could not prepare video for playback  [{time.perf_counter()-t_normalize:.1f}s], serving original file: {prep_error}")
-
-        output_audio = AUDIO_DIR / f"{video_path.stem}.wav"
-        output_frames_dir = FRAMES_DIR / video_path.stem
-
-        _set_job_status(job_id, status="processing", stage="extracting_audio", progress=25)
-
-        # Frames and audio are independent, so they run concurrently: the frame
-        # pass rides alongside transcription instead of adding to it. A frame failure must not fail the upload -- the transcript is
-        # the primary product, and /ask degrades to text-only without frames.
-        def _visual_only_task():
-            """Coverage frames plus OCR, independent of the transcript."""
-            try:
-                # 20 seconds, not frame_interval_sec: that one defaults to 5s
-                # for scrubbing thumbnails, and feeding it here produced 161
-                # frames for a 13-minute video -- 322 OCR calls and the upload
-                # crawled. 20s is enough to catch any slide that stays up.
-                count, coverage_stamps = extract_frames(
-                    video_path,
-                    output_frames_dir,
-                    interval_seconds=COVERAGE_INTERVAL_SEC,
-                    extraction_mode="interval",
-                    scene_threshold=scene_threshold,
-                    keyframes_only=False,
-                    max_width=frame_max_width,
-                    min_gap_sec=0.0,
-                    max_hash_distance=0,
-                )
-                print(f"[Frames] {count} coverage frames every {COVERAGE_INTERVAL_SEC:.0f}s")
-                _ocr_frames(output_frames_dir, video_path.stem, coverage_stamps)
-                return count
-            except Exception as visual_error:
-                print(f"[Frames] coverage pass failed: {visual_error}")
-                return 0
-
-        def _frames_task():
-            try:
-                count, _frame_stamps = _run_frame_pipeline(
-                    video_path,
-                    output_frames_dir,
-                    frame_interval_sec,
-                    frame_strategy,
-                    scene_threshold,
-                    keyframes_only,
-                    frame_max_width,
-                )
-                print(f"[Frames] {count} frames for {video_path.stem}")
-                return count
-            except Exception as frame_error:
-                print(f"[Frames] extraction failed for {video_path.stem}: {frame_error}")
-                return 0
-
-        audio_first = str(frame_strategy or "").strip().lower() == "audio"
-
-        if audio_first:
-            # Frames + OCR do not need the transcript, and OCR is now the slowest
-            # stage (~100 vision calls). Running it alongside transcription turns
-            # the total from "transcribe then OCR" into whichever finishes last.
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                visual_future = pool.submit(_visual_only_task)
-                transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
-                    video_path, output_audio, job_id=job_id
-                )
-                try:
-                    visual_future.result()
-                except Exception as visual_error:
-                    print(f"[Frames] visual pass failed: {visual_error}")
-
-            frame_count = _sync_concept_frames(
-                video_path, transcript_for_json, output_frames_dir,
-                max_width=frame_max_width,
-            )
-        else:
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                frame_future = pool.submit(_frames_task)
-                transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
-                    video_path, output_audio, job_id=job_id
-                )
-                frame_count = frame_future.result()
-
-            frame_count = _sync_concept_frames(
-                video_path, transcript_for_json, output_frames_dir,
-                base_count=frame_count, max_width=frame_max_width,
-            )
-            try:
-                _ocr_frames(output_frames_dir, video_path.stem)
-            except Exception as ocr_error:
-                print(f"[OCR] failed: {ocr_error}")
-
-        _set_job_status(job_id, status="processing", stage="finalizing", progress=95)
-
-        _update_shared_json(TRANSCRIPTS_PATH, transcript_for_json, video_path.stem)
-        _update_shared_json(EMBEDDINGS_PATH, embeddings, video_path.stem)
-
-        total_time_sec = time.perf_counter() - start_time
-
-        result = {
-            "filename": filename,
-            "file_url": f"/uploads/{filename}",
-            "audio_url": f"/audio/{video_path.stem}.wav",
-            "video_id": video_path.stem,
-            "transcript_url": "/audio/output.json",
-            "embeddings_url": "/audio/output_embeddings.json",
-            "transcript": transcript_for_json,
-            "transcript_error": transcript_error,
-            "frame_count": frame_count,
-            "total_time_sec": round(total_time_sec, 1),
-        }
-        _set_job_status(job_id, status="completed", stage="completed", progress=100, result=result)
-
-        # Logged last, on purpose: if the console cannot encode this line, a
-        # successful job must not be turned into a failed one.
-        print(f"[Pipeline] Upload-to-embeddings finished for {video_path.stem} in {total_time_sec:.1f}s")
-    except Exception as e:
-        total_time_sec = time.perf_counter() - start_time
-        # Recorded before logging, for the same reason. Logging first meant a
-        # failing print skipped this call, so the job reported the print's
-        # encoding error instead of the actual cause.
-        _set_job_status(job_id, status="failed", stage="failed", progress=100, error=str(e))
-        print(f"[Pipeline] Upload pipeline failed after {total_time_sec:.1f}s: {e}")
-
-
 class YoutubeRequest(BaseModel):
     url: str
     frame_interval_sec: float = 5.0
@@ -1959,8 +1729,8 @@ class YoutubeRequest(BaseModel):
 
 @app.post('/download-youtube/')
 async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTasks):
-    """Download a YouTube video via yt-dlp, save it to uploads/, then process
-    it through the same background pipeline as a regular file upload."""
+    """Download a YouTube video via yt-dlp, push it to R2, then process it
+    through the same R2 pipeline as every other video."""
     import re as _re
     import subprocess
     import sys
@@ -1999,13 +1769,15 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
                             error="yt-dlp not found in the Python environment")
             return
 
+        # Defined before the try so the finally below can always clean it up.
+        # yt-dlp needs a real file, but only as a relay: the download lands in
+        # the system temp dir, is pushed to R2, and is deleted -- the VPS never
+        # keeps the video (processing streams it from R2).
+        file_stem = f"yt_{uuid.uuid4().hex[:12]}"
+        out_path = Path(tempfile.gettempdir()) / f"chronomark-{file_stem}.mp4"
+
         try:
             _set_job_status(job_id, stage="downloading", progress=5)
-
-            # Use a fixed UUID-based filename so we always know exactly where
-            # the file lands — no stdout parsing, no fallback to "newest file".
-            file_stem = f"yt_{uuid.uuid4().hex[:12]}"
-            out_path = UPLOAD_DIR / f"{file_stem}.mp4"
 
             # YouTube is rotating client/format availability frequently.
             # Hard-coding a narrow stream selector (like "bv*[height<=480]+ba")
@@ -2073,16 +1845,20 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
                                 error="Download succeeded but output file is missing or empty")
                 return
 
+            # Push the download to R2 and drop the local copy before analysis;
+            # the pipeline reads the video back from R2 like every other video.
+            _set_job_status(job_id, stage="uploading_to_r2", progress=14)
+            with open(out_path, "rb") as handle:
+                uploaded = r2_service.upload_stream(handle, f"{file_stem}.mp4", "video/mp4")
+            out_path.unlink(missing_ok=True)
+            print(f"[YouTube] stored in R2: {uploaded['file_key']} ({uploaded['size'] / 1024 / 1024:.1f} MB)")
+
             _set_job_status(job_id, stage="processing_audio_and_frames", progress=15)
-            _process_upload_job(
+            _process_r2_video_job(
                 job_id,
-                out_path.name,
-                str(out_path),
-                req.frame_interval_sec,
-                req.frame_strategy,
-                req.scene_threshold,
-                req.keyframes_only,
-                req.frame_max_width,
+                uploaded["file_key"],
+                f"{file_stem}.mp4",
+                file_stem,
                 start_time,
             )
         except subprocess.TimeoutExpired:
@@ -2090,6 +1866,12 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
                             error="Download timed out (tried 720p → 480p → any MP4)")
         except Exception as exc:
             _set_job_status(job_id, status="failed", stage="failed", progress=100, error=str(exc))
+        finally:
+            # Whatever happened, the temp copy must not survive on the VPS.
+            try:
+                out_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     background_tasks.add_task(_download_and_process)
 
@@ -2103,45 +1885,38 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
 
 
 @app.post('/uploadfile/')
-async def create_upload_file(
-    background_tasks: BackgroundTasks,
-    file_upload: UploadFile,
-    frame_interval_sec: float = 10.0,
-    frame_strategy: str = "audio",
-    scene_threshold: float = 0.12,
-    keyframes_only: bool = False,
-    frame_max_width: int = 0,  # 0 = keep the video's own resolution
-):
-    """Process one uploaded video and return URLs for all generated artifacts.
+async def create_upload_file(background_tasks: BackgroundTasks, file_upload: UploadFile):
+    """Stream the upload into R2 and kick off analysis -- no local copy.
 
-    Request flow:
-    1) Save uploaded bytes under uploads/<original_filename>
-    2) Extract WAV audio into audio/<video_stem>.wav
-    3) Extract frames into frames/<video_stem>/frameXXXXXX.jpg
-    4) Return relative URLs consumed by the frontend
-
-    frame_interval_sec controls temporal sampling density in interval mode.
-    frame_strategy selects extraction style: "scene" or "interval".
-    scene_threshold controls FFmpeg scene sensitivity in scene mode.
-    keyframes_only trades timing uniformity for speed.
-    frame_max_width limits frame width to reduce CPU/disk cost.
+    The body is forwarded to R2 in multipart chunks (8 MiB, sequential reads),
+    so the video is never written to this server's disk. The pipeline then
+    reads it back from R2 over a presigned URL, exactly like the direct
+    browser-to-R2 flow; the response shape stays the one the frontend expects.
     """
+    global CURRENT_VIDEO_ID
 
     start_time = time.perf_counter()
 
     if not file_upload.filename:
         raise HTTPException(status_code=400, detail="Missing uploaded filename")
 
-    # Stream upload to disk to avoid reading very large files into memory.
-    save_to = UPLOAD_DIR / file_upload.filename
-    print("UPLOAD_DIR:", UPLOAD_DIR)
-    print("Saving to:", save_to)
-    with open(save_to, 'wb') as f:
-        while True:
-            chunk = await file_upload.read(1024 * 1024)
-            if not chunk:
-                break
-            f.write(chunk)
+    content_type = (file_upload.content_type or "video/mp4").lower()
+
+    try:
+        # FastAPI has fully spooled the multipart body by the time this runs,
+        # so the underlying file object is complete and readable.
+        file_upload.file.seek(0)
+        uploaded = await run_in_threadpool(
+            r2_service.upload_stream, file_upload.file, file_upload.filename, content_type
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+
+    file_key = uploaded["file_key"]
+    video_id = Path(r2_service.sanitize_file_name(file_upload.filename)).stem or "video"
+    print(f"[Upload] {file_upload.filename} -> R2 {file_key} ({uploaded['size'] / 1024 / 1024:.1f} MB)")
 
     job_id = str(uuid.uuid4())
     JOBS[job_id] = {
@@ -2154,17 +1929,15 @@ async def create_upload_file(
     }
 
     background_tasks.add_task(
-        _process_upload_job,
+        _process_r2_video_job,
         job_id,
+        file_key,
         file_upload.filename,
-        str(save_to),
-        frame_interval_sec,
-        frame_strategy,
-        scene_threshold,
-        keyframes_only,
-        frame_max_width,
+        video_id,
         start_time,
     )
+
+    CURRENT_VIDEO_ID = video_id
 
     return {
         "job_id": job_id,
@@ -2172,6 +1945,8 @@ async def create_upload_file(
         "stage": "queued",
         "progress": 5,
         "status_url": f"/upload-status/{job_id}",
+        "video_id": video_id,
+        "file_key": file_key,
     }
 
 
@@ -2292,10 +2067,9 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
     """
     try:
         _set_job_status(job_id, status="processing", stage="preparing", progress=5)
-        # Same one-active-video rule as the local path: wipe artifacts of any
-        # previous video (and any local upload file -- the active one is in R2).
-        _clear_previous_video_files(video_id)
-        _clear_previous_uploads(f"{video_id}.mp4")
+        # Multi-video mode: nothing is wiped. Every video owns
+        # audio/<video_id>.wav, frames/<video_id>/ and its own Qdrant points
+        # (keyed by video_id), so concurrent uploads coexist.
 
         output_audio = AUDIO_DIR / f"{video_id}.wav"
         output_frames_dir = FRAMES_DIR / video_id
@@ -2345,28 +2119,39 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
         audio_ok = output_audio is not None and Path(output_audio).exists()
         if transcript_error or not audio_ok or not transcript_for_json.get("segments"):
             # Fallback: pull the object from R2 once and process it locally,
-            # exactly like a classic upload.
+            # exactly like a classic upload. The copy goes to the system temp
+            # dir and is deleted in the finally below -- the video itself never
+            # takes up permanent space on this machine (R2 is the store).
             _set_job_status(job_id, stage="downloading_from_r2", progress=15)
             ext = Path(display_name).suffix or ".mp4"
-            local_copy = UPLOAD_DIR / f"{video_id}{ext}"
+            handle = tempfile.NamedTemporaryFile(prefix=f"chronomark-{video_id}-", suffix=ext, delete=False)
+            local_copy = Path(handle.name)
+            handle.close()
             try:
-                r2_service.download_to_file(file_key, local_copy)
-                print(f"[R2] fallback download complete: {local_copy.name}")
-            except RuntimeError as download_error:
-                raise RuntimeError(f"Streaming failed and R2 download failed: {download_error}") from download_error
-
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                visual_future = pool.submit(_visual_only_task, local_copy)
-                transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
-                    local_copy, output_audio, job_id=job_id, video_id=video_id
-                )
                 try:
-                    visual_future.result()
-                except Exception as visual_error:
-                    print(f"[Frames] visual pass failed: {visual_error}")
+                    r2_service.download_to_file(file_key, local_copy)
+                    print(f"[R2] fallback download complete: {local_copy.name}")
+                except RuntimeError as download_error:
+                    raise RuntimeError(f"Streaming failed and R2 download failed: {download_error}") from download_error
+
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    visual_future = pool.submit(_visual_only_task, local_copy)
+                    transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
+                        local_copy, output_audio, job_id=job_id, video_id=video_id
+                    )
+                    try:
+                        visual_future.result()
+                    except Exception as visual_error:
+                        print(f"[Frames] visual pass failed: {visual_error}")
+            finally:
+                try:
+                    local_copy.unlink(missing_ok=True)
+                except OSError as cleanup_error:
+                    print(f"[R2] temp copy cleanup failed: {cleanup_error}")
+            local_copy = None  # processed and deleted; concept frames use the URL
 
         frame_count = _sync_concept_frames(
-            local_copy or source_url, transcript_for_json, output_frames_dir, max_width=0
+            source_url, transcript_for_json, output_frames_dir, max_width=0
         )
 
         _set_job_status(job_id, status="processing", stage="finalizing", progress=95)

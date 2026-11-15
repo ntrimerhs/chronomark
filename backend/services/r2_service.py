@@ -173,7 +173,8 @@ def download_to_file(file_key: str, destination) -> str:
 
     Only used as the processing fallback: ffmpeg streams the video straight from
     the presigned URL first, and this exists for the rare container/codec that
-    ffmpeg cannot read over HTTP.
+    ffmpeg cannot read over HTTP. The caller is responsible for deleting the
+    file afterwards.
     """
     key = validate_file_key(file_key)
     destination = str(destination)
@@ -182,3 +183,84 @@ def download_to_file(file_key: str, destination) -> str:
     except (BotoCoreError, ClientError) as error:
         raise RuntimeError(f"Could not download '{key}' from R2: {error}") from error
     return destination
+
+
+def upload_stream(file_obj, file_name: str, content_type: str = "video/mp4", part_size: int = 8 * 1024 * 1024):
+    """Upload a stream to R2 with multipart parts, without a local copy.
+
+    Reads the object sequentially in part_size chunks, so a request body that
+    only supports forward reads (an in-progress upload) can go straight to R2.
+    Never seeks the input. Returns {"file_key", "size"}.
+    """
+    if not 8 * 1024 * 1024 <= int(part_size) <= 1024 * 1024 * 1024:
+        # S3 requires every part but the last to be at least 5 MiB; 8 MiB leaves
+        # headroom and keeps the in-memory buffer predictable.
+        raise ValueError("part_size must be between 8 MiB and 1 GiB")
+    content_type = str(content_type or "video/mp4").strip().lower()
+    if not (content_type.startswith("video/") or content_type == "application/octet-stream"):
+        raise ValueError(f"unsupported content_type: {content_type}")
+
+    file_key = f"{UPLOAD_KEY_PREFIX}{uuid.uuid4().hex}-{sanitize_file_name(file_name)}"
+    client = _get_client()
+    size = 0
+
+    try:
+        multipart = client.create_multipart_upload(
+            Bucket=R2_BUCKET_NAME, Key=file_key, ContentType=content_type
+        )
+        upload_id = multipart["UploadId"]
+        parts = []
+        try:
+            sequence = 0
+            while True:
+                chunk = file_obj.read(int(part_size))
+                if not chunk:
+                    break
+                size += len(chunk)
+                sequence += 1
+                part = client.upload_part(
+                    Bucket=R2_BUCKET_NAME,
+                    Key=file_key,
+                    UploadId=upload_id,
+                    PartNumber=sequence,
+                    Body=chunk,
+                )
+                parts.append({"PartNumber": sequence, "ETag": part["ETag"]})
+
+            if not parts:
+                client.put_object(
+                    Bucket=R2_BUCKET_NAME, Key=file_key, Body=b"", ContentType=content_type
+                )
+            else:
+                client.complete_multipart_upload(
+                    Bucket=R2_BUCKET_NAME,
+                    Key=file_key,
+                    UploadId=upload_id,
+                    MultipartUpload={"Parts": parts},
+                )
+        except Exception:
+            # Never leave an orphaned multipart upload billing for storage.
+            try:
+                client.abort_multipart_upload(
+                    Bucket=R2_BUCKET_NAME, Key=file_key, UploadId=upload_id
+                )
+            except (BotoCoreError, ClientError):
+                pass
+            raise
+    except (BotoCoreError, ClientError) as error:
+        raise RuntimeError(f"Could not upload to R2: {error}") from error
+
+    return {"file_key": file_key, "size": size}
+
+
+def delete_object(file_key: str) -> None:
+    """Best-effort delete; failures are logged, not raised (cleanup paths)."""
+    try:
+        key = validate_file_key(file_key)
+    except ValueError as error:
+        print(f"[R2] delete skipped: {error}")
+        return
+    try:
+        _get_client().delete_object(Bucket=R2_BUCKET_NAME, Key=key)
+    except (BotoCoreError, ClientError) as error:
+        print(f"[R2] delete failed for {key}: {error}")

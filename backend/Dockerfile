@@ -1,4 +1,6 @@
-# ChronoMark backend: FastAPI + embedded Qdrant + ffmpeg.
+# ChronoMark backend: FastAPI + ffmpeg, with Qdrant Cloud and Cloudflare R2
+# reached over the network from backend/.env (nothing vector- or video-related
+# is stored in the image or on the container's disk beyond derived artifacts).
 #
 # Python 3.12 (wheels for torch/transformers are the most reliable here) with
 # ffmpeg from apt, since yt-dlp, audio extraction and frame grabs all shell
