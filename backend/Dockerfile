@@ -20,6 +20,9 @@ RUN apt-get update \
 
 WORKDIR /app
 
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV PATH="/root/.deno/bin:${PATH}"
+
 COPY requirements.txt ./
 
 # torch first, pinned to CPU wheels: on Linux the plain `pip install torch`

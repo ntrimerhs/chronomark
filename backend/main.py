@@ -1809,6 +1809,8 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
                 result = subprocess.run(
                     [
                         str(yt_dlp_exe),
+                        "--cookies",
+                        "/app/cookies.txt",
                         "--no-playlist",
                         "--no-warnings",
                         "--extractor-args", "youtube:player_client=android,web,ios",
