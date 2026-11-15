@@ -1,0 +1,15 @@
+# Runtime data lives on the host and is bind-mounted at run time;
+# baking it into the image would freeze it and bloat the build context.
+.venv/
+__pycache__/
+**/__pycache__/
+.env
+uploads/
+audio/
+frames/
+normalized/
+qdrant_data/
+*.mp4
+*.wav
+*.jsonl
+metrics.json

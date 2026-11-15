@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 .main-header {
-  --header-bg: #0A121C;
+  --header-bg: rgba(10, 18, 28, 0.62);
   --header-bg-hover: rgba(124, 58, 237, 0.14);
   --header-line: rgba(255, 255, 255, 0.08);
   --header-text: #FFFFFF;
@@ -25,9 +25,20 @@
   height: 116px;
   width: 100%;
   background: var(--header-bg);
+  /* glass: the page content scrolls underneath and refracts through it.
+     The opaque fallback keeps the header readable where blur is unsupported. */
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid var(--header-line);
   font-family: var(--header-mono);
   font-size: 14px;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .main-header {
+    background: #0A121C;
+  }
 }
 
 .logo-link {
