@@ -16,21 +16,48 @@
 import os
 import uuid
 
+from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
 
-# Server mode by default (concurrency-safe): a standalone Qdrant container
-# accepts simultaneous writers, which the embedded sqlite storage cannot do --
-# concurrent uploads used to crash it with sqlite3 "bad parameter or other API
-# misuse". Point QDRANT_URL at the server; unset it to fall back to the old
-# embedded local mode (single process only).
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+load_dotenv()
+
+# Where the vectors live. QDRANT_URL points at a Qdrant Cloud cluster (or any
+# Qdrant server) and QDRANT_API_KEY authenticates to it; a shared server is also
+# concurrency-safe, where the embedded sqlite store is not -- concurrent uploads
+# used to crash it with sqlite3 "bad parameter or other API misuse". Leave
+# QDRANT_URL empty to fall back to the embedded local mode, which keeps
+# everything in ./qdrant_data but is single-process only.
+QDRANT_URL = (os.getenv("QDRANT_URL") or "").strip()
+QDRANT_API_KEY = (os.getenv("QDRANT_API_KEY") or "").strip() or None
+
 if QDRANT_URL:
-    client = QdrantClient(url=QDRANT_URL)
+    client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=30)
+    print(f"[Qdrant] remote: {QDRANT_URL}")
 else:
     client = QdrantClient(path="./qdrant_data")
+    print("[Qdrant] embedded local: ./qdrant_data (single process only)")
 
 TEXT_COLLECTION = "video_text_segments"
 FRAME_COLLECTION = "video_frames"
+
+
+def _ensure_video_id_index(collection_name: str) -> None:
+    """Indexed payload field for the per-video filters.
+
+    Every search/scroll filters on video_id, and a Qdrant server (unlike the
+    embedded store) rejects a filtered query with
+    'Index required but not found for "video_id" of type [keyword]' unless the
+    field carries a payload index. Creating it only when missing keeps this
+    idempotent across restarts.
+    """
+    info = client.get_collection(collection_name)
+    if "video_id" in (info.payload_schema or {}):
+        return
+    client.create_payload_index(
+        collection_name=collection_name,
+        field_name="video_id",
+        field_schema=models.PayloadSchemaType.KEYWORD,
+    )
 
 
 def ensure_collections():
@@ -51,6 +78,9 @@ def ensure_collections():
                 distance=models.Distance.COSINE,
             ),
         )
+
+    _ensure_video_id_index(TEXT_COLLECTION)
+    _ensure_video_id_index(FRAME_COLLECTION)
 
 
 def clear_collections():

@@ -93,9 +93,13 @@ the startup line reported "HF Inference API" (it keyed the branch on
 `backend/requirements.txt` was missing two packages that the code imports
 (`qdrant-client`, `requests`); both were added and installed.
 
-Vector search runs in **embedded Qdrant** (`QdrantClient(path="./qdrant_data")`),
-so no Qdrant server or Docker is needed. `main.py` creates `backend/qdrant_data`
-on first run.
+Vector search runs against **Qdrant Cloud** -- `QDRANT_URL` and `QDRANT_API_KEY`
+in `backend/.env` point at the cluster, and `ensure_collections()` creates the
+two collections plus the `video_id` payload index (required for the per-video
+filters; a Qdrant server rejects filtered queries without it) on first run.
+Leaving `QDRANT_URL` empty in `.env` falls back to the embedded local store
+(`backend/qdrant_data`, single process only). No data migrates between the two:
+every upload wipes the collections and re-indexes.
 
 ## Verify
 
