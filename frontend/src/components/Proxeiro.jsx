@@ -85,19 +85,6 @@ const Proxeiro = () => {
         };
     }, []);
 
-    const stageLabel = (stage) => {
-        if (stage === 'extracting_audio') return '🎵 Extracting audio...';
-        if (stage === 'transcribing_audio') return '📝 Transcribing (this may take a minute)...';
-        if (stage === 'embedding_text') return '🧠 Creating embeddings...';
-        if (stage === 'downloading') return '📥 Downloading from YouTube...';
-        if (stage === 'processing_audio_and_frames') return '⚙️ Processing audio...';
-        if (stage === 'queued') return '⏳ Queued for processing...';
-        if (stage === 'finalizing') return '✨ Finalizing...';
-        if (stage === 'completed') return '✅ Done!';
-        if (stage === 'failed') return '❌ Processing failed.';
-        return '';
-    };
-
     const wait = (ms) => new Promise((resolve) => {
         setTimeout(resolve, ms);
     });
@@ -636,10 +623,6 @@ const Proxeiro = () => {
                                         )
                                     })}
                                 </div>
-
-                                {stageLabel(processingStage) && (
-                                    <p className="upload-file-label">{stageLabel(processingStage)}</p>
-                                )}
                             </div>
 
                             {uploadError ? <p className="upload-error">{uploadError}</p> : null}

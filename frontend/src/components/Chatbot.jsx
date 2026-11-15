@@ -16,6 +16,14 @@ const QUICK_ACTIONS = [
   },
 ];
 
+// The backend builds the answer's moments along the way, so the array can
+// arrive in narrative order. Whatever it does, the chat always holds them
+// ascending by where they sit in the video.
+function sortTimestamps(list) {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => (a?.start ?? 0) - (b?.start ?? 0));
+}
+
 function Chatbot({ onSeek, videoId }) {
   const [messages, setMessages] = useImmer([]);
   const [newMessage, setNewMessage] = useState('');
@@ -98,7 +106,7 @@ function Chatbot({ onSeek, videoId }) {
         draft[draft.length - 1] = {
           role: "assistant",
           content: "",
-          timestamps: data.timestamps ?? [],
+          timestamps: sortTimestamps(data.timestamps),
           loading: false,
           streaming: !!fullAnswer,
         };
@@ -138,7 +146,7 @@ function Chatbot({ onSeek, videoId }) {
           draft[draft.length - 1] = {
             role: "assistant",
             content: "",
-            timestamps: data.timestamps ?? [],
+            timestamps: sortTimestamps(data.timestamps),
             loading: false,
           };
         });
@@ -168,7 +176,7 @@ function Chatbot({ onSeek, videoId }) {
           <Bot size={18} />
         </div>
         <div>
-          <p className="chatbot-header-title">Video AI</p>
+          <p className="chatbot-header-title">ChronoMark</p>
           <div className="chatbot-header-status">
             <span className="chatbot-header-dot" />
             <span>Ready to chat</span>

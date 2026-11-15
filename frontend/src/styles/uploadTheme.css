@@ -9,8 +9,10 @@
 /* ── the page surface ── */
 
 .upload-shell {
-  --upload-panel: rgba(10, 18, 28, 0.72);
-  --upload-panel-strong: rgba(10, 18, 28, 0.9);
+  /* glass panels: translucent enough for the drifting colour washes behind
+     them to refract through the blur, dark enough to keep text contrast */
+  --upload-panel: rgba(12, 20, 32, 0.5);
+  --upload-panel-strong: rgba(12, 20, 32, 0.78);
   --upload-border: rgba(245, 245, 248, 0.14);
   --upload-border-strong: rgba(244, 47, 167, 0.42);
   --upload-text: #f5f5f8;

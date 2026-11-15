@@ -128,6 +128,61 @@
   color:var(--pink);
 }
 
+/* the typewriter: characters sit in place hidden and light up one by one, so
+   the heading never reflows while it types; the pink caret leads the way */
+.hiw-demo .hiw-caret {
+  display:inline-block;
+  width:.055em;
+  min-width:3px;
+  height:.7em;
+  margin-left:.06em;
+  vertical-align:baseline;
+  transform:translateY(.03em);
+  background:var(--pink);
+  box-shadow:0 0 14px rgba(244,47,167,.6);
+  animation:hiwCaretBlink .9s step-end infinite;
+}
+
+@keyframes hiwCaretBlink {
+  0%,100% {
+    opacity:1;
+  }
+
+  50% {
+    opacity:0;
+  }
+}
+
+/* ── the entrance ──
+   Everything below the heading waits hidden until the section is focused on
+   screen (.is-entered is set by the component), then rises in order: the
+   subtitle lands as the last letter of the heading types, the demo follows,
+   the footer line closes it. */
+.hiw-demo .section-title p {
+  opacity:0;
+  transform:translateY(16px);
+  transition:opacity .55s ease 1.44s,transform .55s cubic-bezier(.2,.8,.2,1) 1.44s;
+}
+
+.hiw-demo .experience {
+  opacity:0;
+  transform:translateY(34px);
+  transition:opacity .8s cubic-bezier(.2,.8,.2,1) .78s,transform .8s cubic-bezier(.2,.8,.2,1) .78s;
+}
+
+.hiw-demo .below-experience {
+  opacity:0;
+  transform:translateY(20px);
+  transition:opacity .6s ease 1.08s,transform .6s cubic-bezier(.2,.8,.2,1) 1.08s;
+}
+
+.hiw-demo.is-entered .section-title p,
+.hiw-demo.is-entered .experience,
+.hiw-demo.is-entered .below-experience {
+  opacity:1;
+  transform:none;
+}
+
 .hiw-demo .section-title p {
   margin:0;
   color:rgba(245,245,248,.72);
@@ -853,24 +908,9 @@
   margin:28px auto 0;
 }
 
-.hiw-demo .is-revealing [data-reveal] {
-  opacity:0;
-  transform:translateY(24px);
-  transition:opacity .8s ease,transform .8s ease;
-}
-
-.hiw-demo .is-revealing .is-visible[data-reveal] {
-  opacity:1;
-  transform:none;
-}
-
-.hiw-demo .is-revealing .experience {
-  transition-delay:.13s;
-}
-
-.hiw-demo .is-revealing .below-experience {
-  transition-delay:.24s;
-}
+/* the reveal is scroll-mapped from the component: it writes opacity and
+   transform straight onto .section-title, .experience and .below-experience,
+   so there is deliberately no CSS state machine here */
 
 @keyframes hiwScanLine {
   to {
@@ -1116,7 +1156,13 @@
     scroll-behavior:auto!important;
   }
 
-  .hiw-demo .is-revealing [data-reveal] {
+  .hiw-demo .hiw-caret {
+    display:none;
+  }
+
+  .hiw-demo .section-title p,
+  .hiw-demo .experience,
+  .hiw-demo .below-experience {
     opacity:1!important;
     transform:none!important;
   }

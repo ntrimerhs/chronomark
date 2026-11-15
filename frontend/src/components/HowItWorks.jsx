@@ -15,6 +15,7 @@ import './howItWorks.css'
    heading, and every style is scoped under .hiw-demo. */
 
 const QUERY = 'Where is gradient descent explained?'
+const TITLE_TEXT = 'How it works'
 const LABELS = ['01 / LECTURE READY', '02 / QUERY SUBMITTED', '03 / MOMENT FOUND']
 const STATUSES = ['SOURCE / READY', 'QUERY / SEARCHING', 'MATCH / FOUND']
 const PROGRESS = [0, 29, 63]
@@ -50,7 +51,9 @@ export default function HowItWorks() {
   const [typed, setTyped] = useState('')
   const [answerShown, setAnswerShown] = useState(false)
   const [previewing, setPreviewing] = useState(false)
-  const [revealed, setRevealed] = useState(reducedMotion)
+  /* 0 = the heading has not started typing; total + 1 = the period landed too */
+  const [typedCount, setTypedCount] = useState(reducedMotion ? TITLE_TEXT.length + 2 : 0)
+  const [entered, setEntered] = useState(false)
 
   const sectionRef = useRef(null)
   const timeRef = useRef(null)
@@ -162,8 +165,10 @@ export default function HowItWorks() {
     }, 2200)
   }, [goToStep, reducedMotion, schedule])
 
-  /* Reveal the section once it is genuinely on screen, then start the demo.
-     The page scrolls inside #root, not the window. */
+  /* The section waits hidden until it is genuinely focused on screen; then the
+     heading types itself out and the rest of the section rises in order. The
+     page scrolls inside #root, not the window, so the trigger reads the live
+     rect from every scroll source and re-checks on a few ticks. */
   useEffect(() => {
     const el = sectionRef.current
     if (!el) return undefined
@@ -176,10 +181,12 @@ export default function HowItWorks() {
       const rect = el.getBoundingClientRect()
       const viewport = window.innerHeight || 800
       const visible = Math.min(rect.bottom, viewport) - Math.max(rect.top, 0)
-      if (!done && visible > Math.min(140, rect.height * 0.1)) {
+
+      if (!done && visible > Math.min(300, rect.height * 0.25)) {
         done = true
-        setRevealed(true)
+        setEntered(true)
       }
+      /* the demo itself waits until the section is properly on screen */
       if (!sequence && visible > Math.min(420, rect.height * 0.45)) {
         sequence = true
         startedRef.current = true
@@ -201,14 +208,8 @@ export default function HowItWorks() {
     window.addEventListener('resize', onScroll)
     window.addEventListener('hashchange', onScroll)
     const ticks = [80, 260, 700, 1400].map((ms) => window.setTimeout(check, ms))
-    /* nothing may stay hidden if something upstream swallows the events */
-    const guard = window.setTimeout(() => {
-      setRevealed(true)
-      if (!startedRef.current) playSequence()
-    }, 6000)
 
     return () => {
-      window.clearTimeout(guard)
       ticks.forEach(window.clearTimeout)
       window.removeEventListener('hashchange', onScroll)
       window.removeEventListener('resize', onScroll)
@@ -216,6 +217,30 @@ export default function HowItWorks() {
       window.removeEventListener('scroll', onScroll)
     }
   }, [playSequence])
+
+  /* the typewriter: one letter every 92ms once the section is focused, the
+     pink period last. Runs on its own timers, so picking a demo step mid-type
+     cannot interrupt it. */
+  useEffect(() => {
+    if (!entered || reducedMotion) return undefined
+    let cancelled = false
+    let id = 0
+    let count = 0
+    const total = TITLE_TEXT.length + 1
+
+    const stepType = () => {
+      if (cancelled) return
+      count += 1
+      setTypedCount(count)
+      if (count < total) id = window.setTimeout(stepType, 92)
+    }
+    id = window.setTimeout(stepType, 260)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(id)
+    }
+  }, [entered, reducedMotion])
 
   /* A tab left in the background mid-sequence should not keep animating. */
   useEffect(() => {
@@ -257,10 +282,8 @@ export default function HowItWorks() {
     goToStep(next, true)
   }
 
-  const revealClass = (name) => `${name}${revealed ? ' is-visible' : ''}`
-
   return (
-    <div className="hiw-demo is-revealing">
+    <div className={`hiw-demo${entered ? ' is-entered' : ''}`}>
       <section
         className="how-section"
         id="features"
@@ -268,10 +291,30 @@ export default function HowItWorks() {
         ref={sectionRef}
       >
         <div className="section-inner">
-          <div className={revealClass('section-title')} data-reveal>
-            <h1 id="how-heading">
-              How it works
-              <span className="title-period">.</span>
+          <div className="section-title">
+            <h1 id="how-heading" aria-label="How it works.">
+              <span aria-hidden="true">
+                {TITLE_TEXT.split('').map((char, i) => (
+                  <span
+                    key={`${i}-${char}`}
+                    style={{ visibility: typedCount > i ? 'visible' : 'hidden' }}
+                  >
+                    {char}
+                  </span>
+                ))}
+                <span
+                  className="title-period"
+                  style={{
+                    visibility:
+                      typedCount > TITLE_TEXT.length ? 'visible' : 'hidden',
+                  }}
+                >
+                  .
+                </span>
+                {typedCount <= TITLE_TEXT.length && (
+                  <span className="hiw-caret" aria-hidden="true" />
+                )}
+              </span>
             </h1>
             <p>
               From a question to the exact <em>moment.</em>
@@ -279,9 +322,8 @@ export default function HowItWorks() {
           </div>
 
           <div
-            className={revealClass('experience')}
+            className="experience"
             data-step={step}
-            data-reveal
             id="experience"
           >
             <section className="steps" aria-label="How ChronoMark works">
@@ -525,7 +567,7 @@ export default function HowItWorks() {
             </section>
           </div>
 
-          <div className={revealClass('below-experience')} data-reveal>
+          <div className="below-experience">
             <span>NOT JUST SEARCHABLE.</span>
             <span>
               FINDABLE TO THE SECOND. <b>↗</b>

@@ -106,51 +106,73 @@
   to { opacity: 1; transform: translate(-50%, -54%) scale(1); }
 }
 
+/* Radial glow behind the dial centre. Sits between the washes and the dial. */
+.hx-core-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(70vw, 640px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -55%);
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(168, 85, 247, 0.16) 0%,
+    rgba(244, 47, 167, 0.07) 38%,
+    transparent 68%
+  );
+  filter: blur(30px);
+  pointer-events: none;
+  opacity: 0;
+  animation: hx-fade 1400ms ease 400ms forwards;
+}
+
 .hx-ring {
   fill: none;
-  stroke: rgba(245, 245, 248, 0.24);
+  stroke: rgba(245, 245, 248, 0.32);
   stroke-width: 1;
 }
 
 .hx-ring-inner {
   stroke: url(#hxRing);
-  stroke-width: 1.2;
+  stroke-width: 1.4;
 }
 
 .hx-dotted {
   fill: none;
-  stroke: rgba(245, 245, 248, 0.34);
-  stroke-width: 1.4;
+  stroke: rgba(245, 245, 248, 0.5);
+  stroke-width: 1.6;
   stroke-dasharray: 1 13;
   stroke-linecap: round;
 }
 
 .hx-crosshair line {
-  stroke: rgba(245, 245, 248, 0.16);
+  stroke: rgba(245, 245, 248, 0.09);
   stroke-width: 1;
   stroke-dasharray: 3 9;
 }
 
 .hx-tick {
-  stroke: rgba(245, 245, 248, 0.42);
+  stroke: rgba(245, 245, 248, 0.55);
   stroke-width: 1.4;
   stroke-linecap: round;
 }
 
 .hx-tick.is-long {
-  stroke: rgba(245, 245, 248, 0.72);
+  stroke: rgba(244, 47, 167, 0.85);
   stroke-width: 2;
 }
 
 .hx-centre line {
-  stroke: rgba(245, 245, 248, 0.5);
+  stroke: rgba(245, 245, 248, 0.6);
   stroke-width: 1.2;
 }
 
 /* Motion A: the arc and its marker travel the inner orbit. */
 .hx-arc-group {
   transform-origin: 350px 350px;
-  animation: hx-spin 23s linear infinite;
+  animation: hx-spin 14s linear infinite;
 }
 
 @keyframes hx-spin {
@@ -170,17 +192,17 @@
 .hx-arc {
   fill: none;
   stroke: url(#hxArc);
-  stroke-width: 2.4;
+  stroke-width: 3;
   stroke-linecap: round;
 }
 
 .hx-arc-trail {
   fill: none;
   stroke: url(#hxArc);
-  stroke-width: 6;
+  stroke-width: 9;
   stroke-linecap: round;
-  opacity: 0.25;
-  filter: blur(3px);
+  opacity: 0.38;
+  filter: blur(5px);
 }
 
 /* Motion C: the marker breathes. */
@@ -242,15 +264,18 @@
 }
 
 .hx-tagline em {
-  font-family: inherit;
-  font-style: normal;
-  font-weight: 500;
-  letter-spacing: inherit;
-  background-image: linear-gradient(96deg, #F42FA7 0%, #C25BF5 55%, #A855F7 100%);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.08em;
+  letter-spacing: 0.02em;
+  background-image: linear-gradient(96deg, #FF4FC3 0%, #F42FA7 35%, #C25BF5 70%, #A855F7 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
+  text-shadow: 0 0 34px rgba(244, 47, 167, 0.35);
+  padding-right: 0.06em; /* keep the italic tail from clipping against the clip */
 }
 
 /* ── Controls ── */
@@ -408,6 +433,11 @@
   .hx-ticks,
   .hx-marker {
     animation: none;
+  }
+
+  .hx-core-glow {
+    animation: none;
+    opacity: 1;
   }
 
   .hx-word span {

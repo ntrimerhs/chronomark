@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './heroOrbit.css'
 
@@ -18,7 +19,27 @@ const WORD = 'CHRONOMARK'
 const TICKS = Array.from({ length: 60 }, (_, i) => i * 6)
 const CARDINALS = [0, 90, 180, 270]
 
+/* The bottom-left readout is a real stopwatch: it counts up from the moment
+   the hero mounts, so the page itself feels alive instead of printed. */
+function useElapsedClock() {
+  const [elapsed, setElapsed] = useState(0)
+
+  useEffect(() => {
+    const started = Date.now()
+    const timer = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - started) / 1000))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const hours = String(Math.floor(elapsed / 3600)).padStart(2, '0')
+  const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')
+  const seconds = String(elapsed % 60).padStart(2, '0')
+  return `${hours}:${minutes}:${seconds}`
+}
+
 export default function HeroOrbit() {
+  const clock = useElapsedClock()
   return (
     <div className="hx">
       {/* the site's own mesh blobs, back on top of the plate */}
@@ -33,6 +54,9 @@ export default function HeroOrbit() {
       <div className="hx-wash hx-wash-violet" aria-hidden="true" />
       <div className="hx-wash hx-wash-blue" aria-hidden="true" />
       <div className="hx-grid" aria-hidden="true" />
+      {/* a soft radial glow behind the dial centre: gives the composition
+          depth instead of sitting on flat plate colour */}
+      <div className="hx-core-glow" aria-hidden="true" />
 
       {/* edge readouts */}
       <div className="hx-edge hx-edge-tl" aria-hidden="true">
@@ -47,7 +71,7 @@ export default function HeroOrbit() {
       </p>
       <p className="hx-edge hx-edge-bl" aria-hidden="true">
         <span className="hx-rule hx-rule-short" />
-        <span>T — 00:00:00</span>
+        <span>T — {clock}</span>
       </p>
       <p className="hx-edge hx-edge-br" aria-hidden="true">
         <span>///</span>
@@ -116,9 +140,9 @@ export default function HeroOrbit() {
             <path className="hx-arc" d="M 470 145 A 233 233 0 0 1 560 300" />
             <path className="hx-arc-trail" d="M 402 128 A 233 233 0 0 1 470 145" />
             <g className="hx-marker">
-              <circle cx="470" cy="145" r="20" fill="#F42FA7" opacity="0.16" />
-              <circle cx="470" cy="145" r="9" fill="#F42FA7" filter="url(#hxGlow)" />
-              <circle cx="470" cy="145" r="3.4" fill="#FFF0F8" />
+              <circle cx="470" cy="145" r="26" fill="#F42FA7" opacity="0.2" />
+              <circle cx="470" cy="145" r="11" fill="#F42FA7" filter="url(#hxGlow)" />
+              <circle cx="470" cy="145" r="3.8" fill="#FFF0F8" />
             </g>
           </g>
         </svg>

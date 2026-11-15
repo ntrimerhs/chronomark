@@ -21,6 +21,7 @@ import metrics
 
 from llama import (
     ask_llama,
+    digest_segment,
     extract_examples,
     map_examples_to_excerpts,
     transcribe_image,
@@ -883,13 +884,19 @@ def _ensure_text_artifacts(video_id: str | None):
     if EMBEDDINGS_PATH.exists():
         try:
             with open(EMBEDDINGS_PATH, "r", encoding="utf-8") as f:
-                embeddings_present = bool(json.load(f))
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                # The store is keyed by video stem, so only this video's entry
+                # counts -- another video's embeddings must not satisfy ours.
+                embeddings_present = bool((loaded.get(video_id or "current") or {}).get("segments") or loaded.get(video_id or "current"))
+            else:
+                embeddings_present = bool(loaded)
         except Exception:
             embeddings_present = False
 
     if transcript_has_text and not embeddings_present:
         embeddings = create_embeddings_from_transcript(transcript_data)
-        _update_shared_json(EMBEDDINGS_PATH, embeddings)
+        _update_shared_json(EMBEDDINGS_PATH, embeddings, video_id or "current")
         store_text_embeddings(video_id or "current", embeddings)
         return transcript_data, embeddings
 
@@ -904,9 +911,9 @@ def _ensure_text_artifacts(video_id: str | None):
     transcript_for_json, embeddings, _ = _run_audio_pipeline(uploaded_video, output_audio)
 
     if transcript_for_json.get("segments"):
-        _update_shared_json(TRANSCRIPTS_PATH, transcript_for_json)
+        _update_shared_json(TRANSCRIPTS_PATH, transcript_for_json, uploaded_video.stem)
     if embeddings:
-        _update_shared_json(EMBEDDINGS_PATH, embeddings)
+        _update_shared_json(EMBEDDINGS_PATH, embeddings, uploaded_video.stem)
 
     return transcript_for_json, embeddings
 
@@ -1168,17 +1175,38 @@ def _compact_transcript_for_json(transcript):
     return compact
 
 
-def _update_shared_json(path: Path, data):
-    """Overwrite the shared JSON file's contents with just this video's data.
+_JSON_WRITE_LOCK = threading.Lock()
 
-    The frontend only supports one active video at a time, so each new
-    upload should fully replace whatever was previously stored here (the
-    raw segments/embeddings themselves, no video_id wrapper) rather than
-    accumulating every video ever uploaded.
+
+def _update_shared_json(path: Path, data, video_id: str | None = None):
+    """Merge this video's data into the shared JSON store under its video_id.
+
+    The store is a dict keyed by video stem ({video_id: {segments, ...}}) so
+    concurrent uploads never overwrite each other's transcript. Writes are
+    serialized with a lock and replaced atomically, so two pipelines finishing
+    at the same time cannot corrupt the file.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    with _JSON_WRITE_LOCK:
+        existing = {}
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    existing = loaded
+            except Exception:
+                existing = {}
+        if video_id:
+            existing[video_id] = data
+        else:
+            # Legacy callers without a video_id: keep their payload under a
+            # top-level shape the readers already understand.
+            existing.update(data if isinstance(data, dict) else {})
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2, ensure_ascii=False)
+        tmp_path.replace(path)
 
 def _clear_previous_uploads(current_video):
     for file in UPLOAD_DIR.iterdir():
@@ -1296,6 +1324,8 @@ def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
     except Exception as e:
         transcript_error = str(e)
         print(f"✗ Transcription/embedding failed for {video_path.stem}: {e}")
+        import traceback
+        traceback.print_exc()
 
     return transcript_for_json, embeddings, transcript_error
 
@@ -1755,12 +1785,10 @@ def _process_upload_job(
         global CURRENT_VIDEO_ID
         CURRENT_VIDEO_ID = video_path.stem
 
-        # This app only keeps one active video's data at a time -- wipe
-        # whatever was stored for the previous video before processing the
-        # new one, so /ask never mixes results across uploads.
-        clear_collections()
-        _clear_previous_video_files(video_path.stem)
-        _clear_previous_uploads(video_path.name)
+        # Multi-video mode: nothing is wiped here. Every video keeps its own
+        # uploads/audio/frames files and its own Qdrant points (keyed by
+        # video_id, and /ask already filters by video_id), so concurrent
+        # uploads never delete each other's data mid-pipeline.
 
         # Ensure the file the frontend actually plays is seek-friendly
         # (faststart MP4 / H.264 / AAC). Otherwise the browser's seek bar
@@ -1871,8 +1899,8 @@ def _process_upload_job(
 
         _set_job_status(job_id, status="processing", stage="finalizing", progress=95)
 
-        _update_shared_json(TRANSCRIPTS_PATH, transcript_for_json)
-        _update_shared_json(EMBEDDINGS_PATH, embeddings)
+        _update_shared_json(TRANSCRIPTS_PATH, transcript_for_json, video_path.stem)
+        _update_shared_json(EMBEDDINGS_PATH, embeddings, video_path.stem)
 
         total_time_sec = time.perf_counter() - start_time
 

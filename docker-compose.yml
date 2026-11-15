@@ -1,0 +1,64 @@
+# ChronoMark full stack.
+#
+#   backend  - FastAPI + embedded Qdrant + ffmpeg (this is the whole brain)
+#   frontend - nginx serving the built SPA on http://localhost:8080
+#
+# Everything the app generates lives on the host through bind mounts, so
+# `docker compose down` never throws away uploads, transcripts, frames or the
+# Qdrant index you already built.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: chronomark-qdrant
+    ports:
+      # Exposed to the host so a local uvicorn can share the same index.
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      - qdrant
+    container_name: chronomark-backend
+    # API keys come from backend/.env (DEEPSEEK_API_KEY, GROQ_API_KEY, ...).
+    # The file is not copied into the image (see backend/.dockerignore).
+    env_file:
+      - ./backend/.env
+    # Host port 8001 -> container port 8000, so a local uvicorn can also run
+    # on 8000 at the same time.
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/audio:/app/audio
+      - ./backend/frames:/app/frames
+      - ./backend/normalized:/app/normalized
+      # Your existing Qdrant index, exactly where the local run keeps it.
+      - ./backend/qdrant_data:/app/qdrant_data
+      # Hugging Face model cache (MiniLM, CLIP) in a named volume: downloaded
+      # once, reused across rebuilds.
+      - hf_cache:/cache/huggingface
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Where the browser finds the API. Same as the local dev default.
+        VITE_API_URL: http://localhost:8001
+    container_name: chronomark-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  hf_cache:
+  qdrant_storage:

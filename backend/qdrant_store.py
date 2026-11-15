@@ -13,12 +13,21 @@
 # TEXT_COLLECTION = "video_text_segments"
 # FRAME_COLLECTION = "video_frames"
 
+import os
 import uuid
 
 from qdrant_client import QdrantClient, models
 
-# Embedded local mode: stores data on disk, no server/URL needed.
-client = QdrantClient(path="./qdrant_data")
+# Server mode by default (concurrency-safe): a standalone Qdrant container
+# accepts simultaneous writers, which the embedded sqlite storage cannot do --
+# concurrent uploads used to crash it with sqlite3 "bad parameter or other API
+# misuse". Point QDRANT_URL at the server; unset it to fall back to the old
+# embedded local mode (single process only).
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+if QDRANT_URL:
+    client = QdrantClient(url=QDRANT_URL)
+else:
+    client = QdrantClient(path="./qdrant_data")
 
 TEXT_COLLECTION = "video_text_segments"
 FRAME_COLLECTION = "video_frames"
