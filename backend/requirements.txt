@@ -15,3 +15,5 @@ openai
 qdrant-client
 # Imported directly by whisper.py for the HF Inference fallback.
 requests
+# services/r2_service.py: presigned upload/download URLs for Cloudflare R2.
+boto3

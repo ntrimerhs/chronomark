@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pathlib import Path
 import re
 import shutil
@@ -29,6 +30,12 @@ from llama import (
 
 from pydantic import BaseModel
 import sys
+
+from services import r2_service
+from services.r2_service import (
+    generate_presigned_download_url,
+    generate_presigned_upload_url,
+)
 
 # Progress output uses ✓ / ✗ / ↻ / ⏱. A non-interactive Windows process gets a
 # cp1252 stdout, where printing any of those raises UnicodeEncodeError -- and
@@ -1254,7 +1261,7 @@ def _set_job_status(job_id, status=None, stage=None, progress=None, error=None, 
     JOBS[job_id] = job
 
 
-def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
+def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: str | None = None):
     """Extract audio, transcribe it, and create/store text embeddings.
 
     Runs with detailed progress tracking. When job_id is given, pushes
@@ -1262,7 +1269,14 @@ def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
     the frontend's progress bar sat frozen at "extracting_audio" for the
     entire (often multi-minute) transcription pass, since that was the only
     status update between the start and the final "finalizing" jump.
+
+    video_path may also be an http(s) URL: ffmpeg streams it directly, which is
+    how R2-hosted videos are processed without the file ever landing on this
+    server. In that case a video_id must be supplied (a URL has no usable stem)
+    and the normalize fallback is skipped -- re-encoding needs a local file, so
+    the caller downloads one if it wants that path.
     """
+    vid = video_id or Path(video_path).stem
     transcript_error = None
     transcript_for_json = {"segments": []}
     embeddings = []
@@ -1270,9 +1284,13 @@ def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
     try:
         t_audio = time.perf_counter()
         extract_audio(video_path, output_audio)
-        print(f"✓ Audio extraction complete for {video_path.stem}  [{time.perf_counter()-t_audio:.1f}s]")
+        print(f"✓ Audio extraction complete for {vid}  [{time.perf_counter()-t_audio:.1f}s]")
     except RuntimeError as e:
-        print(f"✗ Direct audio extraction failed for {video_path.stem}: {e}")
+        print(f"✗ Direct audio extraction failed for {vid}: {e}")
+        if str(video_path).lower().startswith(("http://", "https://")):
+            # Re-encoding needs a local file; let the caller fall back to
+            # downloading the object from R2 and processing it like an upload.
+            raise
         try:
             normalized_video = normalize_video(video_path, NORMALIZED_DIR, force=True)
             print(f"↻ Retrying audio extraction from normalized video: {normalized_video}")
@@ -1286,7 +1304,7 @@ def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
         if output_audio and Path(output_audio).exists():
             import time as _time
             t0 = _time.perf_counter()
-            print(f"✓ Starting transcription for {video_path.stem}...")
+            print(f"✓ Starting transcription for {vid}...")
 
             if job_id:
                 _set_job_status(job_id, stage="transcribing_audio", progress=30)
@@ -1309,13 +1327,13 @@ def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
             t1 = _time.perf_counter()
             print(f"↻ Creating text embeddings...")
             embeddings = create_embeddings_from_transcript(transcript_for_json)
-            store_text_embeddings(video_path.stem, embeddings)
+            store_text_embeddings(vid, embeddings)
             print(f"✓ Embeddings stored: {len(embeddings)} vectors  [{_time.perf_counter()-t1:.1f}s]")
 
             # Compact outline per 5-minute chunk, so questions do not have to
             # re-read the whole transcript every time.
             try:
-                _build_digests(transcript_for_json.get("segments") or [], video_path.stem)
+                _build_digests(transcript_for_json.get("segments") or [], vid)
             except Exception as digest_error:
                 print(f"[Digest] skipped: {digest_error}")
 
@@ -1323,7 +1341,7 @@ def _run_audio_pipeline(video_path: Path, output_audio: Path, job_id=None):
                 _set_job_status(job_id, stage="embedding_text", progress=90)
     except Exception as e:
         transcript_error = str(e)
-        print(f"✗ Transcription/embedding failed for {video_path.stem}: {e}")
+        print(f"✗ Transcription/embedding failed for {vid}: {e}")
         import traceback
         traceback.print_exc()
 
@@ -2170,6 +2188,214 @@ async def get_upload_status(job_id: str):
         "error": job.get("error"),
         "result": job.get("result"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Direct-to-R2 uploads: the browser PUTs the file to Cloudflare R2 with a
+# presigned URL, so video bytes never pass through this server. Only the signed
+# URLs and the processing metadata flow through the API.
+# ---------------------------------------------------------------------------
+
+class ProcessVideoRequest(BaseModel):
+    file_key: str
+
+
+@app.get('/api/get-upload-url')
+async def api_get_upload_url(file_name: str, content_type: str = "video/mp4"):
+    """A one-time PUT URL the frontend uploads the video to, straight to R2."""
+    try:
+        return generate_presigned_upload_url(file_name, content_type)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+
+
+@app.post('/api/process-video')
+async def api_process_video(req: ProcessVideoRequest, background_tasks: BackgroundTasks):
+    """Kick off analysis for a video that already sits in R2.
+
+    The pipeline reads the file straight from a presigned URL with ffmpeg, so
+    the upload itself stays browser -> R2. The result carries a stable
+    /api/video-stream/{file_key} address for the player, which hands out a
+    fresh presigned URL per request instead of an expiring one.
+    """
+    global CURRENT_VIDEO_ID
+
+    try:
+        file_key = r2_service.validate_file_key(req.file_key)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    original_name = file_key[len(r2_service.UPLOAD_KEY_PREFIX):]
+    # Reuse a uuid-style split: the object key is videos/<uuid32>-<name>.
+    display_name = original_name.split("-", 1)[1] if "-" in original_name else original_name
+    stem = r2_service.sanitize_file_name(display_name)
+    video_id = Path(stem).stem or "video"
+
+    start_time = time.perf_counter()
+    job_id = str(uuid.uuid4())
+    JOBS[job_id] = {
+        "job_id": job_id,
+        "status": "processing",
+        "stage": "queued",
+        "progress": 5,
+        "error": None,
+        "result": None,
+    }
+
+    background_tasks.add_task(
+        _process_r2_video_job,
+        job_id,
+        file_key,
+        display_name,
+        video_id,
+        start_time,
+    )
+
+    # The player may ask for this video before it says anything else, and /ask
+    # without an explicit video_id must hit the same video.
+    CURRENT_VIDEO_ID = video_id
+
+    return {
+        "job_id": job_id,
+        "status": "processing",
+        "stage": "queued",
+        "progress": 5,
+        "status_url": f"/upload-status/{job_id}",
+        "video_id": video_id,
+        "file_key": file_key,
+    }
+
+
+@app.get('/api/video-stream/{file_key:path}')
+async def api_video_stream(file_key: str):
+    """302 to a fresh presigned URL, so the player never holds an expired one."""
+    try:
+        key = r2_service.validate_file_key(file_key)
+        download_url = generate_presigned_download_url(key, expires_in=3600)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+    return RedirectResponse(download_url, status_code=302)
+
+
+def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
+    """Analyze an R2-hosted video without storing it on this server.
+
+    Pass 1 streams the file into ffmpeg straight from a presigned URL: audio is
+    extracted to a local WAV (the transcript APIs need local audio chunks) and
+    frames land in frames/<video_id>/ -- derived artifacts, not the video. Pass
+    2 is the fallback for files ffmpeg cannot stream: download the object once
+    with boto3 and process it like a classic upload.
+    """
+    try:
+        _set_job_status(job_id, status="processing", stage="preparing", progress=5)
+        # Same one-active-video rule as the local path: wipe artifacts of any
+        # previous video (and any local upload file -- the active one is in R2).
+        _clear_previous_video_files(video_id)
+        _clear_previous_uploads(f"{video_id}.mp4")
+
+        output_audio = AUDIO_DIR / f"{video_id}.wav"
+        output_frames_dir = FRAMES_DIR / video_id
+
+        # Signed now, used within minutes; 1h comfortably covers processing.
+        try:
+            source_url = generate_presigned_download_url(file_key, expires_in=3600)
+        except (ValueError, RuntimeError) as r2_error:
+            raise RuntimeError(f"R2 download URL failed: {r2_error}") from r2_error
+
+        def _visual_only_task(from_source):
+            try:
+                count, coverage_stamps = extract_frames(
+                    from_source,
+                    output_frames_dir,
+                    interval_seconds=COVERAGE_INTERVAL_SEC,
+                    extraction_mode="interval",
+                    scene_threshold=0.12,
+                    keyframes_only=False,
+                    max_width=0,
+                    min_gap_sec=0.0,
+                    max_hash_distance=0,
+                )
+                print(f"[Frames] {count} coverage frames every {COVERAGE_INTERVAL_SEC:.0f}s")
+                _ocr_frames(output_frames_dir, video_id, coverage_stamps)
+                return count
+            except Exception as visual_error:
+                print(f"[Frames] coverage pass failed: {visual_error}")
+                return 0
+
+        _set_job_status(job_id, stage="extracting_audio", progress=10)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            visual_future = pool.submit(_visual_only_task, source_url)
+            try:
+                transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
+                    source_url, output_audio, job_id=job_id, video_id=video_id
+                )
+            except RuntimeError as stream_error:
+                # ffmpeg could not read the URL (codec/container/network).
+                transcript_for_json, embeddings, transcript_error = None, [], str(stream_error)
+            try:
+                visual_future.result()
+            except Exception as visual_error:
+                print(f"[Frames] visual pass failed: {visual_error}")
+
+        local_copy = None
+        audio_ok = output_audio is not None and Path(output_audio).exists()
+        if transcript_error or not audio_ok or not transcript_for_json.get("segments"):
+            # Fallback: pull the object from R2 once and process it locally,
+            # exactly like a classic upload.
+            _set_job_status(job_id, stage="downloading_from_r2", progress=15)
+            ext = Path(display_name).suffix or ".mp4"
+            local_copy = UPLOAD_DIR / f"{video_id}{ext}"
+            try:
+                r2_service.download_to_file(file_key, local_copy)
+                print(f"[R2] fallback download complete: {local_copy.name}")
+            except RuntimeError as download_error:
+                raise RuntimeError(f"Streaming failed and R2 download failed: {download_error}") from download_error
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                visual_future = pool.submit(_visual_only_task, local_copy)
+                transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
+                    local_copy, output_audio, job_id=job_id, video_id=video_id
+                )
+                try:
+                    visual_future.result()
+                except Exception as visual_error:
+                    print(f"[Frames] visual pass failed: {visual_error}")
+
+        frame_count = _sync_concept_frames(
+            local_copy or source_url, transcript_for_json, output_frames_dir, max_width=0
+        )
+
+        _set_job_status(job_id, status="processing", stage="finalizing", progress=95)
+
+        _update_shared_json(TRANSCRIPTS_PATH, transcript_for_json, video_id)
+        _update_shared_json(EMBEDDINGS_PATH, embeddings, video_id)
+
+        total_time_sec = time.perf_counter() - start_time
+
+        result = {
+            "filename": display_name,
+            # Stable address for the player; resolves to a fresh presigned URL.
+            "file_url": f"/api/video-stream/{file_key}",
+            "file_key": file_key,
+            "audio_url": f"/audio/{video_id}.wav",
+            "video_id": video_id,
+            "transcript_url": "/audio/output.json",
+            "embeddings_url": "/audio/output_embeddings.json",
+            "transcript": transcript_for_json,
+            "transcript_error": transcript_error,
+            "frame_count": frame_count,
+            "total_time_sec": round(total_time_sec, 1),
+        }
+        _set_job_status(job_id, status="completed", stage="completed", progress=100, result=result)
+        print(f"[Pipeline] R2 video processed for {video_id} in {total_time_sec:.1f}s")
+    except Exception as e:
+        total_time_sec = time.perf_counter() - start_time
+        _set_job_status(job_id, status="failed", stage="failed", progress=100, error=str(e))
+        print(f"[Pipeline] R2 pipeline failed after {total_time_sec:.1f}s: {e}")
 
 
 @app.post("/ask")
