@@ -3,8 +3,8 @@
 # is stored in the image or on the container's disk beyond derived artifacts).
 #
 # Python 3.12 (wheels for torch/transformers are the most reliable here) with
-# ffmpeg from apt, since yt-dlp, audio extraction and frame grabs all shell
-# out to the ffmpeg binary.
+# ffmpeg from apt, plus curl+unzip for the Deno install script below.
+# python:3.12-slim ships neither.
 
 FROM python:3.12-slim
 
@@ -15,13 +15,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/cache/huggingface
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg curl unzip ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN curl -fsSL https://deno.land/install.sh | sh
-ENV PATH="/root/.deno/bin:${PATH}"
+# Deno: the JS runtime yt-dlp needs to solve YouTube's n challenge. Without
+# it every download degrades to storyboard images ("Requested format is not
+# available"). DENO_INSTALL=/usr/local puts the binary in /usr/local/bin,
+# which is already on PATH (the default $HOME/.deno location is NOT).
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
+    && deno --version
 
 COPY requirements.txt ./
 

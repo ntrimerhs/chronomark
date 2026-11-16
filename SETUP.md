@@ -175,3 +175,36 @@ order is a fatal error (exit 128), which a hook would read as "no match".
   route is roughly 40x faster on CPU.
 - Windows symlink warning from `huggingface_hub` is harmless (no Developer Mode);
   the cache just uses copies instead of links.
+
+## HTTPS on the VPS (Caddy)
+
+The stack is served over HTTPS by the machine-wide Caddy that also fronts
+n8n and 0digital.xyz (a second Caddy cannot bind ports 80/443). Layout:
+
+```
+browser -> https://chronomark.0digital.xyz
+             /api/*   -> chronomark-backend:8000   (/api prefix stripped)
+             /*       -> chronomark-frontend:80    (SPA)
+```
+
+One-time wiring (already done on the VPS):
+
+1. The chronomark site block was appended to `/root/n8n/Caddyfile`
+   (copy kept in `deploy/Caddyfile.chronomark`).
+2. `/root/n8n/docker-compose.yml` caddy service joins the external
+   `chronomark_default` network; recreated with
+   `cd /root/n8n && docker compose up -d caddy`.
+3. `docker-compose.yml` bakes `VITE_API_URL=https://chronomark.0digital.xyz/api`
+   into the frontend bundle.
+
+To go live, all that is left:
+
+```
+# In Cloudflare DNS: chronomark.0digital.xyz  A  62.238.121.168  (DNS only)
+docker compose build frontend && docker compose up -d frontend
+```
+
+Caddy issues the Let's Encrypt certificate automatically once DNS resolves;
+it keeps retrying harmlessly until then. The legacy plaintext access
+(:8080 SPA calling :37712) keeps working until the frontend image is
+rebuilt, so nothing breaks in the meantime.

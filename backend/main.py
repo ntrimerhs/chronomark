@@ -1813,7 +1813,12 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
                         "/app/cookies.txt",
                         "--no-playlist",
                         "--no-warnings",
-                        "--extractor-args", "youtube:player_client=android,web,ios",
+                        # No --extractor-args here on purpose: forcing
+                        # player_client=android,web,ios caps selection at the
+                        # 360p progressive stream. The default client set (tv,
+                        # web embedded, ...) exposes the 1080p DASH streams,
+                        # and the Deno runtime + yt-dlp-ejs solve the n
+                        # challenge that unlocks them.
                         "-f", fmt,
                         "--merge-output-format", "mp4",
                         "--retries", "10",

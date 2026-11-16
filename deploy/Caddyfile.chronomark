@@ -1,0 +1,21 @@
+# ChronoMark's HTTPS entry. This block lives in /root/n8n/Caddyfile on the
+# VPS (the n8n Caddy owns host ports 80/443; a second Caddy cannot bind them).
+# After editing that file: cd /root/n8n && docker compose up -d caddy
+#
+# Network wiring (already applied to /root/n8n/docker-compose.yml): the caddy
+# service joins the external chronomark_default network so it can resolve
+# chronomark-frontend and chronomark-backend by container name.
+#
+# DNS: chronomark.0digital.xyz A 62.238.121.168, DNS-only (grey cloud) in
+# Cloudflare. Until the record exists, Caddy retries certificate issuance in
+# the background and the existing sites are unaffected.
+
+chronomark.0digital.xyz {
+	# /api/* -> backend, prefix stripped: the browser calls
+	# https://chronomark.0digital.xyz/api/ask and FastAPI sees /ask.
+	handle_path /api/* {
+		reverse_proxy chronomark-backend:8000
+	}
+	# Everything else -> the SPA (nginx try_files handles client routes).
+	reverse_proxy chronomark-frontend:80
+}

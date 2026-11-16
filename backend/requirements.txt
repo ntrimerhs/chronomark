@@ -9,6 +9,10 @@ torch
 torchvision
 pillow
 yt-dlp
+# yt-dlp's EJS challenge solver scripts (n-challenge); needs a JS runtime
+# (Deno, installed in the Dockerfile) or every YouTube download degrades
+# to storyboard images only.
+yt-dlp-ejs
 sentence-transformers
 openai
 # Imported by qdrant_store.py (embedded Qdrant, no server needed).
