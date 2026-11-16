@@ -284,7 +284,8 @@
 
 /* section headings inside an answer: ChatGPT-style hierarchy, our palette.
    Big, bold and white so a section can never get lost in the body text; the
-   only marker is the small pink square from the rest of the instrument. */
+   marker is a '#' in the accent colour, so a heading reads like the markdown
+   that produced it instead of a bullet chip. */
 .chatbot .markdown-container h1,
 .chatbot .markdown-container h2,
 .chatbot .markdown-container h3,
@@ -306,13 +307,11 @@
 .chatbot .markdown-container h2::before,
 .chatbot .markdown-container h3::before,
 .chatbot .markdown-container h4::before {
-  content: '';
+  content: '#';
   display: inline-block;
-  width: 7px;
-  height: 7px;
   margin-right: 9px;
-  background: #F42FA7;
-  box-shadow: 0 0 8px rgba(244, 47, 167, 0.45);
+  color: #F42FA7;
+  font-weight: 700;
 }
 
 .chatbot .markdown-container > h1:first-child,
