@@ -55,5 +55,22 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Cloudflare WARP as a free egress for yt-dlp ONLY: YouTube bot-checks
+  # datacenter IPs ("Sign in to confirm you're not a bot"). Pointing
+  # YT_DLP_PROXY=socks5://warp:1080 in backend/.env routes the downloader
+  # through Cloudflare's exit IP; nothing else uses it. Needs NET_ADMIN +
+  # the TUN device (KVM VPS). Free WARP, no account.
+  warp:
+    image: caomingjun/warp
+    container_name: chronomark-warp
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    expose:
+      - "1080"
+
 volumes:
   hf_cache:

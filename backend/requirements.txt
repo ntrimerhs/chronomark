@@ -13,6 +13,8 @@ yt-dlp
 # (Deno, installed in the Dockerfile) or every YouTube download degrades
 # to storyboard images only.
 yt-dlp-ejs
+# SOCKS proxy support for yt-dlp --proxy (the WARP egress container).
+pysocks
 sentence-transformers
 openai
 # Imported by qdrant_store.py (embedded Qdrant, no server needed).
