@@ -1789,6 +1789,18 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
             # imported lecture arrived as 640x360 with unreadable code. Anything
             # above 720p exists only as separate video and audio streams that
             # yt-dlp merges with ffmpeg.
+
+            # YouTube flags datacenter IPs and then answers EVERY client with
+            # "Sign in to confirm you're not a bot"; cookies alone do not
+            # clear it. When you set YT_DLP_PROXY in backend/.env (e.g.
+            # http://user:pass@host:port), ONLY yt-dlp traffic is routed
+            # through that proxy -- transcription, LLM calls and everything
+            # else keep using the VPS network.
+            proxy_args = []
+            proxy = os.environ.get("YT_DLP_PROXY", "").strip()
+            if proxy:
+                proxy_args += ["--proxy", proxy]
+
             format_attempts = [
                 (
                     "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/"
@@ -1819,6 +1831,7 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
                         # web embedded, ...) exposes the 1080p DASH streams,
                         # and the Deno runtime + yt-dlp-ejs solve the n
                         # challenge that unlocks them.
+                        *proxy_args,
                         "-f", fmt,
                         "--merge-output-format", "mp4",
                         "--retries", "10",

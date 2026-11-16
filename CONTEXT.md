@@ -55,6 +55,15 @@ Keys live in `backend/.env` as `DEEPSEEK_API_KEY`, `GROQ_API_KEY`.
 5. **httpx keep-alive pools go stale.** A dead connection makes every retry
    fail identically. The fix, already in the pipeline, is to rebuild the client
    on transport errors, not just sleep and retry.
+6. **YouTube bot-checks the VPS IP.** After some traffic every yt-dlp call
+   from the server gets "Sign in to confirm you're not a bot", no matter the
+   player_client, with or without cookies -- the flag is IP-level, not
+   client-level. Fixes in order of cost: regenerate `cookies.txt` from a
+   dedicated account (it is re-read live, no restart), set `YT_DLP_PROXY`
+   in backend/.env to route only yt-dlp through a residential proxy, or
+   download locally and upload the file through the app. Deno + yt-dlp-ejs
+   in the image are still required -- without them the failure is
+   "Requested format is not available" instead.
 
 ---
 
