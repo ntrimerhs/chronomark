@@ -1399,6 +1399,7 @@ def _add_concept_frames(
     lookahead_sec=2.0,
     coverage_interval_sec=20.0,
     max_width=0,
+    coverage_stamps=None,
 ):
     """Extract a still for each concept moment and add it to the manifest.
 
@@ -1417,7 +1418,17 @@ def _add_concept_frames(
     # concept moments alone leave gaps: on a 12-minute lecture they produced 16
     # frames and captured only one of four code examples.
     coverage = {}
-    if coverage_interval_sec and float(coverage_interval_sec) > 0:
+    if coverage_stamps:
+        # The visual thread already extracted the coverage pass; reusing its
+        # stamps skips a full serial re-seek of every interval frame against
+        # the (remote) source, which used to dominate the pipeline.
+        coverage = dict(coverage_stamps)
+        for name, moment in coverage.items():
+            if moment is None:
+                continue
+            entries.append({"file": name, "t": float(moment)})
+        print(f"[Frames] reusing {len(coverage)} coverage frames already extracted")
+    elif coverage_interval_sec and float(coverage_interval_sec) > 0:
         try:
             _, coverage = extract_frames(
                 video_path,
@@ -1450,15 +1461,31 @@ def _add_concept_frames(
         return 0
 
     added = 0
-    for moment in moments:
-        # A sentence announces a concept slightly before the slide catches up,
-        # so the still is taken a beat later than the word that triggered it.
-        at = float(moment) + max(0.0, float(lookahead_sec))
-        target = frames_dir / f"frame9{added + 1:05d}.jpg"
-        if not extract_frame_at(video_path, at, target):
-            continue
-        entries.append({"file": target.name, "t": at})
-        added += 1
+    moments = list(moments)
+    if moments:
+        # The stills are independent ffmpeg seeks against the same source (a
+        # presigned R2 URL in production); serially, connection setup plus the
+        # moov parse per seek dominated the whole pipeline. Names come from
+        # the index, not completion order, and gaps from failures are
+        # harmless: frame9* sorts after ffmpeg's frame0* either way, and the
+        # manifest is sorted by timestamp below.
+        def _grab(index, moment):
+            at = float(moment) + max(0.0, float(lookahead_sec))
+            target = frames_dir / f"frame9{index + 1:05d}.jpg"
+            return index, at, target, extract_frame_at(video_path, at, target)
+
+        with ThreadPoolExecutor(max_workers=min(4, len(moments))) as seek_pool:
+            futures = [seek_pool.submit(_grab, i, m) for i, m in enumerate(moments)]
+            for future in futures:
+                try:
+                    index, at, target, ok = future.result()
+                except Exception as seek_error:
+                    print(f"[Frames] concept seek failed: {seek_error}")
+                    continue
+                if not ok:
+                    continue
+                entries.append({"file": target.name, "t": at})
+                added += 1
 
     if entries:
         entries.sort(key=lambda entry: entry["t"])
@@ -1667,7 +1694,7 @@ def _fallback_frame_interval(video_path, ceiling=60.0, minimum=2.0, target_frame
     return max(minimum, min(ceiling, float(duration) / target_frames))
 
 
-def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0, max_width=0):
+def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0, max_width=0, coverage_stamps=None):
     """Add frames chosen from the transcript, then index everything in the dir.
 
     Used by both orderings: in audio-first mode base_count is 0 and these are
@@ -1675,7 +1702,8 @@ def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0, max_w
     """
     try:
         added = _add_concept_frames(
-            video_path, transcript, frames_dir, max_width=max_width
+            video_path, transcript, frames_dir, max_width=max_width,
+            coverage_stamps=coverage_stamps,
         )
 
         if added == 0 and not base_count:
@@ -2220,12 +2248,13 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
                 )
                 print(f"[Frames] {count} coverage frames every {COVERAGE_INTERVAL_SEC:.0f}s")
                 _ocr_frames(output_frames_dir, video_id, coverage_stamps)
-                return count
+                return count, coverage_stamps
             except Exception as visual_error:
                 print(f"[Frames] coverage pass failed: {visual_error}")
-                return 0
+                return 0, {}
 
         _set_job_status(job_id, stage="extracting_audio", progress=10)
+        coverage_stamps = {}
         with ThreadPoolExecutor(max_workers=2) as pool:
             visual_future = pool.submit(_visual_only_task, source_url)
             try:
@@ -2236,7 +2265,9 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
                 # ffmpeg could not read the URL (codec/container/network).
                 transcript_for_json, embeddings, transcript_error = None, [], str(stream_error)
             try:
-                visual_future.result()
+                _visual_count, visual_stamps = visual_future.result()
+                if visual_stamps:
+                    coverage_stamps = dict(visual_stamps)
             except Exception as visual_error:
                 print(f"[Frames] visual pass failed: {visual_error}")
 
@@ -2260,14 +2291,23 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
                     raise RuntimeError(f"Streaming failed and R2 download failed: {download_error}") from download_error
 
                 with ThreadPoolExecutor(max_workers=2) as pool:
-                    visual_future = pool.submit(_visual_only_task, local_copy)
+                    # The first visual pass already produced coverage frames
+                    # and OCR'd them; only re-run it when it produced nothing.
+                    visual_future = (
+                        pool.submit(_visual_only_task, local_copy)
+                        if not coverage_stamps
+                        else None
+                    )
                     transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
                         local_copy, output_audio, job_id=job_id, video_id=video_id
                     )
-                    try:
-                        visual_future.result()
-                    except Exception as visual_error:
-                        print(f"[Frames] visual pass failed: {visual_error}")
+                    if visual_future is not None:
+                        try:
+                            _visual_count, visual_stamps = visual_future.result()
+                            if visual_stamps:
+                                coverage_stamps = dict(visual_stamps)
+                        except Exception as visual_error:
+                            print(f"[Frames] visual pass failed: {visual_error}")
             finally:
                 try:
                     local_copy.unlink(missing_ok=True)
@@ -2276,7 +2316,8 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
             local_copy = None  # processed and deleted; concept frames use the URL
 
         frame_count = _sync_concept_frames(
-            source_url, transcript_for_json, output_frames_dir, max_width=0
+            source_url, transcript_for_json, output_frames_dir, max_width=0,
+            coverage_stamps=coverage_stamps,
         )
 
         _set_job_status(job_id, status="processing", stage="finalizing", progress=95)
