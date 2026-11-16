@@ -55,6 +55,13 @@ const PIPELINE_SPEC = [
 
 const METER_BARS = [18, 34, 26, 48, 62, 41, 55, 73, 46, 58, 36, 66, 82, 54, 44, 68, 90, 61, 47, 72, 52, 38, 64, 49, 30, 57, 42, 70]
 
+// The stream URL embeds the R2 key: /api/video-stream/videos/<key-part>.
+const fileKeyFromUrl = (url) => {
+    const marker = '/api/video-stream/';
+    const index = String(url || '').indexOf(marker);
+    return index >= 0 ? String(url).slice(index + marker.length).split('?')[0] : null;
+};
+
 const Proxeiro = () => {
 
     const [file, setFile] = useState(null);
@@ -62,6 +69,7 @@ const Proxeiro = () => {
     const [backendProgress, setBackendProgress] = useState(0);
     const [uploadedFileURL, setUploadedFileURL] = useState(null);
     const [currentVideoId, setCurrentVideoId] = useState(null);
+    const [currentFileKey, setCurrentFileKey] = useState(null);
     const [uploadError, setUploadError] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const [processingStage, setProcessingStage] = useState('idle');
@@ -107,6 +115,7 @@ const Proxeiro = () => {
                 const fileUrl = `${API_BASE_URL}${result.file_url}?t=${Date.now()}`;
                 setUploadedFileURL(fileUrl);
                 setCurrentVideoId(result.video_id ?? null);
+                setCurrentFileKey(result.file_key ?? fileKeyFromUrl(result.file_url));
                 return;
             }
 
@@ -131,6 +140,7 @@ const Proxeiro = () => {
             setUploadError('');
             setUploadedFileURL(null);
             setCurrentVideoId(null);
+            setCurrentFileKey(null);
             setIsPlaying(false);
             setCurrentTime(0);
             setDuration(0);
@@ -157,6 +167,7 @@ const Proxeiro = () => {
                 const fileUrl = `${API_BASE_URL}${response.data.file_url}?t=${Date.now()}`;
                 setUploadedFileURL(fileUrl);
                 setCurrentVideoId(response?.data?.video_id ?? null);
+                setCurrentFileKey(response?.data?.file_key ?? fileKeyFromUrl(response?.data?.file_url));
                 setBackendProgress(100);
                 setProcessingStage('completed');
             } else {
@@ -248,6 +259,7 @@ const Proxeiro = () => {
             setUploadError('');
             setUploadedFileURL(null);
             setCurrentVideoId(null);
+            setCurrentFileKey(null);
             setIsPlaying(false);
             setCurrentTime(0);
             setDuration(0);
@@ -298,6 +310,31 @@ const Proxeiro = () => {
         },
         ],
     }), [uploadedFileURL]);
+
+    // Presence for R2 retention: a heartbeat every minute while the video
+    // page is open, and a release when the user leaves (replace file, SPA
+    // navigation, tab close via pagehide + fetch keepalive). The backend
+    // deletes the stored R2 copy once nobody is watching anymore; the grace
+    // period covers an F5 refresh.
+    React.useEffect(() => {
+        if (!uploadedFileURL || !currentFileKey) return undefined;
+        const beat = () => fetch(
+            `${API_BASE_URL}/api/video-presence/${currentFileKey}`,
+            { keepalive: true },
+        ).catch(() => {});
+        const release = () => fetch(
+            `${API_BASE_URL}/api/video-presence/${currentFileKey}?active=0`,
+            { keepalive: true },
+        ).catch(() => {});
+        beat();
+        const timer = setInterval(beat, 60000);
+        window.addEventListener('pagehide', release);
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener('pagehide', release);
+            release();
+        };
+    }, [uploadedFileURL, currentFileKey]);
 
     const displayProgress = processingStage === 'uploading' ? uploadProgress : backendProgress;
 

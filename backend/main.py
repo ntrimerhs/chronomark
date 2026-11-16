@@ -2073,7 +2073,112 @@ async def api_video_stream(file_key: str):
         raise HTTPException(status_code=400, detail=str(error))
     except RuntimeError as error:
         raise HTTPException(status_code=502, detail=str(error))
+    # Every player load counts as "someone is watching", which also cancels a
+    # release sent moments before (e.g. the pagehide of a refresh).
+    _touch_video_presence(key, active=True)
     return RedirectResponse(download_url, status_code=302)
+
+
+# --- Session-scoped video retention ------------------------------------------
+# The R2 copy of a video lives only while someone is still in the video page.
+# Presence: every /api/video-stream hit counts as "here", the frontend sends a
+# heartbeat once a minute, and ?active=0 marks the user gone (navigate away,
+# replace file, tab close). A daemon thread deletes videos/ objects with no
+# remaining presence: 30 s after a release (so a refresh recovers cleanly) or
+# after VIDEO_RETENTION_MINUTES without any heartbeat (crashed tabs). Derived
+# artifacts (audio/, frames/, Qdrant points) are kept, so questions still
+# answer without playback.
+VIDEO_RETENTION_MINUTES = float(os.environ.get("VIDEO_RETENTION_MINUTES", "60") or "60")
+_RELEASE_GRACE_SECONDS = 30.0
+_SWEEP_INTERVAL_SECONDS = 60.0
+
+_VIDEO_LAST_SEEN = {}
+_VIDEO_RELEASED_AT = {}
+_PRESENCE_LOCK = threading.Lock()
+
+
+def _touch_video_presence(file_key: str, active: bool = True) -> None:
+    now = time.time()
+    with _PRESENCE_LOCK:
+        if active:
+            _VIDEO_LAST_SEEN[file_key] = now
+            _VIDEO_RELEASED_AT.pop(file_key, None)
+        else:
+            _VIDEO_RELEASED_AT[file_key] = now
+
+
+def _video_cleanup_sweeper():
+    # Objects already in the bucket (from before this feature, or left by a
+    # previous process run) start their clock at their upload time, so the
+    # old pile ages out instead of living forever.
+    seeded = False
+    while True:
+        time.sleep(_SWEEP_INTERVAL_SECONDS)
+        if not seeded:
+            try:
+                with _PRESENCE_LOCK:
+                    for entry in r2_service.list_upload_keys():
+                        _VIDEO_LAST_SEEN.setdefault(entry["key"], entry["last_modified"])
+                    seeded_count = len(_VIDEO_LAST_SEEN)
+                seeded = True
+                print(f"[R2] retention sweeper seeded {seeded_count} video(s)")
+            except Exception as error:
+                print(f"[R2] retention seed failed (retrying): {error}")
+                continue
+
+        now = time.time()
+        victims = []
+        with _PRESENCE_LOCK:
+            for key, seen in list(_VIDEO_LAST_SEEN.items()):
+                released_at = _VIDEO_RELEASED_AT.get(key)
+                if released_at is not None:
+                    if now - released_at >= _RELEASE_GRACE_SECONDS:
+                        victims.append((key, f"user left {int(now - released_at)}s ago"))
+                        _VIDEO_LAST_SEEN.pop(key, None)
+                        _VIDEO_RELEASED_AT.pop(key, None)
+                elif now - seen > VIDEO_RETENTION_MINUTES * 60:
+                    victims.append((key, f"no viewer for {int((now - seen) / 60)} min"))
+                    _VIDEO_LAST_SEEN.pop(key, None)
+        for key, reason in victims:
+            if r2_service.delete_object(key):
+                print(f"[R2] session cleanup: deleted {key} ({reason})")
+            else:
+                # Deletion failed; put it back on the clock so the next sweep
+                # retries instead of forgetting the object forever.
+                with _PRESENCE_LOCK:
+                    _VIDEO_LAST_SEEN[key] = now
+
+
+def _start_video_cleanup_sweeper():
+    if not r2_service.R2_BUCKET_NAME:
+        return
+    threading.Thread(
+        target=_video_cleanup_sweeper, name="r2-video-cleanup", daemon=True
+    ).start()
+
+
+_start_video_cleanup_sweeper()
+
+
+@app.get('/api/video-presence/{file_key:path}')
+async def api_video_presence(file_key: str, active: bool = True):
+    """Presence beacon from the video page.
+
+    The frontend calls this once a minute while the page is open (active=1)
+    and once when the user leaves or closes the tab (active=0). GET on
+    purpose: a simple request needs no CORS preflight, so it also survives
+    page unload via fetch keepalive.
+    """
+    try:
+        key = r2_service.validate_file_key(file_key)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    _touch_video_presence(key, active=active)
+    return {
+        "file_key": key,
+        "active": active,
+        "retention_minutes": VIDEO_RETENTION_MINUTES,
+    }
 
 
 def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):

@@ -253,14 +253,32 @@ def upload_stream(file_obj, file_name: str, content_type: str = "video/mp4", par
     return {"file_key": file_key, "size": size}
 
 
-def delete_object(file_key: str) -> None:
-    """Best-effort delete; failures are logged, not raised (cleanup paths)."""
+def delete_object(file_key: str) -> bool:
+    """Best-effort delete; failures are logged, not raised. True on success."""
     try:
         key = validate_file_key(file_key)
     except ValueError as error:
         print(f"[R2] delete skipped: {error}")
-        return
+        return False
     try:
         _get_client().delete_object(Bucket=R2_BUCKET_NAME, Key=key)
     except (BotoCoreError, ClientError) as error:
         print(f"[R2] delete failed for {key}: {error}")
+        return False
+    return True
+
+
+def list_upload_keys() -> list:
+    """Every object under the upload prefix, with its epoch mtime.
+
+    Used by the retention sweeper to put pre-existing videos on the same
+    aging clock as newly uploaded ones.
+    """
+    entries = []
+    paginator = _get_client().get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=R2_BUCKET_NAME, Prefix=UPLOAD_KEY_PREFIX):
+        for obj in page.get("Contents", []):
+            entries.append(
+                {"key": obj["Key"], "last_modified": obj["LastModified"].timestamp()}
+            )
+    return entries
