@@ -2752,6 +2752,25 @@ class DocumentStudyRequest(BaseModel):
     language: str | None = None
 
 
+def _document_language(document: dict) -> str:
+    """The language the document itself is written in.
+
+    Stored at ingest when possible; older records fall back to reading the first
+    pages. Answers, quizzes and flashcards follow this, so a Greek handout is
+    always explained in Greek even when the student types the question in
+    English.
+    """
+    stored = str(document.get("language") or "").strip()
+    if stored:
+        return stored
+    sample = " ".join(
+        (page.get("text") or "")[:800] for page in (document.get("pages") or [])[:3]
+    )
+    if not sample.strip():
+        return ""
+    return _detect_transcript_language(sample)
+
+
 def _document_meta_path(doc_id: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9._-]", "", str(doc_id or ""))
     if not safe:
@@ -2846,6 +2865,11 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
             "indexed_pages": sorted({p["page"] for p in extracted["pages"]}),
             "chunk_count": len(chunks),
             "created_at": time.time(),
+            # Stored once here so every later answer, quiz and flashcard follows
+            # the document's own language instead of the question's.
+            "language": _detect_transcript_language(
+                " ".join((page.get("text") or "")[:800] for page in extracted["pages"][:3])
+            ),
             "pages": extracted["pages"],
         }
         _save_document(document)
@@ -3174,16 +3198,13 @@ async def api_document_ask(req: DocumentQuestion):
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
 
     summary_mode = _is_summary_request(question)
-    answer_language = _detect_question_language(question)
-    # A question with no letters at all ("?", "p. 4") carries no language to
-    # follow, so the document's own language decides instead of defaulting to
-    # English.
-    if not any(character.isalpha() for character in question):
-        document_sample = " ".join(
-            (page.get("text") or "")[:600] for page in (document.get("pages") or [])[:3]
-        )
-        if document_sample.strip():
-            answer_language = _detect_transcript_language(document_sample)
+    # A Greek document is answered in Greek, whatever language the question is
+    # typed in: the material a student revises from has to match the material
+    # they were given. For any other document the question's own language wins.
+    document_language = _document_language(document)
+    answer_language = document_language if document_language == "Greek" else _detect_question_language(question)
+    if not any(character.isalpha() for character in question) and document_language:
+        answer_language = document_language
 
     if summary_mode:
         candidates = chunks[:120]
@@ -3326,9 +3347,7 @@ async def api_document_quiz(req: DocumentStudyRequest):
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
-    language = req.language or _detect_question_language(
-        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
-    )
+    language = req.language or _document_language(document) or "English"
     context = "\n".join(
         f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
         for r in chunks[:80]
@@ -3343,9 +3362,7 @@ async def api_document_flashcards(req: DocumentStudyRequest):
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
-    language = req.language or _detect_question_language(
-        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
-    )
+    language = req.language or _document_language(document) or "English"
     context = "\n".join(
         f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
         for r in chunks[:80]
@@ -3360,9 +3377,7 @@ async def api_document_notes(req: DocumentStudyRequest):
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
-    language = req.language or _detect_question_language(
-        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
-    )
+    language = req.language or _document_language(document) or "English"
     context = "\n".join(
         f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
         for r in chunks[:120]

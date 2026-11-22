@@ -29,14 +29,12 @@ function isGreek(text) {
 function DocumentChat({ document: doc, onJumpToPage }) {
   const [messages, setMessages] = useImmer([])
   const [newMessage, setNewMessage] = useState('')
-  const [showQuickActions, setShowQuickActions] = useState(true)
   const [busyTool, setBusyTool] = useState('')
 
   // A conversation belongs to one document; switching documents must not send
   // the previous Q&A as history.
   useEffect(() => {
     setMessages(() => [])
-    setShowQuickActions(true)
     setNewMessage('')
     setBusyTool('')
   }, [doc?.doc_id, setMessages])
@@ -102,10 +100,6 @@ function DocumentChat({ document: doc, onJumpToPage }) {
     const trimmed = (overrideText ?? newMessage).trim()
     if (!trimmed || isLoading || !doc) return
 
-    if (trimmed.toLowerCase() === 'summarize this document') {
-      setShowQuickActions(false)
-    }
-
     const history = messages
       .filter((message) => !message.loading && !message.error && message.content)
       .map((message) => ({ role: message.role, content: message.content }))
@@ -131,7 +125,6 @@ function DocumentChat({ document: doc, onJumpToPage }) {
 
   async function runStudy(kind) {
     if (!doc || isLoading || busyTool) return
-    setShowQuickActions(false)
     setBusyTool(kind)
 
     const label =
@@ -212,21 +205,22 @@ function DocumentChat({ document: doc, onJumpToPage }) {
         <ChatMessages messages={messages} isLoading={isLoading} onSeek={onJumpToPage} />
       )}
 
-      {showQuickActions && (
-        <div className="chatbot-quick-actions" aria-label="Quick actions">
-          {QUICK_ACTIONS.map(({ key, label, prompt }) => (
-            <button
-              key={key}
-              type="button"
-              className="chatbot-quick-action"
-              onClick={() => (prompt ? submitNewMessage(prompt) : runStudy(key))}
-              disabled={isLoading || !!busyTool}
-            >
-              <span>{busyTool === key ? `${label}…` : label}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Always visible, on purpose: the suggestions are how the student moves
+          between asking, practising and revising, so answering one of them must
+          not take the others away. */}
+      <div className="chatbot-quick-actions" aria-label="Quick actions">
+        {QUICK_ACTIONS.map(({ key, label, prompt }) => (
+          <button
+            key={key}
+            type="button"
+            className="chatbot-quick-action"
+            onClick={() => (prompt ? submitNewMessage(prompt) : runStudy(key))}
+            disabled={isLoading || !!busyTool}
+          >
+            <span>{busyTool === key ? `${label}…` : label}</span>
+          </button>
+        ))}
+      </div>
 
       {isEmpty && <div className="chatbot-empty-spacer" />}
 
