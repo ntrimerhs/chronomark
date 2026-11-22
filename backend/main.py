@@ -3407,6 +3407,25 @@ async def api_document_ask(req: DocumentQuestion):
     }
 
 
+def _document_figures(chunks: list) -> list:
+    """The figure descriptions already indexed, as {page, text} rows."""
+    rows = []
+    for point in chunks:
+        payload = point.payload or {}
+        text = (payload.get("text") or "").strip()
+        if not text.startswith("[figure"):
+            continue
+        rows.append(
+            {
+                "page": payload.get("page"),
+                # Drop the internal label: the chat prints its own heading.
+                "text": text.split("]", 1)[-1].strip() if "]" in text else text,
+            }
+        )
+    rows.sort(key=lambda row: row.get("page") or 0)
+    return rows
+
+
 def _study_context(chunks: list, limit: int) -> str:
     """Context for quiz / flashcards / study guide.
 
@@ -3438,7 +3457,15 @@ async def api_document_quiz(req: DocumentStudyRequest):
     language = req.language or _document_language(document) or "English"
     context = _study_context(chunks, 80)
     questions = document_quiz(context, count=req.count or 6, language=language)
-    return {"doc_id": req.doc_id, "questions": questions}
+    return {
+        "doc_id": req.doc_id,
+        "questions": questions,
+        # The figures the vision pass read, sent along so the chat can show the
+        # diagram itself next to the questions. The model is asked to draw them
+        # in its explanations, but showing the source description guarantees the
+        # reader sees the structure even when it does not.
+        "figures": _document_figures(chunks),
+    }
 
 
 @app.post("/api/document/flashcards")

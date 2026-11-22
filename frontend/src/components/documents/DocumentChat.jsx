@@ -206,22 +206,39 @@ function DocumentChat({ document: doc, onJumpToPage }) {
         // The label follows the document's language, so a Greek handout reads
         // "Απάντηση:" like the material it came from.
         const answerLabel = doc?.language === 'Greek' ? 'Απάντηση' : 'Answer'
-        markdown = questions.length
-          ? questions
-              .map((question, index) => {
-                // Each option is its own paragraph: a blank line between them
-                // gives the block the air a printed quiz has, and LaTeX inside
-                // still renders through KaTeX.
-                const options = question.options
-                  .map((option, optionIndex) => `${'ABCD'[optionIndex]}. ${option}`)
-                  .join('\n\n')
-                const answer = `**${answerLabel}: ${'ABCD'[question.answer]}**${
-                  question.page ? ` — \`p. ${question.page}\`` : ''
-                }${question.explain ? `\n\n${question.explain}` : ''}`
-                return `### ${index + 1}. ${question.question}\n\n${options}\n\n${answer}`
-              })
-              .join('\n\n---\n\n')
-          : 'No questions could be built from this document.'
+        const figureLabel = doc?.language === 'Greek' ? 'Σχήματα του εγγράφου' : 'Figures in the document'
+
+        // The figures come first, drawn from the description the ingest pass
+        // produced. A question about the tree in Figure 14 is unanswerable while
+        // the reader cannot see the tree, and this puts it in front of them
+        // before the questions rather than behind a page jump.
+        const figuresBlock = (data.figures || []).length
+          ? `### ${figureLabel}\n\n${(data.figures || [])
+              .map(
+                (figure) =>
+                  `**p. ${figure.page}**\n\n\`\`\`\n${String(figure.text).slice(0, 1600)}\n\`\`\``,
+              )
+              .join('\n\n')}\n\n---\n\n`
+          : ''
+
+        markdown =
+          figuresBlock +
+          (questions.length
+            ? questions
+                .map((question, index) => {
+                  // Each option is its own paragraph: a blank line between them
+                  // gives the block the air a printed quiz has, and LaTeX inside
+                  // still renders through KaTeX.
+                  const options = question.options
+                    .map((option, optionIndex) => `${'ABCD'[optionIndex]}. ${option}`)
+                    .join('\n\n')
+                  const answer = `**${answerLabel}: ${'ABCD'[question.answer]}**${
+                    question.page ? ` — \`p. ${question.page}\`` : ''
+                  }${question.explain ? `\n\n${question.explain}` : ''}`
+                  return `### ${index + 1}. ${question.question}\n\n${options}\n\n${answer}`
+                })
+                .join('\n\n---\n\n')
+            : 'No questions could be built from this document.')
       } else if (kind === 'cards') {
         const cards = data.cards || []
         markdown = cards.length
