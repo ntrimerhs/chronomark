@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Command, Upload, Search, Settings, Home } from 'lucide-react';
+import { Command, Upload, Search, Settings, Home, FileText } from 'lucide-react';
 import '../styles/command-palette.css';
 
 const CommandPalette = () => {
@@ -25,6 +25,16 @@ const CommandPalette = () => {
       icon: Upload,
       action: () => {
         window.location.href = '/upload';
+        setIsOpen(false);
+      },
+    },
+    {
+      id: 'documents',
+      label: 'Upload Documents',
+      description: 'Upload and analyze a PDF, PowerPoint or Word file',
+      icon: FileText,
+      action: () => {
+        window.location.href = '/documents';
         setIsOpen(false);
       },
     },
