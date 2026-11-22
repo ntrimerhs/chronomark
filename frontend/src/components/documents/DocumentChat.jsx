@@ -203,12 +203,12 @@ function DocumentChat({ document: doc, onJumpToPage }) {
         markdown = questions.length
           ? questions
               .map((question, index) => {
-                // Two trailing spaces are a markdown hard break: each option sits
-                // on its own line, like a printed test, while LaTeX in it still
-                // renders through KaTeX.
+                // Each option is its own paragraph: a blank line between them
+                // gives the block the air a printed quiz has, and LaTeX inside
+                // still renders through KaTeX.
                 const options = question.options
-                  .map((option, optionIndex) => `${'ABCD'[optionIndex]}. ${option}  `)
-                  .join('\n')
+                  .map((option, optionIndex) => `${'ABCD'[optionIndex]}. ${option}`)
+                  .join('\n\n')
                 const answer = `**${answerLabel}: ${'ABCD'[question.answer]}**${
                   question.page ? ` — \`p. ${question.page}\`` : ''
                 }${question.explain ? `\n\n${question.explain}` : ''}`
