@@ -30,6 +30,9 @@ services:
       # in R2; a transient processing fallback copy goes to the container's tmp.
       - ./backend/audio:/app/audio
       - ./backend/frames:/app/frames
+      # Extracted page texts for uploaded documents (metadata only; the files
+      # themselves live in R2 under documents/).
+      - ./backend/documents:/app/documents
       # Hugging Face model cache (MiniLM, CLIP): downloaded once, reused across
       # rebuilds. ~2 GB -- on a 4 GB VPS keep an eye on disk.
       - ./cookies.txt:/app/cookies.txt

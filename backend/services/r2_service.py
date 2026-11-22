@@ -35,6 +35,11 @@ R2_BUCKET_NAME = (os.getenv("R2_BUCKET_NAME") or "").strip()
 # endpoints require -- a key outside it is not one of ours.
 UPLOAD_KEY_PREFIX = "videos/"
 
+# Uploaded study documents (PDF / PPTX / DOCX) live beside the videos, in their
+# own prefix so the video retention sweeper never deletes a handout.
+DOCUMENT_KEY_PREFIX = "documents/"
+_ALLOWED_PREFIXES = (UPLOAD_KEY_PREFIX, DOCUMENT_KEY_PREFIX)
+
 # Signing-only module: no bucket calls happen here, but the same client also
 # serves the fallback download, so the timeout keeps a stuck connection from
 # hanging a background job.
@@ -102,9 +107,10 @@ def sanitize_file_name(file_name: str) -> str:
 def validate_file_key(file_key: str) -> str:
     """Accept only keys this module issued (videos/<hash>-<name>), unchanged."""
     key = str(file_key or "").strip()
-    if not key.startswith(UPLOAD_KEY_PREFIX):
-        raise ValueError("file_key must start with 'videos/'")
-    rest = key[len(UPLOAD_KEY_PREFIX):]
+    prefix = next((item for item in _ALLOWED_PREFIXES if key.startswith(item)), None)
+    if not prefix:
+        raise ValueError("file_key must start with 'videos/' or 'documents/'")
+    rest = key[len(prefix):]
     if not rest or "/" in rest or "\\" in rest or ".." in rest:
         raise ValueError("file_key contains invalid path characters")
     if not re.fullmatch(r"[A-Za-z0-9._\-]+", rest):
@@ -185,22 +191,43 @@ def download_to_file(file_key: str, destination) -> str:
     return destination
 
 
-def upload_stream(file_obj, file_name: str, content_type: str = "video/mp4", part_size: int = 8 * 1024 * 1024):
+DOCUMENT_CONTENT_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/octet-stream",
+}
+
+
+def upload_stream(
+    file_obj,
+    file_name: str,
+    content_type: str = "video/mp4",
+    part_size: int = 8 * 1024 * 1024,
+    prefix: str = UPLOAD_KEY_PREFIX,
+):
     """Upload a stream to R2 with multipart parts, without a local copy.
 
     Reads the object sequentially in part_size chunks, so a request body that
     only supports forward reads (an in-progress upload) can go straight to R2.
     Never seeks the input. Returns {"file_key", "size"}.
     """
+    if prefix not in _ALLOWED_PREFIXES:
+        raise ValueError(f"unsupported key prefix: {prefix}")
     if not 8 * 1024 * 1024 <= int(part_size) <= 1024 * 1024 * 1024:
         # S3 requires every part but the last to be at least 5 MiB; 8 MiB leaves
         # headroom and keeps the in-memory buffer predictable.
         raise ValueError("part_size must be between 8 MiB and 1 GiB")
     content_type = str(content_type or "video/mp4").strip().lower()
-    if not (content_type.startswith("video/") or content_type == "application/octet-stream"):
+    allowed = (
+        content_type.startswith("video/")
+        or content_type == "application/octet-stream"
+        or (prefix == DOCUMENT_KEY_PREFIX and content_type in DOCUMENT_CONTENT_TYPES)
+    )
+    if not allowed:
         raise ValueError(f"unsupported content_type: {content_type}")
 
-    file_key = f"{UPLOAD_KEY_PREFIX}{uuid.uuid4().hex}-{sanitize_file_name(file_name)}"
+    file_key = f"{prefix}{uuid.uuid4().hex}-{sanitize_file_name(file_name)}"
     client = _get_client()
     size = 0
 

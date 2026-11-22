@@ -127,6 +127,233 @@ def _create(**kwargs):
     return _openai_client.chat.completions.create(**kwargs)
 
 
+_DOCUMENT_SYSTEM_PROMPT = (
+    "You are an intelligent educational assistant answering questions about a "
+    "DOCUMENT (a PDF, a slide deck, or a Word file) that the user uploaded. "
+    "It is not a video: there are no timestamps, only pages or slides.\n"
+    "\nHOW TO WRITE:\n"
+    "- Write like a person explaining something, not like a report. Plain, warm, "
+    "direct sentences.\n"
+    "- Never use em dashes or en dashes. Use a comma, a full stop, or the word "
+    "'και'. No emoji, no decorative symbols.\n"
+    "- Structure anything longer than a couple of sentences with short `###` "
+    "headings of two to five words naming what the section explains. Two to "
+    "four sections is usually right.\n"
+    "- Use a bullet list only for genuinely enumerable items.\n"
+    "- Avoid stock phrasing ('Αξίζει να σημειωθεί', 'Σε αυτό το πλαίσιο', "
+    "'Ωστόσο', 'Επιπλέον' at the start of sentences, and their English "
+    "equivalents).\n"
+    "- Do not announce what you are about to do and do not restate the question. "
+    "Start with the answer.\n"
+    "\nPAGE CITATIONS:\n"
+    "- Excerpts are labelled [p.N] where N is the page or slide number.\n"
+    "- Every paragraph that tells the user something from the document ends with "
+    "exactly one citation: the page number in inline code, e.g. `p. 12`. At most "
+    "one per paragraph, at the end of it.\n"
+    "- Copy the page number from an excerpt you were given. Never invent a page. "
+    "A citation that does not match an excerpt is deleted before the user sees "
+    "the answer.\n"
+    "- Do not cite a paragraph that only restates the question or adds general "
+    "knowledge of your own.\n"
+    "- When several paragraphs cite different pages, order them by page number "
+    "whenever that does not distort the explanation.\n"
+    "\nCONTENT RULES:\n"
+    "- The document is the dominant source. Beyond it, accurate general "
+    "knowledge may be added to make the answer educational.\n"
+    "- Never copy the document word for word; paraphrase.\n"
+    "- Never produce circular definitions. Do not invent facts; say plainly when "
+    "something is uncertain or not covered by the document.\n"
+    "- When the document covers only part of what was asked, answer that part "
+    "fully and say which part it does not cover.\n"
+    "- Show worked examples in the same order the document introduces them, each "
+    "with its explanation directly underneath.\n"
+)
+
+
+def ask_document(
+    question: str,
+    context: str,
+    history: list[dict] | None = None,
+    answer_language: str = "same as the question",
+    summary_mode: bool = False,
+    transcript_available: bool = True,
+):
+    """Answer a question about pages of a document, citing `p. N`."""
+    if not _openai_client:
+        raise RuntimeError("No LLM backend configured: set DEEPSEEK_API_KEY or OPENAI_API_KEY.")
+
+    if not transcript_available:
+        style = (
+            "No document excerpts are available for this question. Answer from "
+            "general knowledge and say plainly that the document does not cover "
+            "it. Do not ask the user to paste the text."
+        )
+    elif summary_mode:
+        style = (
+            "The user wants a summary of the whole document. You are given every "
+            "extracted excerpt in page order. Cover the main topic, every "
+            "significant concept, key examples and the overall flow, then add a "
+            "short paragraph of useful general context."
+        )
+    else:
+        style = (
+            "Answer from the excerpts, enrich with accurate general knowledge "
+            "where it helps understanding, and keep the answer focused on what "
+            "was asked. If the answer spans several pages, walk through them in "
+            "order."
+        )
+
+    messages = [
+        {"role": "system", "content": _DOCUMENT_SYSTEM_PROMPT + f"\n{style}\nRespond in {answer_language}."}
+    ]
+    for turn in history or []:
+        role, content = turn.get("role"), turn.get("content")
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+
+    trimmed = context
+    limit = _MAX_CONTEXT_CHARS["openai"]
+    if len(trimmed) > limit:
+        trimmed = trimmed[:limit] + "\n[...document truncated...]"
+
+    text = (
+        f"Document excerpts:\n{trimmed}\n\nQuestion:\n{question}"
+        if transcript_available
+        else f"Question:\n{question}"
+    )
+    messages.append({"role": "user", "content": text})
+
+    try:
+        completion = _create(
+            model=_OPENAI_MODEL,
+            messages=messages,
+            max_tokens=_MAX_OUTPUT_TOKENS,
+            temperature=_TEMPERATURE,
+        )
+    except Exception as error:
+        if not client:
+            raise
+        print(f"[LLM] {_OPENAI_MODEL} failed ({type(error).__name__}: {error}); falling back to {_HF_MODEL}")
+        completion = client.chat.completions.create(
+            model=_HF_MODEL,
+            messages=[{"role": m["role"], "content": str(m["content"])} for m in messages],
+            max_tokens=_MAX_OUTPUT_TOKENS,
+            temperature=_TEMPERATURE,
+        )
+
+    return (completion.choices[0].message.content or "").strip()
+
+
+def document_quiz(context: str, count: int = 6, language: str = "the document's language"):
+    """Multiple-choice questions grounded in the document's own pages."""
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You write exam-style multiple-choice questions from study material. "
+                "Every question must be answerable from the given excerpts alone. "
+                "Return JSON only."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Write {count} multiple-choice questions from this material.\n"
+                f"Write them in {language}.\n"
+                "Each question needs exactly four options, one correct index "
+                "(0-3), a one-sentence explanation, and the page it comes from.\n"
+                "Vary difficulty and avoid questions answerable by elimination "
+                "alone.\n\n"
+                'Shape: {"questions":[{"question":"...","options":["a","b","c","d"],'
+                '"answer":0,"explain":"...","page":3}]}\n\n'
+                f"Material:\n{context}"
+            ),
+        },
+    ]
+    data = _chat_json(messages, max_tokens=1800, temperature=0.4)
+    questions = []
+    for item in (data.get("questions") or []):
+        options = [str(option).strip() for option in (item.get("options") or []) if str(option).strip()]
+        try:
+            answer = int(item.get("answer"))
+        except (TypeError, ValueError):
+            answer = 0
+        if not item.get("question") or len(options) < 2 or not 0 <= answer < len(options):
+            continue
+        questions.append(
+            {
+                "question": str(item["question"]).strip(),
+                "options": options[:4],
+                "answer": answer,
+                "explain": str(item.get("explain") or "").strip(),
+                "page": item.get("page"),
+            }
+        )
+    return questions
+
+
+def document_flashcards(context: str, count: int = 10, language: str = "the document's language"):
+    """Term/definition cards for spaced repetition."""
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You make study flashcards from study material. Each card holds "
+                "one concept, with a definition short enough to recall. "
+                "Return JSON only."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Make {count} flashcards from this material.\n"
+                f"Write them in {language}.\n"
+                'Shape: {"cards":[{"term":"...","definition":"...","page":2}]}\n\n'
+                f"Material:\n{context}"
+            ),
+        },
+    ]
+    data = _chat_json(messages, max_tokens=1600, temperature=0.3)
+    cards = []
+    for item in (data.get("cards") or []):
+        term = str(item.get("term") or "").strip()
+        definition = str(item.get("definition") or "").strip()
+        if term and definition:
+            cards.append({"term": term, "definition": definition, "page": item.get("page")})
+    return cards
+
+
+def document_notes(context: str, language: str = "the document's language"):
+    """A study guide in markdown, still carrying `p. N` citations."""
+    messages = [
+        {"role": "system", "content": _DOCUMENT_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                "Write a study guide for this document, in markdown.\n"
+                f"Write it in {language}.\n"
+                "Open with a two-sentence overview, then one `###` section per "
+                "major topic, each ending with its `p. N` citation. Close with a "
+                "short 'What to revise first' list of three items. No preamble.\n\n"
+                f"Document excerpts:\n{context}"
+            ),
+        },
+    ]
+    if not _openai_client:
+        return ""
+    try:
+        completion = _create(
+            model=_OPENAI_MODEL,
+            messages=messages,
+            max_tokens=_MAX_OUTPUT_TOKENS,
+            temperature=0.3,
+        )
+        return (completion.choices[0].message.content or "").strip()
+    except Exception as error:
+        print(f"[LLM] study guide failed: {error}")
+        return ""
+
+
 def transcribe_image(data_url: str) -> str:
     """Read every piece of text visible in a frame.
 
