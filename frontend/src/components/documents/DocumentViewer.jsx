@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
@@ -18,13 +18,17 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
 const PAGE_WIDTH = 760
 
-function PdfViewer({ fileUrl, pageHint }, ref) {
+function PdfViewer({ fileUrl, pageHint, onFailed }, ref) {
   const scrollRef = useRef(null)
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState('')
   const [visible, setVisible] = useState(() => new Set([1]))
   const canvases = useRef(new Map())
   const renderTasks = useRef(new Map())
+  // Kept in a ref so a new inline callback on every parent render cannot
+  // re-run the load effect and restart the fetch.
+  const failedRef = useRef(onFailed)
+  failedRef.current = onFailed
 
   useEffect(() => {
     let cancelled = false
@@ -39,7 +43,10 @@ function PdfViewer({ fileUrl, pageHint }, ref) {
       .catch((loadError) => {
         if (cancelled) return
         console.error('[Docs] PDF load failed', loadError)
-        setError('Could not load this PDF. It may have been removed.')
+        setError('Could not load this PDF.')
+        // Never leave an empty frame: the extracted text is a complete answer
+        // even when the canvas renderer is unavailable in this browser.
+        failedRef.current?.()
       })
     return () => {
       cancelled = true
@@ -190,10 +197,24 @@ function TextViewer({ pages, pageHint }, ref) {
 const TextViewerWithRef = forwardRef(TextViewer)
 
 export default function DocumentViewer({ document: doc, pageHint, viewerRef }) {
+  const [pdfFailed, setPdfFailed] = useState(false)
+  const handlePdfFailure = useCallback(() => setPdfFailed(true), [])
+
+  useEffect(() => {
+    setPdfFailed(false)
+  }, [doc?.doc_id])
+
   if (!doc) return null
 
-  if (doc.kind === 'pdf' && doc.file_url) {
-    return <PdfViewerWithRef ref={viewerRef} fileUrl={doc.file_url} pageHint={pageHint} />
+  if (doc.kind === 'pdf' && doc.file_url && !pdfFailed) {
+    return (
+      <PdfViewerWithRef
+        ref={viewerRef}
+        fileUrl={doc.file_url}
+        pageHint={pageHint}
+        onFailed={handlePdfFailure}
+      />
+    )
   }
 
   return <TextViewerWithRef ref={viewerRef} pages={doc.pages || []} pageHint={pageHint} />
