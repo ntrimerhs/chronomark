@@ -90,6 +90,13 @@ export default function Documents() {
     loadDocuments()
   }, [loadDocuments])
 
+  // Deep link: /documents?doc=<doc_id> opens that document straight away, which
+  // is also how a shared link to a specific handout works.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('doc')
+    if (requested) openDocument(requested)
+  }, [openDocument])
+
   useEffect(() => () => {
     if (pollRef.current) window.clearInterval(pollRef.current)
   }, [])
