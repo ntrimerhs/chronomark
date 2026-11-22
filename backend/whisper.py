@@ -711,7 +711,13 @@ def _merge_chunk_segments(chunks, results):
 # more chunks at once there -- this is what actually lets a 6-minute video
 # (~12 chunks) transcribe in a handful of seconds instead of several rounds.
 # Groq counts here too: same OpenAI-compatible API, same high concurrency.
-MAX_WORKERS = 16 if (_openai_client or _groq_client) else 4
+#
+# Kept lower than the client-side ceiling on purpose: with several people
+# uploading at once, 16 chunks per job multiplies into a burst big enough to
+# trip the provider's rate limit and to starve this box. Six in flight per job
+# is still seconds per chunk, and it leaves headroom for the second and third
+# upload. Set WHISPER_MAX_WORKERS to change it without touching code.
+MAX_WORKERS = int(os.getenv("WHISPER_MAX_WORKERS", "") or (6 if (_openai_client or _groq_client) else 4))
 
 
 _LOCAL_MODEL = None

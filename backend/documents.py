@@ -173,7 +173,12 @@ def extract_docx(path: Path) -> dict:
     return {"kind": "docx", "page_count": len(pages), "pages": pages}
 
 
-def extract_figure_images(path: Path, max_pages: int = 40, min_bytes: int = 3_500) -> list:
+def extract_figure_images(
+    path: Path,
+    max_pages: int = 12,
+    min_bytes: int = 3_500,
+    max_side: int = 1400,
+) -> list:
     """The largest embedded image of each page, for the figure reader.
 
     Text extraction drops every figure: a tree, a graph or a table drawn on the
@@ -216,9 +221,30 @@ def extract_figure_images(path: Path, max_pages: int = 40, min_bytes: int = 3_50
 
         suffix = (Path(getattr(best, "name", "") or "figure.png").suffix or ".png").lower()
         mime = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
+        data = best.data
+
+        # Downscale before the vision call. A scanned page arrives at 2000px+ and
+        # the reader gains nothing from that: a smaller JPEG is fewer tokens, less
+        # upload time and less memory while several uploads run at once.
         try:
-            figures.append({"page": index, "data": best.data, "mime": mime})
-            print(f"[Docs] page {index}: figure {best_size} bytes ({mime})")
+            import io
+
+            from PIL import Image
+
+            with Image.open(io.BytesIO(data)) as image:
+                if max(image.size) > max_side:
+                    image.thumbnail((max_side, max_side))
+                buffer = io.BytesIO()
+                image.convert("RGB").save(buffer, format="JPEG", quality=82, optimize=True)
+                shrunk = buffer.getvalue()
+                if len(shrunk) < len(data):
+                    data, mime = shrunk, "image/jpeg"
+        except Exception:
+            pass
+
+        try:
+            figures.append({"page": index, "data": data, "mime": mime})
+            print(f"[Docs] page {index}: figure {len(data)} bytes ({mime})")
         except Exception:
             continue
 

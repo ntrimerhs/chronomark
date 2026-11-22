@@ -1110,6 +1110,15 @@ async def video_frames(video_id: str):
 
 JOBS = {}
 
+# Heavy jobs (a video or a document being analysed) are the only thing on this
+# machine that can exhaust it: two ffmpeg decodes plus two embedding passes on
+# two cores and ~1 GB of headroom is the practical ceiling. Letting a third
+# start anyway does not add throughput, it makes every one of them slower and
+# can push the box into swap, where the whole backend (and every job in it)
+# dies. Queued here instead, politely, at the upload endpoint.
+MAX_CONCURRENT_JOBS = int(os.getenv("MAX_CONCURRENT_JOBS", "2") or "2")
+_JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
+
 
 def _compact_transcript_for_json(transcript):
     """Persist only timestamped text segments instead of raw chunk metadata."""
@@ -1541,7 +1550,13 @@ def _frame_data_url(frame_path):
 
 # Sampling interval for the frames that get OCR'd. Independent of the scrubber
 # thumbnail interval, which can afford to be much denser.
-COVERAGE_INTERVAL_SEC = 20.0
+#
+# 30s instead of 20s: a slide that matters stays up far longer than that, and the
+# wider spacing means a third fewer ffmpeg seeks, a third fewer images through
+# the vision reader and a third fewer bytes on disk per lecture. This is the
+# cheapest way to make an upload lighter without losing anything a student would
+# search for.
+COVERAGE_INTERVAL_SEC = float(os.getenv("COVERAGE_INTERVAL_SEC", "30") or "30")
 
 
 def _frame_halves_data_urls(frame_path, scale=3):
@@ -1584,7 +1599,7 @@ def _frame_halves_data_urls(frame_path, scale=3):
         return []
 
 
-def _ocr_frames(frames_dir, video_id, stamps=None, workers=10):
+def _ocr_frames(frames_dir, video_id, stamps=None, workers=4):
     """Read the on-screen text of every frame and index it.
 
     Independent of the transcript, so the upload can run it alongside
@@ -1636,6 +1651,17 @@ def _ocr_frames(frames_dir, video_id, stamps=None, workers=10):
             prepared.append((entry, data_url))
     if blank:
         print(f"[OCR] skipped {blank} blank/near-blank frame(s)")
+
+    # Vision calls are the slowest, most expensive stage of an upload, and they
+    # are the ones that multiply hardest when several people upload at once.
+    # Beyond this many frames the extra ones add little: a slide that matters
+    # stays up for more than one sample anyway. Kept as an env knob because it
+    # trades detail for speed and cost.
+    ocr_cap = int(os.getenv("OCR_MAX_FRAMES", "24") or "24")
+    if len(prepared) > ocr_cap:
+        step = len(prepared) / ocr_cap
+        prepared = [prepared[int(i * step)] for i in range(ocr_cap)]
+        print(f"[OCR] capped to {ocr_cap} frames (OCR_MAX_FRAMES)")
     print(f"[OCR] reading {len(prepared)} of {len(entries)} frames (visually distinct)")
 
     ocr_segments = []
@@ -2226,6 +2252,17 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
     2 is the fallback for files ffmpeg cannot stream: download the object once
     with boto3 and process it like a classic upload.
     """
+    # Same slot queue as documents: two decodes on two cores is the ceiling, and
+    # a third upload waiting a little beats three uploads fighting.
+    if not _JOB_SLOTS.acquire(timeout=1800):
+        _set_job_status(
+            job_id,
+            status="failed",
+            stage="failed",
+            progress=100,
+            error="The server is busy with other uploads. Please try again in a few minutes.",
+        )
+        return
     try:
         _set_job_status(job_id, status="processing", stage="preparing", progress=5)
         # Multi-video mode: nothing is wiped. Every video owns
@@ -2355,6 +2392,11 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
         total_time_sec = time.perf_counter() - start_time
         _set_job_status(job_id, status="failed", stage="failed", progress=100, error=str(e))
         print(f"[Pipeline] R2 pipeline failed after {total_time_sec:.1f}s: {e}")
+    finally:
+        try:
+            _JOB_SLOTS.release()
+        except ValueError:
+            pass
 
 
 @app.post("/ask")
@@ -2810,6 +2852,18 @@ def _ocr_page_bytes(data: bytes, mime: str) -> str:
 
 def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: str, file_key: str, start_time: float):
     """Parse a document, chunk it, embed the chunks and index them by page."""
+    # Waits for a slot rather than starting a third heavy job: a queued upload
+    # that finishes slowly is better than three that all thrash the box.
+    if not _JOB_SLOTS.acquire(timeout=900):
+        _set_job_status(
+            job_id,
+            status="failed",
+            stage="failed",
+            progress=100,
+            error="The server is busy with other uploads. Please try again in a few minutes.",
+        )
+        Path(temp_path).unlink(missing_ok=True)
+        return
     try:
         _set_job_status(job_id, status="processing", stage="parsing", progress=20)
         extracted = document_tools.extract_document(
@@ -2933,6 +2987,10 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
         try:
             Path(temp_path).unlink(missing_ok=True)
         except OSError:
+            pass
+        try:
+            _JOB_SLOTS.release()
+        except ValueError:
             pass
 
 

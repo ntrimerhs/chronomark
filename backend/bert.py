@@ -7,6 +7,13 @@ load_dotenv()
 
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
+# Encoding is CPU work on a 2-core box, and torch happily grabs every core by
+# default: while it embeds, the ffmpeg decode and the API itself stall. One
+# thread is enough for a few hundred short texts and leaves a core free.
+EMBEDDING_THREADS = int(os.getenv("EMBEDDING_THREADS", "1") or "1")
+# Batch size drives peak memory more than speed on this class of machine.
+EMBEDDING_BATCH = int(os.getenv("EMBEDDING_BATCH", "32") or "32")
+
 # Loaded lazily on first use instead of at import time, so `uvicorn` starts
 # instantly; the ~5-15s model load cost is paid on the first embed call.
 _model = None
@@ -15,8 +22,10 @@ _model = None
 def _get_model():
     global _model
     if _model is None:
+        import torch
         from sentence_transformers import SentenceTransformer
 
+        torch.set_num_threads(EMBEDDING_THREADS)
         _model = SentenceTransformer(EMBEDDING_MODEL)
     return _model
 
@@ -47,7 +56,9 @@ def create_embeddings_from_transcript(transcript: dict):
         return []
 
     # Encode all texts in one batch — orders of magnitude faster than one-by-one API calls
-    embeddings = _get_model().encode(texts, batch_size=64, show_progress_bar=False).tolist()
+    embeddings = _get_model().encode(
+        texts, batch_size=EMBEDDING_BATCH, show_progress_bar=False
+    ).tolist()
 
     results = []
     for chunk, text, embedding in zip(valid_chunks, texts, embeddings):
