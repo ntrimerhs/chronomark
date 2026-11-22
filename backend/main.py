@@ -3175,6 +3175,15 @@ async def api_document_ask(req: DocumentQuestion):
 
     summary_mode = _is_summary_request(question)
     answer_language = _detect_question_language(question)
+    # A question with no letters at all ("?", "p. 4") carries no language to
+    # follow, so the document's own language decides instead of defaulting to
+    # English.
+    if not any(character.isalpha() for character in question):
+        document_sample = " ".join(
+            (page.get("text") or "")[:600] for page in (document.get("pages") or [])[:3]
+        )
+        if document_sample.strip():
+            answer_language = _detect_transcript_language(document_sample)
 
     if summary_mode:
         candidates = chunks[:120]

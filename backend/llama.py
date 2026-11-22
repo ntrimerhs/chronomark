@@ -204,7 +204,17 @@ def ask_document(
         )
 
     messages = [
-        {"role": "system", "content": _DOCUMENT_SYSTEM_PROMPT + f"\n{style}\nRespond in {answer_language}."}
+        {
+            "role": "system",
+            "content": (
+                _DOCUMENT_SYSTEM_PROMPT
+                + f"\n{style}\n"
+                + f"Write the whole answer in {answer_language}: the prose, every "
+                f"### heading, and every list item. Do not switch language "
+                f"mid-answer, even when the document itself is written in another "
+                f"one. Citations stay in the `p. N` form regardless."
+            ),
+        }
     ]
     for turn in history or []:
         role, content = turn.get("role"), turn.get("content")

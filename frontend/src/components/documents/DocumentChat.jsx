@@ -1,306 +1,243 @@
-import { useEffect, useRef, useState } from 'react'
-import axios from 'axios'
-import ReactMarkdown from 'react-markdown'
-import { BookOpen, Layers, Loader2, ListChecks, Send, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useImmer } from 'use-immer'
+import { Bot } from 'lucide-react'
+import ChatMessages from '../ChatMessages'
+import ChatInput from '../ChatInput'
 import { API_BASE_URL } from '../../config'
-import '../../styles/documentsTheme.css'
+import '../../styles/chatbot.css'
+import '../../styles/chatTheme.css'
 
-/* Chat for a document.
+/* The document chat.
 
-   Same conversation contract as the video chat, with one difference that comes
-   from the medium: instead of timestamp pills it returns page pills, and
-   clicking one scrolls the viewer to that page.
+   Same component, same skin, same conversation behaviour as the video chat --
+   the shell here is deliberately identical (`.chatbot`, header, quick actions,
+   ChatInput, ChatMessages) so the two pages are one product. Only two things
+   differ: the endpoint answers with pages instead of timestamps, and the quick
+   actions also cover the study tools, which read the same index. */
 
-   The study tools live here too, because they are the same act as asking a
-   question: read the index, answer with pages. */
+const QUICK_ACTIONS = [
+  { key: 'summary', label: 'Summarize this document', prompt: 'Summarize this document' },
+  { key: 'quiz', label: 'Practice questions' },
+  { key: 'cards', label: 'Flashcards' },
+  { key: 'notes', label: 'Study guide' },
+]
 
-const SUGGESTIONS = ['Summarize this document', 'What are the key definitions?', 'Make me practice questions']
-
-function PagePills({ pages, onJump }) {
-  if (!pages?.length) return null
-  return (
-    <div className="docs-pills">
-      {pages.map((page) => (
-        <button
-          key={page.page}
-          type="button"
-          className="docs-pill"
-          onClick={() => onJump(page.page)}
-          title={page.heading || `Page ${page.page}`}
-        >
-          p. {page.page}
-        </button>
-      ))}
-    </div>
-  )
+function isGreek(text) {
+  return /[\u0370-\u03ff\u1f00-\u1fff]/.test(String(text || ''))
 }
 
-export default function DocumentChat({ document: doc, onJumpToPage }) {
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [study, setStudy] = useState(null)
-  const [studyBusy, setStudyBusy] = useState('')
-  const [revealed, setRevealed] = useState({})
-  const scrollRef = useRef(null)
+function DocumentChat({ document: doc, onJumpToPage }) {
+  const [messages, setMessages] = useImmer([])
+  const [newMessage, setNewMessage] = useState('')
+  const [showQuickActions, setShowQuickActions] = useState(true)
+  const [busyTool, setBusyTool] = useState('')
 
+  // A conversation belongs to one document; switching documents must not send
+  // the previous Q&A as history.
   useEffect(() => {
-    setMessages([])
-    setInput('')
-    setError('')
-    setStudy(null)
-    setRevealed({})
-  }, [doc?.doc_id])
+    setMessages(() => [])
+    setShowQuickActions(true)
+    setNewMessage('')
+    setBusyTool('')
+  }, [doc?.doc_id, setMessages])
 
-  useEffect(() => {
-    const node = scrollRef.current
-    if (node) node.scrollTop = node.scrollHeight
-  }, [messages, busy])
+  const isLoading =
+    messages.length > 0 && messages[messages.length - 1].loading
 
-  const history = messages
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
-    .slice(-6)
-    .map((message) => ({ role: message.role, content: message.content }))
+  function revealAnswer(fullAnswer, extra = {}) {
+    setMessages((draft) => {
+      draft[draft.length - 1] = {
+        role: 'assistant',
+        content: '',
+        loading: false,
+        streaming: !!fullAnswer,
+        ...extra,
+      }
+    })
 
-  async function ask(question) {
-    const text = (question ?? input).trim()
-    if (!text || busy || !doc) return
+    if (!fullAnswer) return
 
-    setBusy(true)
-    setError('')
-    setInput('')
-    setMessages((current) => [...current, { role: 'user', content: text }])
+    // Chunked reveal, same reasoning as the video chat: one char per tick
+    // re-parses markdown hundreds of times a second.
+    const totalSteps = Math.min(fullAnswer.length, 60)
+    const stepSize = Math.max(1, Math.ceil(fullAnswer.length / totalSteps))
+    const speed = Math.max(20, Math.min(40, 1200 / totalSteps))
+    let index = 0
+
+    const intervalId = window.setInterval(() => {
+      index += stepSize
+      const done = index >= fullAnswer.length
+      setMessages((draft) => {
+        if (draft[draft.length - 1]?.role === 'assistant') {
+          draft[draft.length - 1] = {
+            ...draft[draft.length - 1],
+            content: fullAnswer.slice(0, Math.min(index, fullAnswer.length)),
+            streaming: !done,
+          }
+        }
+      })
+      if (done) window.clearInterval(intervalId)
+    }, speed)
+  }
+
+  function pushUserAndPlaceholder(text) {
+    setMessages((draft) => {
+      draft.push({ role: 'user', content: text })
+      draft.push({ role: 'assistant', content: '', loading: true })
+    })
+  }
+
+  function failWith(message) {
+    setMessages((draft) => {
+      draft[draft.length - 1] = {
+        role: 'assistant',
+        content: message || 'Something went wrong.',
+        loading: false,
+        error: true,
+      }
+    })
+  }
+
+  async function submitNewMessage(overrideText) {
+    const trimmed = (overrideText ?? newMessage).trim()
+    if (!trimmed || isLoading || !doc) return
+
+    if (trimmed.toLowerCase() === 'summarize this document') {
+      setShowQuickActions(false)
+    }
+
+    const history = messages
+      .filter((message) => !message.loading && !message.error && message.content)
+      .map((message) => ({ role: message.role, content: message.content }))
+      .slice(-6)
+
+    pushUserAndPlaceholder(trimmed)
+    setNewMessage('')
 
     try {
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/document/ask`,
-        { question: text, doc_id: doc.doc_id, history },
-        { timeout: 180000 },
-      )
-      setMessages((current) => [
-        ...current,
-        { role: 'assistant', content: data.answer || '', pages: data.pages || [] },
-      ])
-    } catch (requestError) {
-      const detail =
-        requestError?.response?.data?.detail ||
-        requestError?.message ||
-        'The answer could not be generated.'
-      setError(detail)
-      setMessages((current) => [...current, { role: 'assistant', content: '', failed: true }])
-    } finally {
-      setBusy(false)
+      const response = await fetch(`${API_BASE_URL}/api/document/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: trimmed, doc_id: doc.doc_id, history }),
+      })
+      if (!response.ok) throw new Error(`Backend error ${response.status}`)
+      const data = await response.json()
+      revealAnswer(data.answer ?? '')
+    } catch (error) {
+      console.error(error)
+      failWith()
     }
   }
 
   async function runStudy(kind) {
-    if (!doc || studyBusy) return
-    setStudyBusy(kind)
-    setError('')
+    if (!doc || isLoading || busyTool) return
+    setShowQuickActions(false)
+    setBusyTool(kind)
+
+    const label =
+      kind === 'quiz'
+        ? 'Make practice questions'
+        : kind === 'cards'
+          ? 'Make flashcards'
+          : 'Write a study guide'
+
+    pushUserAndPlaceholder(label)
+
     try {
-      const endpoint =
-        kind === 'quiz'
-          ? '/api/document/quiz'
-          : kind === 'cards'
-            ? '/api/document/flashcards'
-            : '/api/document/notes'
-      const { data } = await axios.post(
-        `${API_BASE_URL}${endpoint}`,
-        { doc_id: doc.doc_id },
-        { timeout: 180000 },
-      )
-      setStudy({ kind, data })
-    } catch (requestError) {
-      setError(requestError?.response?.data?.detail || 'Could not build the study material.')
+      const response = await fetch(`${API_BASE_URL}/api/document/${kind}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_id: doc.doc_id }),
+      })
+      if (!response.ok) throw new Error(`Backend error ${response.status}`)
+      const data = await response.json()
+
+      let markdown = ''
+      if (kind === 'quiz') {
+        const questions = data.questions || []
+        markdown = questions.length
+          ? questions
+              .map((question, index) => {
+                const options = question.options
+                  .map((option, optionIndex) => `${'ABCD'[optionIndex]}. ${option}`)
+                  .join('\n')
+                const answer = `**Answer: ${'ABCD'[question.answer]}**${
+                  question.page ? ` (\`p. ${question.page}\`)` : ''
+                }${question.explain ? ` — ${question.explain}` : ''}`
+                return `### ${index + 1}. ${question.question}\n\n${options}\n\n${answer}`
+              })
+              .join('\n\n')
+          : 'No questions could be built from this document.'
+      } else if (kind === 'cards') {
+        const cards = data.cards || []
+        markdown = cards.length
+          ? `### Flashcards\n\n${cards
+              .map(
+                (card) =>
+                  `- **${card.term}**: ${card.definition}${card.page ? ` (\`p. ${card.page}\`)` : ''}`,
+              )
+              .join('\n')}`
+          : 'No flashcards could be built from this document.'
+      } else {
+        markdown = data.notes || 'No study guide could be written for this document.'
+      }
+
+      revealAnswer(markdown)
+    } catch (error) {
+      console.error(error)
+      failWith('Could not build the study material.')
     } finally {
-      setStudyBusy('')
+      setBusyTool('')
     }
   }
 
+  const isEmpty = messages.length === 0
+
   return (
-    <section className="docs-chat">
-      <header className="docs-chat-head">
-        <span className="docs-chat-title">
-          <Sparkles size={13} />
-          Ask the document
-        </span>
-        <span className="docs-chat-meta">
-          {doc?.kind?.toUpperCase()} · {doc?.page_count || 0} pages
-        </span>
-      </header>
-
-      <div className="docs-chat-scroll" ref={scrollRef}>
-        {messages.length === 0 && !busy ? (
-          <div className="docs-chat-empty">
-            <p>Ask anything about this handout. Answers cite the page they came from.</p>
-            <div className="docs-suggestions">
-              {SUGGESTIONS.map((suggestion) => (
-                <button key={suggestion} type="button" onClick={() => ask(suggestion)}>
-                  {suggestion}
-                </button>
-              ))}
-            </div>
+    <div className={`chatbot ${isEmpty ? 'chatbot-empty' : 'chatbot-live'}`}>
+      <div className="chatbot-header">
+        <div className="chatbot-header-icon">
+          <Bot size={18} />
+        </div>
+        <div>
+          <p className="chatbot-header-title">ChronoMark</p>
+          <div className="chatbot-header-status">
+            <span className="chatbot-header-dot" />
+            <span>Ready to chat</span>
           </div>
-        ) : null}
-
-        {messages.map((message, index) =>
-          message.role === 'user' ? (
-            <div key={index} className="docs-message is-user">
-              <p>{message.content}</p>
-            </div>
-          ) : (
-            <div key={index} className="docs-message is-assistant">
-              {message.failed ? (
-                <p className="docs-chat-error">Something went wrong.</p>
-              ) : (
-                <div className="docs-answer">
-                  <ReactMarkdown>{message.content}</ReactMarkdown>
-                </div>
-              )}
-              <PagePills pages={message.pages} onJump={onJumpToPage} />
-            </div>
-          ),
-        )}
-
-        {busy ? (
-          <div className="docs-message is-assistant">
-            <p className="docs-chat-thinking">
-              <Loader2 size={13} className="docs-spin" /> reading the pages…
-            </p>
-          </div>
-        ) : null}
-
-        {error ? <p className="docs-chat-error">{error}</p> : null}
-
-        {study ? (
-          <div className="docs-study">
-            <header>
-              <strong>
-                {study.kind === 'quiz'
-                  ? 'Practice questions'
-                  : study.kind === 'cards'
-                    ? 'Flashcards'
-                    : 'Study guide'}
-              </strong>
-              <button type="button" onClick={() => setStudy(null)}>
-                close
-              </button>
-            </header>
-
-            {study.kind === 'quiz' ? (
-              <ol className="docs-quiz">
-                {(study.data.questions || []).map((question, questionIndex) => (
-                  <li key={questionIndex}>
-                    <p className="docs-quiz-q">{question.question}</p>
-                    <ul>
-                      {question.options.map((option, optionIndex) => {
-                        const chosen = revealed[questionIndex] === optionIndex
-                        const correct = question.answer === optionIndex
-                        return (
-                          <li key={optionIndex}>
-                            <button
-                              type="button"
-                              className={`docs-option${chosen ? (correct ? ' is-right' : ' is-wrong') : ''}${
-                                revealed[questionIndex] != null && correct ? ' is-right' : ''
-                              }`}
-                              onClick={() =>
-                                setRevealed((current) => ({ ...current, [questionIndex]: optionIndex }))
-                              }
-                            >
-                              {option}
-                            </button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                    {revealed[questionIndex] != null ? (
-                      <p className="docs-quiz-explain">
-                        {question.explain}
-                        {question.page ? (
-                          <button
-                            type="button"
-                            className="docs-pill"
-                            onClick={() => onJumpToPage(question.page)}
-                          >
-                            p. {question.page}
-                          </button>
-                        ) : null}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
-            ) : null}
-
-            {study.kind === 'cards' ? (
-              <div className="docs-cards">
-                {(study.data.cards || []).map((card, cardIndex) => (
-                  <button
-                    key={cardIndex}
-                    type="button"
-                    className={`docs-card${revealed[`card-${cardIndex}`] ? ' is-open' : ''}`}
-                    onClick={() =>
-                      setRevealed((current) => ({
-                        ...current,
-                        [`card-${cardIndex}`]: !current[`card-${cardIndex}`],
-                      }))
-                    }
-                  >
-                    <strong>{card.term}</strong>
-                    <span>
-                      {revealed[`card-${cardIndex}`]
-                        ? card.definition
-                        : 'tap to reveal'}
-                    </span>
-                    {card.page ? <em>p. {card.page}</em> : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {study.kind === 'notes' ? (
-              <div className="docs-notes">
-                <ReactMarkdown>{study.data.notes || ''}</ReactMarkdown>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        </div>
       </div>
 
-      <div className="docs-study-bar">
-        <button type="button" onClick={() => runStudy('quiz')} disabled={!!studyBusy}>
-          {studyBusy === 'quiz' ? <Loader2 size={13} className="docs-spin" /> : <ListChecks size={13} />}
-          Quiz
-        </button>
-        <button type="button" onClick={() => runStudy('cards')} disabled={!!studyBusy}>
-          {studyBusy === 'cards' ? <Loader2 size={13} className="docs-spin" /> : <Layers size={13} />}
-          Flashcards
-        </button>
-        <button type="button" onClick={() => runStudy('notes')} disabled={!!studyBusy}>
-          {studyBusy === 'notes' ? <Loader2 size={13} className="docs-spin" /> : <BookOpen size={13} />}
-          Study guide
-        </button>
-      </div>
+      {!isEmpty && (
+        <ChatMessages messages={messages} isLoading={isLoading} onSeek={onJumpToPage} />
+      )}
 
-      <form
-        className="docs-chat-input"
-        onSubmit={(event) => {
-          event.preventDefault()
-          ask()
-        }}
-      >
-        <input
-          type="text"
-          value={input}
-          placeholder="Ask about a page, a definition, an example…"
-          onChange={(event) => setInput(event.target.value)}
-          disabled={busy}
-        />
-        <button type="submit" disabled={busy || !input.trim()} aria-label="Send">
-          <Send size={14} />
-        </button>
-      </form>
-    </section>
+      {showQuickActions && (
+        <div className="chatbot-quick-actions" aria-label="Quick actions">
+          {QUICK_ACTIONS.map(({ key, label, prompt }) => (
+            <button
+              key={key}
+              type="button"
+              className="chatbot-quick-action"
+              onClick={() => (prompt ? submitNewMessage(prompt) : runStudy(key))}
+              disabled={isLoading || !!busyTool}
+            >
+              <span>{busyTool === key ? `${label}…` : label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isEmpty && <div className="chatbot-empty-spacer" />}
+
+      <ChatInput
+        newMessage={newMessage}
+        isLoading={isLoading}
+        setNewMessage={setNewMessage}
+        submitNewMessage={() => submitNewMessage()}
+      />
+    </div>
   )
 }
+
+export default DocumentChat
