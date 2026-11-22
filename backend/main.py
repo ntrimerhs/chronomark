@@ -21,15 +21,22 @@ import uuid
 from bert import create_embeddings_from_transcript, embed_query, warm_up as warm_text_model
 from qdrant_store import ensure_collections, store_text_embeddings, clear_collections
 from qdrant_store import client, TEXT_COLLECTION, FRAME_COLLECTION, search_text, scroll_all_text
+from qdrant_client import models as qmodels
 import metrics
 
 from llama import (
     ask_llama,
+    ask_document,
     digest_segment,
+    document_flashcards,
+    document_notes,
+    document_quiz,
     extract_examples,
     map_examples_to_excerpts,
     transcribe_image,
 )
+
+import documents as document_tools
 
 from pydantic import BaseModel
 import sys
@@ -2709,3 +2716,604 @@ async def ask(req: Question):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Documents: PDF, PowerPoint and Word analysis.
+#
+# Same shape as a video: extract -> chunk -> embed -> index -> ask with
+# citations. What changes is the unit (a page instead of a second) and therefore
+# the citation format (`p. 12` instead of `12:40`). Everything downstream --
+# the MiniLM embeddings, the Qdrant collection, the hybrid rerank -- is shared,
+# so a document is just another `video_id` whose points carry a page number.
+# ---------------------------------------------------------------------------
+
+DOCS_DIR = BASE_DIR / "documents"
+DOCS_DIR.mkdir(parents=True, exist_ok=True)
+
+MAX_DOCUMENT_BYTES = 40 * 1024 * 1024
+
+_DOCUMENT_CONTENT_TYPES = {
+    ".pdf": "application/pdf",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+class DocumentQuestion(BaseModel):
+    question: str
+    doc_id: str
+    history: list[dict] | None = None
+
+
+class DocumentStudyRequest(BaseModel):
+    doc_id: str
+    count: int | None = None
+    language: str | None = None
+
+
+def _document_meta_path(doc_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", str(doc_id or ""))
+    if not safe:
+        raise HTTPException(status_code=400, detail="invalid doc_id")
+    return DOCS_DIR / f"{safe}.json"
+
+
+def _load_document(doc_id: str) -> dict:
+    path = _document_meta_path(doc_id)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"Document metadata unreadable: {error}")
+
+
+def _save_document(document: dict) -> None:
+    path = _document_meta_path(document["doc_id"])
+    tmp = path.with_suffix(".json.tmp")
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(document, handle, ensure_ascii=False)
+    tmp.replace(path)
+
+
+def _ocr_page_bytes(data: bytes, mime: str) -> str:
+    """Vision OCR for a scanned page's embedded image.
+
+    Reuses the frame reader: a scanned handout page and a lecture slide are the
+    same problem, and the model already reads one reliably.
+    """
+    encoded = base64.b64encode(data).decode("ascii")
+    return transcribe_image(f"data:{mime};base64,{encoded}")
+
+
+def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: str, file_key: str, start_time: float):
+    """Parse a document, chunk it, embed the chunks and index them by page."""
+    try:
+        _set_job_status(job_id, status="processing", stage="parsing", progress=20)
+        extracted = document_tools.extract_document(
+            Path(temp_path), file_name=file_name, image_ocr=_ocr_page_bytes
+        )
+        print(
+            f"[Docs] {file_name}: {extracted['page_count']} pages, "
+            f"{sum(len(p['text']) for p in extracted['pages'])} chars extracted"
+        )
+
+        _set_job_status(job_id, status="processing", stage="chunking", progress=40)
+        chunks = document_tools.chunk_pages(extracted["pages"])
+        if not chunks:
+            raise ValueError("no readable text found in this document")
+        print(f"[Docs] {len(chunks)} chunks from {len(extracted['pages'])} pages")
+
+        _set_job_status(job_id, status="processing", stage="embedding", progress=65)
+        segments = [
+            {"text": chunk["text"], "timestamp": [chunk["page"], chunk["page"]], "page": chunk["page"]}
+            for chunk in chunks
+        ]
+        embeddings = create_embeddings_from_transcript({"segments": segments})
+
+        # Re-indexing the same document replaces its points instead of
+        # duplicating them.
+        ensure_collections()
+        client.delete(
+            collection_name=TEXT_COLLECTION,
+            points_selector=qmodels.FilterSelector(
+                filter=qmodels.Filter(
+                    must=[
+                        qmodels.FieldCondition(
+                            key="video_id", match=qmodels.MatchValue(value=doc_id)
+                        )
+                    ]
+                )
+            ),
+        )
+        store_text_embeddings(
+            doc_id,
+            embeddings,
+            id_prefix="doc",
+            extra_payload={"source_type": "document", "file_key": file_key, "file_name": file_name},
+        )
+        print(f"[Docs] indexed {len(embeddings)} page chunks for {doc_id}")
+
+        _set_job_status(job_id, status="processing", stage="finalizing", progress=90)
+        document = {
+            "doc_id": doc_id,
+            "file_name": file_name,
+            "file_key": file_key,
+            "kind": extracted["kind"],
+            "page_count": extracted["page_count"],
+            "indexed_pages": sorted({p["page"] for p in extracted["pages"]}),
+            "chunk_count": len(chunks),
+            "created_at": time.time(),
+            "pages": extracted["pages"],
+        }
+        _save_document(document)
+
+        total_time = time.perf_counter() - start_time
+        _set_job_status(
+            job_id,
+            status="completed",
+            stage="completed",
+            progress=100,
+            result={
+                "doc_id": doc_id,
+                "file_name": file_name,
+                "file_key": file_key,
+                "kind": extracted["kind"],
+                "page_count": extracted["page_count"],
+                "indexed_pages": document["indexed_pages"],
+                "chunk_count": len(chunks),
+                "total_time_sec": round(total_time, 1),
+            },
+        )
+        print(f"[Docs] {file_name} ready in {total_time:.1f}s")
+    except Exception as error:
+        _set_job_status(job_id, status="failed", stage="failed", progress=100, error=str(error))
+        print(f"[Docs] pipeline failed: {error}")
+    finally:
+        try:
+            Path(temp_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+@app.post("/api/upload-document")
+async def api_upload_document(background_tasks: BackgroundTasks, file_upload: UploadFile):
+    """Accept a PDF/PPTX/DOCX, store it in R2, then parse and index it."""
+    if not file_upload.filename:
+        raise HTTPException(status_code=400, detail="Missing uploaded filename")
+
+    suffix = Path(file_upload.filename).suffix.lower()
+    if suffix not in _DOCUMENT_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF, PPTX and DOCX files are supported",
+        )
+
+    start_time = time.perf_counter()
+
+    handle = tempfile.NamedTemporaryFile(prefix="chronomark-doc-", suffix=suffix, delete=False)
+    temp_path = Path(handle.name)
+    size = 0
+    try:
+        file_upload.file.seek(0)
+        while True:
+            chunk = file_upload.file.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > MAX_DOCUMENT_BYTES:
+                raise HTTPException(status_code=413, detail="Document is larger than 40 MB")
+            handle.write(chunk)
+        handle.close()
+        if size == 0:
+            raise HTTPException(status_code=400, detail="Empty upload")
+
+        # The original stays in R2 so the viewer can render the real PDF.
+        with open(temp_path, "rb") as source:
+            try:
+                uploaded = await run_in_threadpool(
+                    r2_service.upload_stream,
+                    source,
+                    file_upload.filename,
+                    _DOCUMENT_CONTENT_TYPES[suffix],
+                    8 * 1024 * 1024,
+                    r2_service.DOCUMENT_KEY_PREFIX,
+                )
+            except (ValueError, RuntimeError) as error:
+                raise HTTPException(status_code=502, detail=f"Document storage failed: {error}")
+    except HTTPException:
+        try:
+            Path(temp_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    except Exception as error:
+        try:
+            Path(temp_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise HTTPException(status_code=500, detail=f"Upload failed: {error}")
+    finally:
+        try:
+            handle.close()
+        except Exception:
+            pass
+
+    doc_id = f"doc_{uuid.uuid4().hex[:10]}"
+    job_id = str(uuid.uuid4())
+    JOBS[job_id] = {
+        "job_id": job_id,
+        "status": "processing",
+        "stage": "queued",
+        "progress": 5,
+        "error": None,
+        "result": None,
+    }
+
+    background_tasks.add_task(
+        _process_document_job, job_id, doc_id, str(temp_path), file_upload.filename, uploaded["file_key"], start_time
+    )
+
+    return {
+        "job_id": job_id,
+        "doc_id": doc_id,
+        "status": "processing",
+        "stage": "queued",
+        "progress": 5,
+        "status_url": f"/upload-status/{job_id}",
+        "file_key": uploaded["file_key"],
+        "size": size,
+    }
+
+
+@app.get("/api/documents")
+async def api_list_documents():
+    """Every indexed document, newest first, without the page texts."""
+    items = []
+    for path in DOCS_DIR.glob("*.json"):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                document = json.load(handle)
+        except Exception:
+            continue
+        items.append(
+            {
+                "doc_id": document.get("doc_id"),
+                "file_name": document.get("file_name"),
+                "kind": document.get("kind"),
+                "page_count": document.get("page_count"),
+                "chunk_count": document.get("chunk_count"),
+                "created_at": document.get("created_at"),
+            }
+        )
+    items.sort(key=lambda item: item.get("created_at") or 0, reverse=True)
+    return {"documents": items}
+
+
+@app.get("/api/document/{doc_id}")
+async def api_get_document(doc_id: str):
+    document = _load_document(doc_id)
+    return {
+        "doc_id": document["doc_id"],
+        "file_name": document.get("file_name"),
+        "file_key": document.get("file_key"),
+        "kind": document.get("kind"),
+        "page_count": document.get("page_count"),
+        "indexed_pages": document.get("indexed_pages") or [],
+        "pages": document.get("pages") or [],
+        "file_url": f"/api/document-stream/{document.get('file_key')}",
+    }
+
+
+@app.get("/api/document-stream/{file_key:path}")
+async def api_document_stream(file_key: str):
+    """302 to a fresh presigned URL so the PDF viewer never holds an expired one."""
+    try:
+        key = r2_service.validate_file_key(file_key)
+        if not key.startswith(r2_service.DOCUMENT_KEY_PREFIX):
+            raise ValueError("not a document key")
+        download_url = generate_presigned_download_url(key, expires_in=3600)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+    return RedirectResponse(download_url, status_code=302)
+
+
+@app.delete("/api/document/{doc_id}")
+async def api_delete_document(doc_id: str):
+    """Forget a document: its points, its R2 object and its metadata."""
+    document = _load_document(doc_id)
+    try:
+        client.delete(
+            collection_name=TEXT_COLLECTION,
+            points_selector=qmodels.FilterSelector(
+                filter=qmodels.Filter(
+                    must=[
+                        qmodels.FieldCondition(
+                            key="video_id", match=qmodels.MatchValue(value=doc_id)
+                        )
+                    ]
+                )
+            ),
+        )
+    except Exception as error:
+        print(f"[Docs] point cleanup failed: {error}")
+
+    file_key = document.get("file_key")
+    if file_key:
+        try:
+            r2_service.delete_object(file_key)
+        except Exception as error:
+            print(f"[Docs] R2 cleanup failed: {error}")
+
+    _document_meta_path(doc_id).unlink(missing_ok=True)
+    return {"deleted": doc_id}
+
+
+_PAGE_CITATION_RE = re.compile(r"`\s*p\.?\s*(\d{1,4})\s*`", re.IGNORECASE)
+
+
+def _enforce_page_citations(answer: str, pages: set[int], fallback_page=None):
+    """Keep only `p. N` markers that point at a page the model was really given."""
+    kept = 0
+    dropped = 0
+
+    def _rewrite(outside: str) -> str:
+        nonlocal kept, dropped
+
+        def _replace(match):
+            nonlocal kept, dropped
+            page = int(match.group(1))
+            if page in pages:
+                kept += 1
+                return f"`p. {page}`"
+            dropped += 1
+            return ""
+
+        text = _PAGE_CITATION_RE.sub(_replace, outside)
+        text = re.sub(r"\(\s*[,;]?\s*\)", "", text)
+        text = re.sub(r"(?<=\S)[ \t]{2,}", " ", text)
+        text = re.sub(r"[ \t]+\n", "\n", text)
+        return text
+
+    parts = answer.split("```")
+    for index in range(0, len(parts), 2):
+        parts[index] = _rewrite(parts[index])
+    result = "```".join(parts)
+
+    used_fallback = False
+    if kept == 0 and pages:
+        anchor = fallback_page if fallback_page in pages else min(pages)
+        marker = f"`p. {anchor}`"
+        paragraphs = result.split("\n\n")
+        for index, block in enumerate(paragraphs):
+            stripped = block.strip()
+            if not stripped or stripped.startswith(("```", "#", "|", ">", "-", "*")):
+                continue
+            paragraphs[index] = block.rstrip() + " " + marker
+            used_fallback = True
+            break
+        if not used_fallback:
+            result = result.rstrip() + "\n\n" + marker
+            used_fallback = True
+        else:
+            result = "\n\n".join(paragraphs)
+
+    return result, kept, dropped, used_fallback
+
+
+def _document_context_chunks(doc_id: str) -> list:
+    """All indexed chunks for a document, ordered by page then position."""
+    points = scroll_all_text(doc_id)
+    ordered = sorted(
+        points,
+        key=lambda p: (
+            (p.payload or {}).get("page") or 0,
+            (p.payload or {}).get("chunk_index") or 0,
+        ),
+    )
+    return ordered
+
+
+@app.post("/api/document/ask")
+async def api_document_ask(req: DocumentQuestion):
+    """Ask about a document: retrieve pages, answer, cite `p. N`."""
+    question = (req.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+
+    document = _load_document(req.doc_id)
+    chunks = _document_context_chunks(req.doc_id)
+    if not chunks:
+        raise HTTPException(status_code=409, detail="This document has no indexed text yet")
+
+    summary_mode = _is_summary_request(question)
+    answer_language = _detect_question_language(question)
+
+    if summary_mode:
+        candidates = chunks[:120]
+        if len(chunks) > 120:
+            step = len(chunks) / 120
+            candidates = [chunks[int(i * step)] for i in range(120)]
+        selected = candidates
+    else:
+        query_embedding = embed_query(question)
+        vector_hits = search_text(query_embedding, limit=12, video_id=req.doc_id)
+
+        lexical = _bm25_scores(question, chunks)
+        peak = max(lexical.values(), default=0.0)
+        payloads = {str(p.id): (p.payload or {}) for p in chunks}
+        merged = {}
+        for hit in vector_hits:
+            point_id = str(hit.id)
+            vector_score = float(getattr(hit, "score", 0.0) or 0.0)
+            lexical_score = (lexical.get(point_id, 0.0) / peak) if peak else 0.0
+            merged[point_id] = 0.45 * vector_score + 0.55 * lexical_score
+        for point_id, raw in lexical.items():
+            if point_id in merged or peak <= 0:
+                continue
+            normalised = raw / peak
+            if normalised >= 0.40:
+                merged[point_id] = 0.55 * normalised
+
+        ranked = sorted(merged.items(), key=lambda item: item[1], reverse=True)[:18]
+        selected = [_Ranked(pid, payloads.get(pid, {}), score) for pid, score in ranked if payloads.get(pid)]
+        if not selected:
+            selected = list(vector_hits[:6])
+
+    # Neighbours matter as much as for a video: a page explains a concept over
+    # several chunks, and retrieving one of them alone reads like a fragment.
+    by_id = {str(p.id): p for p in chunks}
+    expanded = []
+    seen = set()
+    for item in selected:
+        key = str(getattr(item, "id", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        expanded.append(item)
+    if not summary_mode:
+        positions = {str(p.id): index for index, p in enumerate(chunks)}
+        neighbour_ids = set()
+        for item in selected:
+            index = positions.get(str(getattr(item, "id", "")))
+            if index is None:
+                continue
+            for offset in (-1, 1):
+                target = index + offset
+                if 0 <= target < len(chunks):
+                    neighbour_ids.add(str(chunks[target].id))
+        for point_id in neighbour_ids:
+            if point_id in seen:
+                continue
+            seen.add(point_id)
+            point = by_id[point_id]
+            expanded.append(_Ranked(point_id, point.payload or {}, 0.0))
+
+    ordered = sorted(
+        expanded,
+        key=lambda r: (
+            (r.payload or {}).get("page") or 0,
+            (r.payload or {}).get("chunk_index") or 0,
+        ),
+    )
+
+    def _page_of(payload):
+        page = (payload or {}).get("page")
+        if page is None:
+            start = (payload or {}).get("start")
+            page = int(start) if isinstance(start, (int, float)) else None
+        return page
+
+    context = "\n".join(
+        f"[p.{_page_of(r.payload)}] {(r.payload.get('text') or '').strip()}"
+        for r in ordered
+        if (r.payload.get("text") or "").strip()
+    )
+
+    pages_in_context = {_page_of(r.payload) for r in ordered if _page_of(r.payload) is not None}
+    available_pages = pages_in_context or {int(p.get("page") or 0) for p in document.get("pages") or []}
+    transcript_available = bool(context.strip())
+
+    try:
+        answer = ask_document(
+            question=question,
+            context=context,
+            history=(req.history or [])[-6:],
+            answer_language=answer_language,
+            summary_mode=summary_mode,
+            transcript_available=transcript_available,
+        )
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"LLM provider error: {error}")
+
+    best = max(selected, key=lambda r: getattr(r, "score", 0) or 0, default=None)
+    fallback_page = _page_of(best.payload) if best is not None else None
+    answer, kept, dropped, used_fallback = _enforce_page_citations(
+        answer, available_pages, fallback_page=fallback_page
+    )
+    print(f"[Cite] document: {kept} citation(s) kept, {dropped} dropped")
+
+    cited_pages = sorted({int(m) for m in _PAGE_CITATION_RE.findall(answer)})
+    page_rows = []
+    for page in cited_pages or sorted(available_pages)[:4]:
+        entry = next(
+            (p for p in document.get("pages") or [] if int(p.get("page") or 0) == page),
+            None,
+        )
+        page_rows.append(
+            {
+                "page": page,
+                "text": (entry or {}).get("text", "")[:600],
+                "heading": (entry or {}).get("heading"),
+            }
+        )
+
+    return {
+        "source": "document",
+        "doc_id": req.doc_id,
+        "answer": answer,
+        "pages": page_rows,
+        "text_results": [
+            {
+                "page": _page_of(r.payload),
+                "text": r.payload.get("text"),
+                "score": getattr(r, "score", None),
+            }
+            for r in ordered
+        ],
+    }
+
+
+@app.post("/api/document/quiz")
+async def api_document_quiz(req: DocumentStudyRequest):
+    document = _load_document(req.doc_id)
+    chunks = _document_context_chunks(req.doc_id)
+    if not chunks:
+        raise HTTPException(status_code=409, detail="This document has no indexed text yet")
+    language = req.language or _detect_question_language(
+        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
+    )
+    context = "\n".join(
+        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
+        for r in chunks[:80]
+    )
+    questions = document_quiz(context, count=req.count or 6, language=language)
+    return {"doc_id": req.doc_id, "questions": questions}
+
+
+@app.post("/api/document/flashcards")
+async def api_document_flashcards(req: DocumentStudyRequest):
+    document = _load_document(req.doc_id)
+    chunks = _document_context_chunks(req.doc_id)
+    if not chunks:
+        raise HTTPException(status_code=409, detail="This document has no indexed text yet")
+    language = req.language or _detect_question_language(
+        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
+    )
+    context = "\n".join(
+        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
+        for r in chunks[:80]
+    )
+    cards = document_flashcards(context, count=req.count or 10, language=language)
+    return {"doc_id": req.doc_id, "cards": cards}
+
+
+@app.post("/api/document/notes")
+async def api_document_notes(req: DocumentStudyRequest):
+    document = _load_document(req.doc_id)
+    chunks = _document_context_chunks(req.doc_id)
+    if not chunks:
+        raise HTTPException(status_code=409, detail="This document has no indexed text yet")
+    language = req.language or _detect_question_language(
+        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
+    )
+    context = "\n".join(
+        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
+        for r in chunks[:120]
+    )
+    notes = document_notes(context, language=language)
+    return {"doc_id": req.doc_id, "notes": notes}

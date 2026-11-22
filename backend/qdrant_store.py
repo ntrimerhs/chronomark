@@ -113,7 +113,18 @@ def clear_collections():
         print(f"[Qdrant] {name} after clear: {remaining} points")
 
 
-def store_text_embeddings(video_id: str, segments: list[dict], id_prefix: str = "text"):
+def store_text_embeddings(
+    video_id: str,
+    segments: list[dict],
+    id_prefix: str = "text",
+    extra_payload: dict | None = None,
+):
+    """Upsert one point per segment.
+
+    extra_payload is merged into every point's payload: documents use it to
+    carry `page`, `source_type` and `file_key` alongside the fields a video
+    segment already has (start/end stay empty for them).
+    """
     points = []
 
     for i, seg in enumerate(segments):
@@ -123,17 +134,24 @@ def store_text_embeddings(video_id: str, segments: list[dict], id_prefix: str = 
 
         point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{video_id}_{id_prefix}_{i}"))
 
+        payload = {
+            "video_id": video_id,
+            "type": "text",
+            "text": seg.get("text"),
+            "start": start,
+            "end": end,
+            "chunk_index": i,
+        }
+        if extra_payload:
+            payload.update(extra_payload)
+        if seg.get("page") is not None:
+            payload["page"] = seg.get("page")
+
         points.append(
             models.PointStruct(
                 id=point_id,
                 vector=seg["embedding"],
-                payload={
-                    "video_id": video_id,
-                    "type": "text",
-                    "text": seg.get("text"),
-                    "start": start,
-                    "end": end,
-                },
+                payload=payload,
             )
         )
 

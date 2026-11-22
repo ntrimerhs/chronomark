@@ -23,3 +23,7 @@ qdrant-client
 requests
 # services/r2_service.py: presigned upload/download URLs for Cloudflare R2.
 boto3
+# documents.py: page extraction for PDF, PowerPoint and Word study material.
+pypdf
+python-pptx
+python-docx
