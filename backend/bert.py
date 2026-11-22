@@ -31,6 +31,22 @@ _idle_since = time.time()
 _model = None
 
 
+def _release_memory():
+    """Hand freed pages back to the OS.
+
+    Dropping the Python reference is not enough: torch and the C++ allocator keep
+    the arena, so RSS barely moves. glibc's malloc_trim is the only thing that
+    returns it, and it exists on Linux only, hence the quiet fallback.
+    """
+    gc.collect()
+    try:
+        import ctypes
+
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
+
 def _start_idle_unloader():
     """Drop the model after a quiet spell, in a daemon thread."""
     global _unloader_started
@@ -49,7 +65,7 @@ def _start_idle_unloader():
                     if time.time() - _idle_since < EMBEDDING_IDLE_UNLOAD_SEC:
                         continue
                     _model = None
-                    gc.collect()
+                    _release_memory()
                     print(
                         f"[Embed] model unloaded after "
                         f"{int(EMBEDDING_IDLE_UNLOAD_SEC / 60)} min idle "
