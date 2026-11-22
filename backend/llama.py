@@ -218,6 +218,27 @@ _DOCUMENT_SYSTEM_PROMPT = (
     "node or cell labels, at most twelve lines, immediately above the "
     "explanation. A reader should understand the answer without going back to "
     "the page. Label each step of a traversal or walk next to the diagram.\n"
+    "\nEXPLAIN IT, DO NOT QUOTE IT:\n"
+    "- The document is the source, but the answer is a simpler retelling of it. "
+    "Never hand notation back to the reader unexplained.\n"
+    "- Every formula gets a plain-language gloss directly underneath it: what it "
+    "counts or measures, in ordinary words, before any further notation. For "
+    "example, after d(v) = |N(v)| write what it actually means: the degree of a "
+    "node is simply how many edges touch it.\n"
+    "- Define each symbol the first time it appears, inline, in a few words: "
+    "what it stands for and what type of thing it is (a number, a set, a node).\n"
+    "- When a notation is dense (set-builder braces, absolute-value bars, "
+    "subscripts, summation signs), break it into a short bullet list, one bullet "
+    "per part, each in plain words, and then say what the whole expression adds "
+    "up to.\n"
+    "- Prefer a concrete case over abstraction: take the actual graph, tree or "
+    "numbers from the document and walk one small example with real labels "
+    "(node D, its four edges) before generalising.\n"
+    "- Say why the definition exists or where it is used when that helps; keep "
+    "the reader's question ('what does this mean?') in view, not the document's "
+    "wording.\n"
+    "- Do not pad with formal restatements. If a sentence only repeats the "
+    "notation in words the reader already knows, cut it.\n"
 )
 
 
@@ -293,15 +314,18 @@ def ask_document(
         style = (
             "The user wants a summary of the whole document. You are given every "
             "extracted excerpt in page order. Cover the main topic, every "
-            "significant concept, key examples and the overall flow, then add a "
-            "short paragraph of useful general context."
+            "significant concept, key examples and the overall flow, in simpler "
+            "words than the document uses, then add a short paragraph of useful "
+            "general context. Any formula you mention must be glossed in plain "
+            "language."
         )
     else:
         style = (
-            "Answer from the excerpts, enrich with accurate general knowledge "
-            "where it helps understanding, and keep the answer focused on what "
-            "was asked. If the answer spans several pages, walk through them in "
-            "order."
+            "Answer from the excerpts, but explain them more simply than the "
+            "document does. Start from what the thing means in ordinary words, "
+            "then bring in the formula and gloss it, then a small concrete case "
+            "from the document. Enrich with accurate general knowledge only when "
+            "it genuinely helps understanding."
         )
 
     messages = [
