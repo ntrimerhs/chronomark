@@ -1,7 +1,8 @@
 from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pathlib import Path
 import os
 import re
@@ -27,6 +28,7 @@ import metrics
 from llama import (
     ask_llama,
     ask_document,
+    describe_figure,
     digest_segment,
     document_flashcards,
     document_notes,
@@ -1008,6 +1010,11 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
+# API answers are JSON and text, which is exactly what compresses well. Caddy
+# proxies straight to this app, so nginx's gzip never sees these responses;
+# compressing here saves the bandwidth anyway, on every question.
+app.add_middleware(GZipMiddleware, minimum_size=800)
+
 # Static mounts expose generated files directly over HTTP, so the frontend can
 # render videos and access derived assets without a separate download endpoint.
 # Example: /uploads/demo.mp4 maps to backend/uploads/demo.mp4 on disk.
@@ -1108,6 +1115,15 @@ async def video_frames(video_id: str):
 
 
 JOBS = {}
+
+# Heavy jobs (a video or a document being analysed) are the only thing on this
+# machine that can exhaust it: two ffmpeg decodes plus two embedding passes on
+# two cores and ~1 GB of headroom is the practical ceiling. Letting a third
+# start anyway does not add throughput, it makes every one of them slower and
+# can push the box into swap, where the whole backend (and every job in it)
+# dies. Queued here instead, politely, at the upload endpoint.
+MAX_CONCURRENT_JOBS = int(os.getenv("MAX_CONCURRENT_JOBS", "2") or "2")
+_JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
 
 
 def _compact_transcript_for_json(transcript):
@@ -1540,7 +1556,19 @@ def _frame_data_url(frame_path):
 
 # Sampling interval for the frames that get OCR'd. Independent of the scrubber
 # thumbnail interval, which can afford to be much denser.
-COVERAGE_INTERVAL_SEC = 20.0
+#
+# 30s instead of 20s: a slide that matters stays up far longer than that, and the
+# wider spacing means a third fewer ffmpeg seeks, a third fewer images through
+# the vision reader and a third fewer bytes on disk per lecture. This is the
+# cheapest way to make an upload lighter without losing anything a student would
+# search for.
+COVERAGE_INTERVAL_SEC = float(os.getenv("COVERAGE_INTERVAL_SEC", "30") or "30")
+
+# Frames are read by a vision model and written to disk, so their pixel count is
+# a direct cost. A 1080p lecture still is unreadable as a thumbnail and costs
+# four times what a 960px one does; the text the model needs survives the
+# downscale. 0 keeps the video's own resolution.
+FRAME_MAX_WIDTH = int(os.getenv("FRAME_MAX_WIDTH", "960") or "0")
 
 
 def _frame_halves_data_urls(frame_path, scale=3):
@@ -1583,7 +1611,7 @@ def _frame_halves_data_urls(frame_path, scale=3):
         return []
 
 
-def _ocr_frames(frames_dir, video_id, stamps=None, workers=10):
+def _ocr_frames(frames_dir, video_id, stamps=None, workers=4):
     """Read the on-screen text of every frame and index it.
 
     Independent of the transcript, so the upload can run it alongside
@@ -1635,6 +1663,17 @@ def _ocr_frames(frames_dir, video_id, stamps=None, workers=10):
             prepared.append((entry, data_url))
     if blank:
         print(f"[OCR] skipped {blank} blank/near-blank frame(s)")
+
+    # Vision calls are the slowest, most expensive stage of an upload, and they
+    # are the ones that multiply hardest when several people upload at once.
+    # Beyond this many frames the extra ones add little: a slide that matters
+    # stays up for more than one sample anyway. Kept as an env knob because it
+    # trades detail for speed and cost.
+    ocr_cap = int(os.getenv("OCR_MAX_FRAMES", "24") or "24")
+    if len(prepared) > ocr_cap:
+        step = len(prepared) / ocr_cap
+        prepared = [prepared[int(i * step)] for i in range(ocr_cap)]
+        print(f"[OCR] capped to {ocr_cap} frames (OCR_MAX_FRAMES)")
     print(f"[OCR] reading {len(prepared)} of {len(entries)} frames (visually distinct)")
 
     ocr_segments = []
@@ -2195,6 +2234,71 @@ def _start_video_cleanup_sweeper():
 _start_video_cleanup_sweeper()
 
 
+# --- Derived-artifact retention ----------------------------------------------
+# A video leaves its WAV (about 8 MB per 13 minutes) and its frames (a few MB)
+# on this disk forever, even though the video itself lives in R2. Nothing reads
+# them again once the student has moved on, so they age out. The video currently
+# open is skipped by name, and anything newer than the cutoff is skipped too, so
+# an upload in progress can never be deleted.
+ARTIFACT_RETENTION_DAYS = float(os.getenv("ARTIFACT_RETENTION_DAYS", "7") or "0")
+_ARTIFACT_SWEEP_INTERVAL = 6 * 3600
+
+
+def _artifact_cleanup_sweeper():
+    import shutil
+
+    while True:
+        time.sleep(_ARTIFACT_SWEEP_INTERVAL)
+        if ARTIFACT_RETENTION_DAYS <= 0:
+            continue
+        cutoff = time.time() - ARTIFACT_RETENTION_DAYS * 86400
+        removed = 0
+        freed = 0
+        try:
+            for wav in AUDIO_DIR.glob("*.wav"):
+                try:
+                    if wav.stem == CURRENT_VIDEO_ID:
+                        continue
+                    stat = wav.stat()
+                    if stat.st_mtime >= cutoff:
+                        continue
+                    freed += stat.st_size
+                    wav.unlink(missing_ok=True)
+                    removed += 1
+                except OSError:
+                    continue
+
+            for folder in FRAMES_DIR.iterdir():
+                try:
+                    if not folder.is_dir() or folder.name == CURRENT_VIDEO_ID:
+                        continue
+                    if folder.stat().st_mtime >= cutoff:
+                        continue
+                    size = sum(
+                        item.stat().st_size for item in folder.rglob("*") if item.is_file()
+                    )
+                    shutil.rmtree(folder, ignore_errors=True)
+                    freed += size
+                    removed += 1
+                except OSError:
+                    continue
+        except Exception as error:
+            print(f"[Retention] sweep skipped: {error}")
+            continue
+
+        if removed:
+            print(
+                f"[Retention] removed {removed} artifact(s) older than "
+                f"{ARTIFACT_RETENTION_DAYS:.0f} days, freed {freed / 1024 / 1024:.1f} MB"
+            )
+
+
+if ARTIFACT_RETENTION_DAYS > 0:
+    threading.Thread(
+        target=_artifact_cleanup_sweeper, name="artifact-retention", daemon=True
+    ).start()
+
+
 @app.get('/api/video-presence/{file_key:path}')
 async def api_video_presence(file_key: str, active: bool = True):
     """Presence beacon from the video page.
@@ -2225,6 +2329,17 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
     2 is the fallback for files ffmpeg cannot stream: download the object once
     with boto3 and process it like a classic upload.
     """
+    # Same slot queue as documents: two decodes on two cores is the ceiling, and
+    # a third upload waiting a little beats three uploads fighting.
+    if not _JOB_SLOTS.acquire(timeout=1800):
+        _set_job_status(
+            job_id,
+            status="failed",
+            stage="failed",
+            progress=100,
+            error="The server is busy with other uploads. Please try again in a few minutes.",
+        )
+        return
     try:
         _set_job_status(job_id, status="processing", stage="preparing", progress=5)
         # Multi-video mode: nothing is wiped. Every video owns
@@ -2249,7 +2364,7 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
                     extraction_mode="interval",
                     scene_threshold=0.12,
                     keyframes_only=False,
-                    max_width=0,
+                    max_width=FRAME_MAX_WIDTH,
                     min_gap_sec=0.0,
                     max_hash_distance=0,
                 )
@@ -2323,7 +2438,7 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
             local_copy = None  # processed and deleted; concept frames use the URL
 
         frame_count = _sync_concept_frames(
-            source_url, transcript_for_json, output_frames_dir, max_width=0,
+            source_url, transcript_for_json, output_frames_dir, max_width=FRAME_MAX_WIDTH,
             coverage_stamps=coverage_stamps,
         )
 
@@ -2354,6 +2469,11 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
         total_time_sec = time.perf_counter() - start_time
         _set_job_status(job_id, status="failed", stage="failed", progress=100, error=str(e))
         print(f"[Pipeline] R2 pipeline failed after {total_time_sec:.1f}s: {e}")
+    finally:
+        try:
+            _JOB_SLOTS.release()
+        except ValueError:
+            pass
 
 
 @app.post("/ask")
@@ -2752,6 +2872,58 @@ class DocumentStudyRequest(BaseModel):
     language: str | None = None
 
 
+def _document_cors_available() -> bool:
+    """Whether the browser may read PDFs straight from R2.
+
+    Checked once and cached: if the bucket has a GET rule for this site, the
+    viewer takes a presigned URL and the VPS never touches the bytes. If not,
+    the API relays them. The check is retried every ten minutes so granting the
+    permission in Cloudflare takes effect without a redeploy.
+    """
+    global _DOC_CORS_CACHE
+    now = time.time()
+    cached = _DOC_CORS_CACHE
+    if cached and now - cached[0] < 600:
+        return cached[1]
+
+    origin = os.getenv("PUBLIC_SITE_ORIGIN", "https://chronomark.0digital.xyz").rstrip("/")
+    available = False
+    rules = r2_service.bucket_cors_rules()
+    for rule in rules or []:
+        methods = [str(method).upper() for method in (rule.get("AllowedMethods") or [])]
+        origins = [str(item).rstrip("/") for item in (rule.get("AllowedOrigins") or [])]
+        if "GET" in methods and ("*" in origins or origin in origins):
+            available = True
+            break
+    if available:
+        print("[R2] CORS allows the browser to read documents directly")
+
+    _DOC_CORS_CACHE = (now, available)
+    return available
+
+
+_DOC_CORS_CACHE = (0.0, False)
+
+
+def _document_language(document: dict) -> str:
+    """The language the document itself is written in.
+
+    Stored at ingest when possible; older records fall back to reading the first
+    pages. Answers, quizzes and flashcards follow this, so a Greek handout is
+    always explained in Greek even when the student types the question in
+    English.
+    """
+    stored = str(document.get("language") or "").strip()
+    if stored:
+        return stored
+    sample = " ".join(
+        (page.get("text") or "")[:800] for page in (document.get("pages") or [])[:3]
+    )
+    if not sample.strip():
+        return ""
+    return _detect_transcript_language(sample)
+
+
 def _document_meta_path(doc_id: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9._-]", "", str(doc_id or ""))
     if not safe:
@@ -2790,6 +2962,18 @@ def _ocr_page_bytes(data: bytes, mime: str) -> str:
 
 def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: str, file_key: str, start_time: float):
     """Parse a document, chunk it, embed the chunks and index them by page."""
+    # Waits for a slot rather than starting a third heavy job: a queued upload
+    # that finishes slowly is better than three that all thrash the box.
+    if not _JOB_SLOTS.acquire(timeout=900):
+        _set_job_status(
+            job_id,
+            status="failed",
+            stage="failed",
+            progress=100,
+            error="The server is busy with other uploads. Please try again in a few minutes.",
+        )
+        Path(temp_path).unlink(missing_ok=True)
+        return
     try:
         _set_job_status(job_id, status="processing", stage="parsing", progress=20)
         extracted = document_tools.extract_document(
@@ -2805,6 +2989,37 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
         if not chunks:
             raise ValueError("no readable text found in this document")
         print(f"[Docs] {len(chunks)} chunks from {len(extracted['pages'])} pages")
+
+        # Figures are invisible to text extraction, so each page's image is read
+        # once and indexed as a chunk. A question about "the tree in Figure 14"
+        # then has the tree itself to reason about, and the answer can draw it.
+        _set_job_status(job_id, status="processing", stage="reading_figures", progress=52)
+        figure_blocks = []
+        try:
+            figures = document_tools.extract_figure_images(Path(temp_path))
+            if figures:
+                print(f"[Docs] reading {len(figures)} figure(s)")
+            for figure in figures:
+                try:
+                    encoded = base64.b64encode(figure["data"]).decode("ascii")
+                    description = describe_figure(f"data:{figure['mime']};base64,{encoded}")
+                except Exception as figure_error:
+                    print(f"[Docs] figure p.{figure['page']} skipped: {figure_error}")
+                    continue
+                if not description:
+                    continue
+                figure_blocks.append(
+                    {
+                        "page": figure["page"],
+                        "heading": f"figure p.{figure['page']}",
+                        "text": f"[figure p.{figure['page']}] {description}",
+                    }
+                )
+                print(f"[Docs] figure p.{figure['page']}: {len(description)} chars")
+        except Exception as figure_error:
+            print(f"[Docs] figure pass skipped: {figure_error}")
+
+        chunks.extend(figure_blocks)
 
         _set_job_status(job_id, status="processing", stage="embedding", progress=65)
         segments = [
@@ -2845,7 +3060,13 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
             "page_count": extracted["page_count"],
             "indexed_pages": sorted({p["page"] for p in extracted["pages"]}),
             "chunk_count": len(chunks),
+            "figure_count": len(figure_blocks),
             "created_at": time.time(),
+            # Stored once here so every later answer, quiz and flashcard follows
+            # the document's own language instead of the question's.
+            "language": _detect_transcript_language(
+                " ".join((page.get("text") or "")[:800] for page in extracted["pages"][:3])
+            ),
             "pages": extracted["pages"],
         }
         _save_document(document)
@@ -2864,6 +3085,7 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
                 "page_count": extracted["page_count"],
                 "indexed_pages": document["indexed_pages"],
                 "chunk_count": len(chunks),
+                "figure_count": len(figure_blocks),
                 "total_time_sec": round(total_time, 1),
             },
         )
@@ -2875,6 +3097,10 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
         try:
             Path(temp_path).unlink(missing_ok=True)
         except OSError:
+            pass
+        try:
+            _JOB_SLOTS.release()
+        except ValueError:
             pass
 
 
@@ -3003,7 +3229,16 @@ async def api_get_document(doc_id: str):
         "page_count": document.get("page_count"),
         "indexed_pages": document.get("indexed_pages") or [],
         "pages": document.get("pages") or [],
-        "file_url": f"/api/document-stream/{document.get('file_key')}",
+        # Lets the chat label things in the document's own language ("Απάντηση:"
+        # for a Greek handout) instead of hard-coding English.
+        "language": _document_language(document),
+        # Direct from R2 when the bucket allows this origin, relayed by the API
+        # otherwise. The relay works everywhere but every byte crosses the VPS.
+        "file_url": (
+            f"/api/document-stream/{document.get('file_key')}"
+            if _document_cors_available()
+            else f"/api/document-file/{document['doc_id']}"
+        ),
     }
 
 
@@ -3020,6 +3255,49 @@ async def api_document_stream(file_key: str):
     except RuntimeError as error:
         raise HTTPException(status_code=502, detail=str(error))
     return RedirectResponse(download_url, status_code=302)
+
+
+@app.get("/api/document-file/{doc_id}")
+async def api_document_file(doc_id: str):
+    """Stream the original file through this API, same-origin.
+
+    A presigned R2 URL would be cross-origin, and the browser's fetch of it
+    needs a bucket CORS policy. R2 tokens created for object access cannot set
+    one (PutBucketCors is AccessDenied), so the viewer reads the bytes from here
+    instead: one origin, no CORS, and the credentials never leave the server.
+    """
+    document = _load_document(doc_id)
+    file_key = document.get("file_key")
+    if not file_key:
+        raise HTTPException(status_code=404, detail="Document has no stored file")
+
+    suffix = Path(document.get("file_name") or "").suffix.lower()
+    media_type = _DOCUMENT_CONTENT_TYPES.get(suffix, "application/octet-stream")
+
+    def _open():
+        return r2_service.open_object(file_key)
+
+    try:
+        body, size = await run_in_threadpool(_open)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+
+    def _iter():
+        try:
+            for chunk in body.iter_chunks(chunk_size=256 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            body.close()
+
+    headers = {
+        "Content-Disposition": f'inline; filename="{Path(document.get("file_name") or "document").name}"',
+    }
+    if size:
+        headers["Content-Length"] = str(size)
+    return StreamingResponse(_iter(), media_type=media_type, headers=headers)
 
 
 @app.delete("/api/document/{doc_id}")
@@ -3053,7 +3331,11 @@ async def api_delete_document(doc_id: str):
     return {"deleted": doc_id}
 
 
-_PAGE_CITATION_RE = re.compile(r"`\s*p\.?\s*(\d{1,4})\s*`", re.IGNORECASE)
+# The model is asked for `` `p. 12` ``, but it also produces "[p. 12]" and
+# "(p. 12)" -- the bracketed form is how the excerpts are labelled in its
+# context, so it copies that shape. All three mean the same citation, and all
+# three are normalised to the inline-code form the chat turns into a button.
+_PAGE_CITATION_RE = re.compile(r"[`\[(]\s*p\.?\s*(\d{1,4})\s*[`\])]", re.IGNORECASE)
 
 
 def _enforce_page_citations(answer: str, pages: set[int], fallback_page=None):
@@ -3131,14 +3413,26 @@ async def api_document_ask(req: DocumentQuestion):
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
 
     summary_mode = _is_summary_request(question)
-    answer_language = _detect_question_language(question)
+    # A Greek document is answered in Greek, whatever language the question is
+    # typed in: the material a student revises from has to match the material
+    # they were given. For any other document the question's own language wins.
+    document_language = _document_language(document)
+    answer_language = document_language if document_language == "Greek" else _detect_question_language(question)
+    if not any(character.isalpha() for character in question) and document_language:
+        answer_language = document_language
 
     if summary_mode:
-        candidates = chunks[:120]
-        if len(chunks) > 120:
-            step = len(chunks) / 120
-            candidates = [chunks[int(i * step)] for i in range(120)]
-        selected = candidates
+        # A summary has to cover the whole handout, not a sample of it: the whole
+        # chunk list goes in whenever it fits, and only a document too large for
+        # one context is thinned out, evenly, so no section is skipped outright.
+        total_chars = sum(len((r.payload.get("text") or "")) for r in chunks)
+        if total_chars <= 90_000:
+            selected = chunks
+        else:
+            budget = max(20, int(len(chunks) * 90_000 / total_chars))
+            step = len(chunks) / budget
+            selected = [chunks[int(i * step)] for i in range(budget)]
+        print(f"[Docs] summary context: {len(selected)}/{len(chunks)} chunks, {total_chars} chars")
     else:
         query_embedding = embed_query(question)
         vector_hits = search_text(query_embedding, limit=12, video_id=req.doc_id)
@@ -3208,10 +3502,28 @@ async def api_document_ask(req: DocumentQuestion):
             page = int(start) if isinstance(start, (int, float)) else None
         return page
 
+    # Figures are always part of the context, not only when retrieval happens to
+    # pick them: a question about a tree can score badly against prose and would
+    # otherwise be answered from memory.
+    figure_points = [
+        p for p in chunks if (p.payload.get("text") or "").lstrip().startswith("[figure")
+    ]
+    seen_figures = {str(p.id) for p in ordered}
+    ordered_with_figures = [
+        _Ranked(str(p.id), p.payload or {}, 0.0)
+        for p in figure_points
+        if str(p.id) not in seen_figures
+    ] + ordered
+
     context = "\n".join(
-        f"[p.{_page_of(r.payload)}] {(r.payload.get('text') or '').strip()}"
-        for r in ordered
-        if (r.payload.get("text") or "").strip()
+        # Figure chunks already say which page they belong to ("[figure p.7]"),
+        # so they are not labelled twice.
+        text
+        if text.startswith("[figure")
+        else f"[p.{_page_of(r.payload)}] {text}"
+        for r in ordered_with_figures
+        for text in [(r.payload.get("text") or "").strip()]
+        if text
     )
 
     pages_in_context = {_page_of(r.payload) for r in ordered if _page_of(r.payload) is not None}
@@ -3219,7 +3531,7 @@ async def api_document_ask(req: DocumentQuestion):
     transcript_available = bool(context.strip())
 
     try:
-        answer = ask_document(
+        answer, truncated = ask_document(
             question=question,
             context=context,
             history=(req.history or [])[-6:],
@@ -3256,6 +3568,9 @@ async def api_document_ask(req: DocumentQuestion):
         "source": "document",
         "doc_id": req.doc_id,
         "answer": answer,
+        # True when the model ran out of output budget:
+        # the chat asks for the rest in a new message instead of showing a cut.
+        "truncated": truncated,
         "pages": page_rows,
         "text_results": [
             {
@@ -3268,21 +3583,69 @@ async def api_document_ask(req: DocumentQuestion):
     }
 
 
+def _document_figures(chunks: list) -> list:
+    """The figure descriptions already indexed, as {page, text} rows."""
+    rows = []
+    for point in chunks:
+        payload = point.payload or {}
+        text = (payload.get("text") or "").strip()
+        if not text.startswith("[figure"):
+            continue
+        page = payload.get("page")
+        if page is None:
+            start = payload.get("start")
+            page = int(start) if isinstance(start, (int, float)) else None
+        rows.append(
+            {
+                "page": page,
+                # Drop the internal label: the chat prints its own heading.
+                "text": text.split("]", 1)[-1].strip() if "]" in text else text,
+            }
+        )
+    rows.sort(key=lambda row: row.get("page") or 0)
+    return rows
+
+
+def _study_context(chunks: list, limit: int) -> str:
+    """Context for quiz / flashcards / study guide.
+
+    Figures come first and are never truncated away: a question about a tree is
+    only answerable if the tree's description is in the prompt, and that is
+    exactly the material a student needs drawn for them.
+    """
+    figures = [
+        r for r in chunks if (r.payload.get("text") or "").lstrip().startswith("[figure")
+    ]
+    rest = [r for r in chunks if r not in figures]
+    selected = (figures + rest)[:limit]
+    return "\n".join(
+        text
+        if text.startswith("[figure")
+        else f"[p.{(r.payload or {}).get('page')}] {text}"
+        for r in selected
+        for text in [((r.payload or {}).get("text") or "").strip()]
+        if text
+    )
+
+
 @app.post("/api/document/quiz")
 async def api_document_quiz(req: DocumentStudyRequest):
     document = _load_document(req.doc_id)
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
-    language = req.language or _detect_question_language(
-        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
-    )
-    context = "\n".join(
-        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
-        for r in chunks[:80]
-    )
+    language = req.language or _document_language(document) or "English"
+    context = _study_context(chunks, 80)
     questions = document_quiz(context, count=req.count or 6, language=language)
-    return {"doc_id": req.doc_id, "questions": questions}
+    return {
+        "doc_id": req.doc_id,
+        "questions": questions,
+        # The figures the vision pass read, sent along so the chat can show the
+        # diagram itself next to the questions. The model is asked to draw them
+        # in its explanations, but showing the source description guarantees the
+        # reader sees the structure even when it does not.
+        "figures": _document_figures(chunks),
+    }
 
 
 @app.post("/api/document/flashcards")
@@ -3291,13 +3654,8 @@ async def api_document_flashcards(req: DocumentStudyRequest):
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
-    language = req.language or _detect_question_language(
-        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
-    )
-    context = "\n".join(
-        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
-        for r in chunks[:80]
-    )
+    language = req.language or _document_language(document) or "English"
+    context = _study_context(chunks, 80)
     cards = document_flashcards(context, count=req.count or 10, language=language)
     return {"doc_id": req.doc_id, "cards": cards}
 
@@ -3308,12 +3666,7 @@ async def api_document_notes(req: DocumentStudyRequest):
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
-    language = req.language or _detect_question_language(
-        " ".join((p.get("text") or "")[:400] for p in (document.get("pages") or [])[:3])
-    )
-    context = "\n".join(
-        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
-        for r in chunks[:120]
-    )
-    notes = document_notes(context, language=language)
-    return {"doc_id": req.doc_id, "notes": notes}
+    language = req.language or _document_language(document) or "English"
+    context = _study_context(chunks, 120)
+    notes, notes_truncated = document_notes(context, language=language)
+    return {"doc_id": req.doc_id, "notes": notes, "truncated": notes_truncated}

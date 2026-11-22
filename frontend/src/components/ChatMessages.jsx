@@ -1,5 +1,8 @@
 import { memo, createContext, useContext } from 'react';
 import Markdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import useAutoScroll from '../hooks/useAutoScroll';
 import { User, Bot, Loader2 } from 'lucide-react';
 import { CircleX } from 'lucide-react';
@@ -7,11 +10,20 @@ import { API_BASE_URL } from '../config';
 import '../styles/chatmessages.css';
 
 const INLINE_TIMESTAMP_RE = /^(\d{1,2}):(\d{2})$/;
+// Documents cite pages instead of moments: `p. 12`. Same inline-code shape, so
+// the same marker component handles both.
+const INLINE_PAGE_RE = /^[\[(]?\s*p\.\s*(\d{1,4})\s*[\])]?$/i;
 
 function parseTimestampToSeconds(text) {
   const match = INLINE_TIMESTAMP_RE.exec(text.trim());
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function parsePageCitation(text) {
+  const match = INLINE_PAGE_RE.exec(text.trim());
+  if (!match) return null;
+  return Number(match[1]);
 }
 
 // Fire-and-forget: a citation click is the only signal that says the jump link
@@ -43,19 +55,21 @@ function MarkdownCode({ children, className }) {
   const isFenced =
     typeof className === 'string' && className.startsWith('language-');
   const seconds = isFenced ? null : parseTimestampToSeconds(text);
+  const page = isFenced ? null : parsePageCitation(text);
 
-  if (seconds != null) {
+  if (seconds != null || page != null) {
+    const label = text.trim();
     return (
       <button
         type="button"
         className="chat-message-inline-timestamp"
-        title={`Jump to ${text.trim()}`}
+        title={page != null ? `Go to page ${page}` : `Jump to ${label}`}
         onClick={() => {
           reportCitationClick();
-          if (onSeek) onSeek(seconds);
+          if (onSeek) onSeek(page != null ? page : seconds);
         }}
       >
-        {text.trim()}
+        {label}
       </button>
     );
   }
@@ -67,6 +81,11 @@ function MarkdownCode({ children, className }) {
 }
 
 const markdownComponents = { code: MarkdownCode };
+
+// Math is written by the model as LaTeX ($...$ inline, $$...$$ display) and
+// rendered with KaTeX, so O(n^2) arrives as real notation instead of a caret.
+const remarkPlugins = [remarkMath];
+const rehypePlugins = [rehypeKatex];
 
 function ChatMessages({ messages, isLoading, onSeek }) {
   const scrollContentRef = useAutoScroll(isLoading);
@@ -101,7 +120,13 @@ function ChatMessages({ messages, isLoading, onSeek }) {
               <div className="chat-message-content">
                 <div className="markdown-container">
                   {role === 'assistant' && !streaming ? (
-                    <Markdown components={markdownComponents}>{content}</Markdown>
+                    <Markdown
+                      remarkPlugins={remarkPlugins}
+                      rehypePlugins={rehypePlugins}
+                      components={markdownComponents}
+                    >
+                      {content}
+                    </Markdown>
                   ) : (
                     <div className="chat-message-text">{content}</div>
                   )}

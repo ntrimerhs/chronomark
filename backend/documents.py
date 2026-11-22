@@ -173,6 +173,84 @@ def extract_docx(path: Path) -> dict:
     return {"kind": "docx", "page_count": len(pages), "pages": pages}
 
 
+def extract_figure_images(
+    path: Path,
+    max_pages: int = 12,
+    min_bytes: int = 3_500,
+    max_side: int = 1400,
+) -> list:
+    """The largest embedded image of each page, for the figure reader.
+
+    Text extraction drops every figure: a tree, a graph or a table drawn on the
+    page is not text, so a question about "the tree in Figure 14" has nothing to
+    stand on. Each page's biggest image is handed to vision once at ingest, and
+    its description is indexed as a `[figure p.N]` chunk.
+
+    The size floor is deliberately low: a simple line drawing of a tree compresses
+    to a few kilobytes, and those are exactly the figures worth reading. Capped on
+    pages because vision calls are the slow, paid part.
+    """
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(path))
+    figures = []
+    for index, page in enumerate(reader.pages, start=1):
+        if index > max_pages:
+            break
+        try:
+            images = list(page.images)
+        except Exception:
+            continue
+        if not images:
+            continue
+
+        best = None
+        best_size = 0
+        for image in images:
+            try:
+                size = len(image.data or b"")
+            except Exception:
+                continue
+            if size > best_size:
+                best, best_size = image, size
+        if best is None:
+            continue
+        if best_size < min_bytes:
+            print(f"[Docs] page {index}: image {best_size} bytes, too small to read")
+            continue
+
+        suffix = (Path(getattr(best, "name", "") or "figure.png").suffix or ".png").lower()
+        mime = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
+        data = best.data
+
+        # Downscale before the vision call. A scanned page arrives at 2000px+ and
+        # the reader gains nothing from that: a smaller JPEG is fewer tokens, less
+        # upload time and less memory while several uploads run at once.
+        try:
+            import io
+
+            from PIL import Image
+
+            with Image.open(io.BytesIO(data)) as image:
+                if max(image.size) > max_side:
+                    image.thumbnail((max_side, max_side))
+                buffer = io.BytesIO()
+                image.convert("RGB").save(buffer, format="JPEG", quality=82, optimize=True)
+                shrunk = buffer.getvalue()
+                if len(shrunk) < len(data):
+                    data, mime = shrunk, "image/jpeg"
+        except Exception:
+            pass
+
+        try:
+            figures.append({"page": index, "data": data, "mime": mime})
+            print(f"[Docs] page {index}: figure {len(data)} bytes ({mime})")
+        except Exception:
+            continue
+
+    return figures
+
+
 def extract_document(path: Path, file_name: str = "", image_ocr=None) -> dict:
     """Dispatch on the extension. Raises ValueError for anything unsupported."""
     suffix = Path(file_name or path.name).suffix.lower()

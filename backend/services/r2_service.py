@@ -174,6 +174,37 @@ def generate_presigned_download_url(file_key: str, expires_in: int = 3600) -> st
         raise RuntimeError(f"Could not create download URL: {error}") from error
 
 
+def open_object(file_key: str):
+    """Open an object for streaming back to a client.
+
+    Returns (body, size) where body is botocore's StreamingBody. Used by the
+    document proxy: a presigned URL would be cross-origin for the browser, and
+    the R2 token cannot set a bucket CORS policy, so the API relays the bytes
+    instead. The caller must close the body.
+    """
+    key = validate_file_key(file_key)
+    try:
+        response = _get_client().get_object(Bucket=R2_BUCKET_NAME, Key=key)
+    except (BotoCoreError, ClientError) as error:
+        raise RuntimeError(f"Could not open '{key}' in R2: {error}") from error
+    return response["Body"], int(response.get("ContentLength") or 0)
+
+
+def bucket_cors_rules():
+    """The bucket's CORS policy, or None when it cannot be read.
+
+    Used to decide how a PDF reaches the browser: with a CORS policy that allows
+    this site, the viewer can fetch a presigned URL straight from R2 and the VPS
+    carries no bytes at all. Without one the file has to be relayed by the API.
+    """
+    try:
+        response = _get_client().get_bucket_cors(Bucket=R2_BUCKET_NAME)
+    except (BotoCoreError, ClientError) as error:
+        print(f"[R2] CORS policy not readable: {error}")
+        return None
+    return response.get("CORSRules") or []
+
+
 def download_to_file(file_key: str, destination) -> str:
     """Fetch the object to a local path.
 

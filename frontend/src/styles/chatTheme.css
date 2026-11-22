@@ -219,14 +219,14 @@
    voice, so what the model writes reads like instrument output rather than
    prose dropped into a bubble */
 .chatbot .markdown-container {
-  padding: 12px 14px;
+  padding: 15px 17px;
   border-radius: 2px;
   border: 1px solid rgba(245, 245, 248, 0.1);
   background: rgba(245, 245, 248, 0.025);
   color: #F5F5F8;
   font-family: 'Inconsolata', ui-monospace, 'SF Mono', 'Fira Code', 'Roboto Mono', Consolas, monospace;
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.8;
   letter-spacing: 0.01em;
 }
 
@@ -250,6 +250,32 @@
 .chatbot .markdown-container p,
 .chatbot .markdown-container li {
   color: inherit;
+}
+
+/* Air. A long answer is read, not scanned, so paragraphs get a real gap and a
+   taller line box instead of sitting shoulder to shoulder. */
+.chatbot .markdown-container p {
+  margin: 0 0 14px;
+  line-height: 1.9;
+}
+
+.chatbot .markdown-container p:last-child {
+  margin-bottom: 0;
+}
+
+.chatbot .markdown-container ul,
+.chatbot .markdown-container ol {
+  margin: 4px 0 16px;
+  padding-left: 22px;
+}
+
+.chatbot .markdown-container li {
+  margin-bottom: 9px;
+  line-height: 1.85;
+}
+
+.chatbot .markdown-container li:last-child {
+  margin-bottom: 0;
 }
 
 .chatbot .markdown-container strong {
@@ -290,13 +316,13 @@
 .chatbot .markdown-container h2,
 .chatbot .markdown-container h3,
 .chatbot .markdown-container h4 {
-  margin: 1.2rem 0 0.55rem;
+  margin: 1.6rem 0 0.8rem;
   color: #FFFFFF;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.01em;
   text-transform: none;
-  line-height: 1.45;
+  line-height: 1.5;
   padding: 0;
   border: 0;
 }
@@ -323,7 +349,7 @@
 
 /* a divider between sections, when the model sends one */
 .chatbot .markdown-container hr {
-  margin: 1rem 0;
+  margin: 1.5rem 0;
   border: 0;
   border-top: 1px solid rgba(245, 245, 248, 0.1);
 }
@@ -454,4 +480,28 @@
   .chatbot .chatbot-header-dot {
     animation: none;
   }
+}
+
+/* ── math ──
+   KaTeX ships its own stylesheet; these rules only make it sit in this skin.
+   Display math can be wider than the column, so it scrolls sideways instead of
+   pushing the message out of the panel. */
+
+.chatbot .katex {
+  font-size: 1.02em;
+  color: inherit;
+}
+
+.chatbot .katex-display {
+  margin: 10px 0;
+  padding: 2px 0 2px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* the same hairline a code block gets, so a formula reads as content rather
+     than as floating symbols */
+  border-left: 2px solid rgba(244, 47, 167, 0.4);
+}
+
+.chatbot .katex-display > .katex {
+  color: inherit;
 }

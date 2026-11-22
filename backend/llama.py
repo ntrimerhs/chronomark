@@ -57,6 +57,50 @@ _MAX_CONTEXT_CHARS = {"openai": 120_000, "hf": 26_000}
 _MAX_OUTPUT_TOKENS = 1600
 _TEMPERATURE = 0.25
 
+# A document answer is a long-form read: summaries and study guides were being
+# cut mid-sentence (and mid-heading, which is why an answer could end at "## A")
+# because one short budget has to cover a whole handout.
+_DOCUMENT_ANSWER_TOKENS = 2600
+_DOCUMENT_LONG_TOKENS = 4000
+# A whole-handout summary is the longest thing this app ever asks for; the model
+# is happy to produce it in one turn, so the budget allows a real study document
+# rather than three rounds of continuation.
+_DOCUMENT_SUMMARY_TOKENS = 6000
+
+
+def _tidy_document_answer(text: str) -> str:
+    """Never return a dangling heading or half a sentence.
+
+    A model that runs out of budget stops wherever it happens to be, which reads
+    as broken: a trailing "## A" heading with nothing under it, or a sentence
+    that ends in the middle of a word. Both are trimmed so the visible answer
+    always ends cleanly, and the caller can continue it in a new message.
+    """
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return cleaned
+
+    lines = cleaned.splitlines()
+    while lines:
+        last = lines[-1].strip()
+        if not last or last.startswith("#"):
+            lines.pop()
+            continue
+        break
+
+    cleaned = "\n".join(lines).rstrip()
+    if not cleaned:
+        return cleaned
+
+    if cleaned[-1] not in ".!;:…»”\"'":
+        boundary = max(cleaned.rfind(". "), cleaned.rfind("! "), cleaned.rfind("? "))
+        if boundary > len(cleaned) * 0.6:
+            cleaned = cleaned[: boundary + 1]
+        else:
+            cleaned = cleaned + "…"
+
+    return cleaned
+
 
 def _extract_json(text: str):
     """Pull the first JSON object out of a model reply.
@@ -136,6 +180,11 @@ _DOCUMENT_SYSTEM_PROMPT = (
     "direct sentences.\n"
     "- Never use em dashes or en dashes. Use a comma, a full stop, or the word "
     "'και'. No emoji, no decorative symbols.\n"
+    "- Write all mathematics in LaTeX: inline as $O(n \\log n)$, display as "
+    "$$\\sum_{i=1}^{n} i$$ when it deserves its own line. Never write maths as "
+    "plain text: no n^2, no O(n log n) without dollars, no sqrt(), no fractions "
+    "with a slash, no underscores for subscripts. This is rendered by KaTeX, so "
+    "$O(n^2)$ becomes real notation while O(n^2) stays a caret.\n"
     "- Structure anything longer than a couple of sentences with short `###` "
     "headings of two to five words naming what the section explains. Two to "
     "four sections is usually right.\n"
@@ -148,8 +197,8 @@ _DOCUMENT_SYSTEM_PROMPT = (
     "\nPAGE CITATIONS:\n"
     "- Excerpts are labelled [p.N] where N is the page or slide number.\n"
     "- Every paragraph that tells the user something from the document ends with "
-    "exactly one citation: the page number in inline code, e.g. `p. 12`. At most "
-    "one per paragraph, at the end of it.\n"
+    "exactly one citation, written as inline code: `p. 12`. Backticks only, never "
+    "brackets and never parentheses. At most one per paragraph, at the end of it.\n"
     "- Copy the page number from an excerpt you were given. Never invent a page. "
     "A citation that does not match an excerpt is deleted before the user sees "
     "the answer.\n"
@@ -167,7 +216,84 @@ _DOCUMENT_SYSTEM_PROMPT = (
     "fully and say which part it does not cover.\n"
     "- Show worked examples in the same order the document introduces them, each "
     "with its explanation directly underneath.\n"
+    "- When the answer depends on a figure (a tree, a graph, a diagram, a table) "
+    "that the reader cannot see while reading, draw it yourself: a small "
+    "plain-text diagram in a fenced code block, built from + - | / \\ and the "
+    "node or cell labels, at most twelve lines, immediately above the "
+    "explanation. A reader should understand the answer without going back to "
+    "the page. Label each step of a traversal or walk next to the diagram.\n"
+    "\nEXPLAIN IT, DO NOT QUOTE IT:\n"
+    "- The document is the source, but the answer is a simpler retelling of it. "
+    "Never hand notation back to the reader unexplained.\n"
+    "- Every formula gets a plain-language gloss directly underneath it: what it "
+    "counts or measures, in ordinary words, before any further notation. For "
+    "example, after d(v) = |N(v)| write what it actually means: the degree of a "
+    "node is simply how many edges touch it.\n"
+    "- Define each symbol the first time it appears, inline, in a few words: "
+    "what it stands for and what type of thing it is (a number, a set, a node).\n"
+    "- When a notation is dense (set-builder braces, absolute-value bars, "
+    "subscripts, summation signs), break it into a short bullet list, one bullet "
+    "per part, each in plain words, and then say what the whole expression adds "
+    "up to.\n"
+    "- Prefer a concrete case over abstraction: take the actual graph, tree or "
+    "numbers from the document and walk one small example with real labels "
+    "(node D, its four edges) before generalising.\n"
+    "- Say why the definition exists or where it is used when that helps; keep "
+    "the reader's question ('what does this mean?') in view, not the document's "
+    "wording.\n"
+    "- Do not pad with formal restatements. If a sentence only repeats the "
+    "notation in words the reader already knows, cut it.\n"
 )
+
+
+def describe_figure(data_url: str) -> str:
+    """Read a figure drawn on a document page.
+
+    Text extraction cannot see a tree, a graph or a table, so a question about
+    "the tree in Figure 14" would be answered from prose alone. This turns the
+    page's image into a description the index can hold: the structure first, then
+    a small plain-text diagram, so later answers can draw it for the reader.
+    """
+    if not _openai_client:
+        return ""
+
+    try:
+        completion = _create(
+            model=_OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "This is a figure from a study document.\n\n"
+                                "Describe it so that someone who cannot see it can "
+                                "reconstruct it exactly.\n"
+                                "- If it is a tree or a graph: list every node label, "
+                                "every edge as a pair (a-b), and state which node is "
+                                "the root.\n"
+                                "- If it is a table: reproduce its rows.\n"
+                                "- If it is a diagram of a process: list the parts "
+                                "and the connections in order.\n"
+                                "Then draw it as a compact plain-text diagram, at "
+                                "most fourteen lines, using spaces, + - | / \\ and "
+                                "the labels.\n\n"
+                                "Reply with the description only. No preamble, no "
+                                "markdown headings, no commentary."
+                            ),
+                        },
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+            ],
+            max_tokens=1200,
+            temperature=0,
+        )
+        return (completion.choices[0].message.content or "").strip()
+    except Exception as error:
+        print(f"[Figure] read failed: {error}")
+        return ""
 
 
 def ask_document(
@@ -190,21 +316,46 @@ def ask_document(
         )
     elif summary_mode:
         style = (
-            "The user wants a summary of the whole document. You are given every "
-            "extracted excerpt in page order. Cover the main topic, every "
-            "significant concept, key examples and the overall flow, then add a "
-            "short paragraph of useful general context."
+            "The user wants a full study summary of the whole document, not a "
+            "one-paragraph overview. You are given the extracted excerpts in page "
+            "order. Walk through the document the way it is organised, section by "
+            "section and chapter by chapter, and cover EVERYTHING that matters:\n"
+            "- one `###` heading per section or chapter, in the document's own "
+            "order, never skipping one;\n"
+            "- inside each section: every definition, every rule, every theorem, "
+            "every formula and every worked example the document gives;\n"
+            "- every formula gets the plain-language gloss described above, and "
+            "every symbol is defined when it first appears;\n"
+            "- the concrete example from the document, with its actual labels and "
+            "numbers, written out as a short walkthrough;\n"
+            "- a figure that the text depends on is drawn as a plain-text diagram.\n"
+            "Close with a short `###` section listing what a student should be able "
+            "to do after studying it, and the three ideas most likely to be "
+            "examined. Length follows the document: a 40-page handout deserves a "
+            "long, complete summary, not a teaser. Explain everything more simply "
+            "than the document does."
         )
     else:
         style = (
-            "Answer from the excerpts, enrich with accurate general knowledge "
-            "where it helps understanding, and keep the answer focused on what "
-            "was asked. If the answer spans several pages, walk through them in "
-            "order."
+            "Answer from the excerpts, but explain them more simply than the "
+            "document does. Start from what the thing means in ordinary words, "
+            "then bring in the formula and gloss it, then a small concrete case "
+            "from the document. Enrich with accurate general knowledge only when "
+            "it genuinely helps understanding."
         )
 
     messages = [
-        {"role": "system", "content": _DOCUMENT_SYSTEM_PROMPT + f"\n{style}\nRespond in {answer_language}."}
+        {
+            "role": "system",
+            "content": (
+                _DOCUMENT_SYSTEM_PROMPT
+                + f"\n{style}\n"
+                + f"Write the whole answer in {answer_language}: the prose, every "
+                f"### heading, and every list item. Do not switch language "
+                f"mid-answer, even when the document itself is written in another "
+                f"one. Citations stay in the `p. N` form regardless."
+            ),
+        }
     ]
     for turn in history or []:
         role, content = turn.get("role"), turn.get("content")
@@ -227,7 +378,7 @@ def ask_document(
         completion = _create(
             model=_OPENAI_MODEL,
             messages=messages,
-            max_tokens=_MAX_OUTPUT_TOKENS,
+            max_tokens=_DOCUMENT_SUMMARY_TOKENS if summary_mode else _DOCUMENT_ANSWER_TOKENS,
             temperature=_TEMPERATURE,
         )
     except Exception as error:
@@ -237,11 +388,16 @@ def ask_document(
         completion = client.chat.completions.create(
             model=_HF_MODEL,
             messages=[{"role": m["role"], "content": str(m["content"])} for m in messages],
-            max_tokens=_MAX_OUTPUT_TOKENS,
+            max_tokens=_DOCUMENT_ANSWER_TOKENS,
             temperature=_TEMPERATURE,
         )
 
-    return (completion.choices[0].message.content or "").strip()
+    choice = completion.choices[0]
+    raw = (choice.message.content or "").strip()
+    # "length" means the provider stopped because the budget ran out: exactly
+    # the case the chat continues in a new message.
+    truncated = getattr(choice, "finish_reason", None) == "length"
+    return _tidy_document_answer(raw), truncated
 
 
 def document_quiz(context: str, count: int = 6, language: str = "the document's language"):
@@ -263,14 +419,25 @@ def document_quiz(context: str, count: int = 6, language: str = "the document's 
                 "Each question needs exactly four options, one correct index "
                 "(0-3), a one-sentence explanation, and the page it comes from.\n"
                 "Vary difficulty and avoid questions answerable by elimination "
-                "alone.\n\n"
+                "alone.\n"
+                "Write every mathematical expression in LaTeX, inline as "
+                "$\\frac{n(n-1)}{2}$ -- in the question, in every option and in "
+                "the explanation. Never write maths as plain text (no n^2, no "
+                "n(n-1)/2, no sqrt()).\n"
+                "When a question refers to a figure (a tree, a graph, a table, an "
+                "automaton), the explanation must include a small plain-text "
+                "diagram of it inside a fenced code block, drawn with spaces and "
+                "the characters + - | / \\ and the node labels, so the reader can "
+                "see the structure while reading the answer. Keep the diagram "
+                "under twelve lines and mark the walk with numbered steps after "
+                "it.\n\n"
                 'Shape: {"questions":[{"question":"...","options":["a","b","c","d"],'
                 '"answer":0,"explain":"...","page":3}]}\n\n'
                 f"Material:\n{context}"
             ),
         },
     ]
-    data = _chat_json(messages, max_tokens=1800, temperature=0.4)
+    data = _chat_json(messages, max_tokens=2600, temperature=0.4)
     questions = []
     for item in (data.get("questions") or []):
         options = [str(option).strip() for option in (item.get("options") or []) if str(option).strip()]
@@ -308,12 +475,14 @@ def document_flashcards(context: str, count: int = 10, language: str = "the docu
             "content": (
                 f"Make {count} flashcards from this material.\n"
                 f"Write them in {language}.\n"
+                "Write every mathematical expression in LaTeX, inline as $O(n^2)$ "
+                "or $\\frac{n(n-1)}{2}$. Never write maths as plain text.\n"
                 'Shape: {"cards":[{"term":"...","definition":"...","page":2}]}\n\n'
                 f"Material:\n{context}"
             ),
         },
     ]
-    data = _chat_json(messages, max_tokens=1600, temperature=0.3)
+    data = _chat_json(messages, max_tokens=2200, temperature=0.3)
     cards = []
     for item in (data.get("cards") or []):
         term = str(item.get("term") or "").strip()
@@ -340,18 +509,21 @@ def document_notes(context: str, language: str = "the document's language"):
         },
     ]
     if not _openai_client:
-        return ""
+        return "", False
     try:
         completion = _create(
             model=_OPENAI_MODEL,
             messages=messages,
-            max_tokens=_MAX_OUTPUT_TOKENS,
+            max_tokens=_DOCUMENT_LONG_TOKENS,
             temperature=0.3,
         )
-        return (completion.choices[0].message.content or "").strip()
+        choice = completion.choices[0]
+        raw = (choice.message.content or "").strip()
+        truncated = getattr(choice, "finish_reason", None) == "length"
+        return _tidy_document_answer(raw), truncated
     except Exception as error:
         print(f"[LLM] study guide failed: {error}")
-        return ""
+        return "", False
 
 
 def transcribe_image(data_url: str) -> str:
@@ -633,6 +805,11 @@ def ask_llama(
                 "stop, or the word 'και'. This is the single clearest sign of "
                 "machine-written text.\n"
                 "- No emoji, no icons, no decorative symbols.\n"
+                "- Write all mathematics in LaTeX: inline as $O(n \\log n)$, "
+                "display as $$O(n^2)$$ when it deserves its own line. Never write "
+                "maths as plain text: no n^2, no O(n log n) without dollars, no "
+                "sqrt(), no slash fractions, no underscore subscripts. KaTeX "
+                "renders $O(n^2)$ properly; O(n^2) stays a caret.\n"
                 "- Structure any answer longer than a couple of sentences with "
                 "short section headings: a `###` heading of two to five words "
                 "naming what the section explains, followed by its paragraphs. "

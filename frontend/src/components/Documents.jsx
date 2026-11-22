@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { FileText, FileUp, Loader2, Presentation, ScanText, Trash2, X } from 'lucide-react'
+import { FileText, FileUp, Loader2, Presentation, ScanText, X } from 'lucide-react'
 import { API_BASE_URL } from '../config'
 import DocumentViewer from './documents/DocumentViewer.jsx'
 import DocumentChat from './documents/DocumentChat.jsx'
@@ -10,22 +10,15 @@ import '../styles/documentsTheme.css'
 
 /* Documents page.
 
-   Upload a PDF, a slide deck or a Word file, then read it beside a chat that
-   answers with page citations. The pipeline lives in the backend: parse ->
-   chunk -> embed -> index, exactly like a video's transcript. */
+   One document at a time, exactly like the video page: the pages on the left,
+   the same chat on the right. There is no library -- opening the page is the
+   upload, and the chat always belongs to the document in view. */
 
 const ACCEPT = '.pdf,.pptx,.docx'
-const KINDS = {
+const KIND_META = {
   pdf: { label: 'PDF', icon: FileText },
   pptx: { label: 'PowerPoint', icon: Presentation },
   docx: { label: 'Word', icon: ScanText },
-}
-
-function formatBytes(bytes) {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }
 
 function statusLabel(stage) {
@@ -36,6 +29,8 @@ function statusLabel(stage) {
       return 'Reading'
     case 'chunking':
       return 'Splitting'
+    case 'reading_figures':
+      return 'Reading figures'
     case 'embedding':
       return 'Indexing'
     case 'finalizing':
@@ -46,7 +41,6 @@ function statusLabel(stage) {
 }
 
 export default function Documents() {
-  const [documents, setDocuments] = useState([])
   const [current, setCurrent] = useState(null)
   const [progress, setProgress] = useState(0)
   const [stage, setStage] = useState('')
@@ -54,19 +48,13 @@ export default function Documents() {
   const [error, setError] = useState('')
   const [pageHint, setPageHint] = useState(null)
   const [dragging, setDragging] = useState(false)
+  // A PDF renders natively in a frame, but the extracted text is always there
+  // and scrolls to a page instantly, so the reader can switch between the two.
+  const [viewerMode, setViewerMode] = useState('pdf')
 
   const viewerRef = useRef(null)
   const inputRef = useRef(null)
   const pollRef = useRef(null)
-
-  const loadDocuments = useCallback(async () => {
-    try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/documents`, { timeout: 20000 })
-      setDocuments(data.documents || [])
-    } catch (loadError) {
-      console.error('[Docs] list failed', loadError)
-    }
-  }, [])
 
   const openDocument = useCallback(async (docId) => {
     try {
@@ -76,6 +64,7 @@ export default function Documents() {
         file_name: data.file_name,
         kind: data.kind,
         page_count: data.page_count,
+        language: data.language,
         file_url: `${API_BASE_URL}${data.file_url}`,
         pages: data.pages || [],
       })
@@ -86,9 +75,12 @@ export default function Documents() {
     }
   }, [])
 
+  // Deep link: /documents?doc=<doc_id> opens that document straight away, which
+  // is also how a link to a specific handout works.
   useEffect(() => {
-    loadDocuments()
-  }, [loadDocuments])
+    const requested = new URLSearchParams(window.location.search).get('doc')
+    if (requested) openDocument(requested)
+  }, [openDocument])
 
   useEffect(() => () => {
     if (pollRef.current) window.clearInterval(pollRef.current)
@@ -126,7 +118,9 @@ export default function Documents() {
         await new Promise((resolve, reject) => {
           pollRef.current = window.setInterval(async () => {
             try {
-              const status = await axios.get(`${API_BASE_URL}/upload-status/${jobId}`, { timeout: 20000 })
+              const status = await axios.get(`${API_BASE_URL}/upload-status/${jobId}`, {
+                timeout: 20000,
+              })
               const job = status.data
               if (job.progress) setProgress(Math.max(15, Math.min(99, job.progress)))
               if (job.stage) setStage(job.stage)
@@ -141,7 +135,7 @@ export default function Documents() {
                 reject(new Error(job.error || 'Processing failed'))
               }
             } catch (pollError) {
-              // A single dropped poll is not a failure; keep trying.
+              // One dropped poll is not a failure; keep trying.
               console.error('[Docs] status poll failed', pollError)
             }
           }, 2000)
@@ -149,11 +143,8 @@ export default function Documents() {
 
         setProgress(100)
         await openDocument(data.doc_id)
-        await loadDocuments()
       } catch (uploadError) {
-        setError(
-          uploadError?.response?.data?.detail || uploadError?.message || 'Upload failed.',
-        )
+        setError(uploadError?.response?.data?.detail || uploadError?.message || 'Upload failed.')
       } finally {
         if (pollRef.current) {
           window.clearInterval(pollRef.current)
@@ -165,22 +156,7 @@ export default function Documents() {
         if (inputRef.current) inputRef.current.value = ''
       }
     },
-    [loadDocuments, openDocument],
-  )
-
-  const handleDelete = useCallback(
-    async (docId) => {
-      try {
-        await axios.delete(`${API_BASE_URL}/api/document/${docId}`, { timeout: 30000 })
-        if (current?.doc_id === docId) {
-          setCurrent(null)
-        }
-        await loadDocuments()
-      } catch (deleteError) {
-        setError(deleteError?.response?.data?.detail || 'Could not delete this document.')
-      }
-    },
-    [current, loadDocuments],
+    [openDocument],
   )
 
   const jumpToPage = useCallback((page) => {
@@ -189,6 +165,8 @@ export default function Documents() {
   }, [])
 
   const idle = !current && !uploading
+  const kindMeta = KIND_META[current?.kind] || KIND_META.pdf
+  const KindIcon = kindMeta.icon
 
   return (
     <main className="upload-shell docs-page">
@@ -198,45 +176,11 @@ export default function Documents() {
           Add a document. <em>Ask it anything.</em>
         </h1>
         <p className="upload-subtitle">
-          PDF, PowerPoint and Word. The pipeline reads every page, indexes the
-          text, and answers with the page the answer came from, so a handout
-          behaves like a lecture recording you can question.
+          PDF, PowerPoint and Word. Every page is read and indexed, and answers
+          point at the page they came from, the same way the video answers point
+          at a moment.
         </p>
       </header>
-
-      {documents.length > 0 ? (
-        <div className="docs-library">
-          <span className="docs-library-label">Library</span>
-          <div className="docs-library-row">
-            {documents.map((item) => {
-              const kind = KINDS[item.kind] || KINDS.pdf
-              const Icon = kind.icon
-              return (
-                <div
-                  key={item.doc_id}
-                  className={`docs-card-chip${current?.doc_id === item.doc_id ? ' is-active' : ''}`}
-                >
-                  <button type="button" onClick={() => openDocument(item.doc_id)}>
-                    <Icon size={13} />
-                    <strong>{item.file_name}</strong>
-                    <span>
-                      {kind.label} · {item.page_count} pages
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="docs-chip-delete"
-                    onClick={() => handleDelete(item.doc_id)}
-                    aria-label={`Delete ${item.file_name}`}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
 
       {idle ? (
         <section className="upload-grid">
@@ -265,7 +209,7 @@ export default function Documents() {
                   </span>
                   <span className="upload-dropzone-title">Drop a document or click</span>
                   <span className="upload-dropzone-copy">
-                    PDF, PowerPoint or Word, up to 40 MB. Scanned PDFs are read with
+                    PDF, PowerPoint or Word, up to 40 MB. Scanned pages are read with
                     OCR, slide speaker notes are indexed too.
                   </span>
                 </button>
@@ -320,28 +264,44 @@ export default function Documents() {
       ) : null}
 
       {current ? (
-        <section className="docs-workspace">
-          <div className="docs-viewer-card">
-            <header className="docs-viewer-head">
-              <span className="docs-viewer-name">
-                {(() => {
-                  const kind = KINDS[current.kind] || KINDS.pdf
-                  const Icon = kind.icon
-                  return <Icon size={13} />
-                })()}
+        <section className="upload-grid upload-grid-loaded docs-workspace">
+          <div className="upload-center-card upload-center-card-doc">
+            <header className="upload-loaded-header docs-viewer-head">
+              <span className="upload-video-title docs-viewer-name">
+                <KindIcon size={13} />
                 {current.file_name}
               </span>
-              <span className="docs-viewer-meta">
-                {current.page_count} pages
-                <button type="button" onClick={() => setCurrent(null)} aria-label="Close document">
+              <span className="upload-secondary-action docs-viewer-meta">
+                <button
+                  type="button"
+                  className="docs-mode-toggle"
+                  onClick={() => setViewerMode((current) => (current === 'pdf' ? 'text' : 'pdf'))}
+                  title={viewerMode === 'pdf' ? 'Show extracted text' : 'Show the PDF pages'}
+                >
+                  {viewerMode === 'pdf' ? <ScanText size={12} /> : <FileText size={12} />}
+                  {viewerMode === 'pdf' ? 'Text' : 'Pages'}
+                </button>
+                {kindMeta.label} · {current.page_count} pages
+                <button
+                  type="button"
+                  onClick={() => setCurrent(null)}
+                  aria-label="Close document"
+                >
                   <X size={13} />
                 </button>
               </span>
             </header>
-            <DocumentViewer document={current} pageHint={pageHint} viewerRef={viewerRef} />
+            <DocumentViewer
+              document={current}
+              pageHint={pageHint}
+              viewerRef={viewerRef}
+              mode={viewerMode}
+            />
           </div>
 
-          <DocumentChat document={current} onJumpToPage={jumpToPage} />
+          <div className="chat-panel docs-chat-panel">
+            <DocumentChat document={current} onJumpToPage={jumpToPage} />
+          </div>
         </section>
       ) : null}
 
