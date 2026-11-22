@@ -9,7 +9,7 @@ import '../styles/chatmessages.css';
 const INLINE_TIMESTAMP_RE = /^(\d{1,2}):(\d{2})$/;
 // Documents cite pages instead of moments: `p. 12`. Same inline-code shape, so
 // the same marker component handles both.
-const INLINE_PAGE_RE = /^p\.\s*(\d{1,4})$/i;
+const INLINE_PAGE_RE = /^[\[(]?\s*p\.\s*(\d{1,4})\s*[\])]?$/i;
 
 function parseTimestampToSeconds(text) {
   const match = INLINE_TIMESTAMP_RE.exec(text.trim());

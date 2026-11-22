@@ -26,6 +26,13 @@ function isGreek(text) {
   return /[\u0370-\u03ff\u1f00-\u1fff]/.test(String(text || ''))
 }
 
+/* The backend already normalises citations to inline code, but a model can
+   still emit "[p. 2]". Rewriting that here means the marker is a button (and
+   jumps the viewer) whatever shape it arrives in. */
+function normaliseCitations(text) {
+  return String(text || '').replace(/\[\s*(p\.\s*\d{1,4})\s*\]/gi, '`$1`')
+}
+
 function DocumentChat({ document: doc, onJumpToPage }) {
   const [messages, setMessages] = useImmer([])
   const [newMessage, setNewMessage] = useState('')
@@ -116,7 +123,7 @@ function DocumentChat({ document: doc, onJumpToPage }) {
       })
       if (!response.ok) throw new Error(`Backend error ${response.status}`)
       const data = await response.json()
-      revealAnswer(data.answer ?? '')
+      revealAnswer(normaliseCitations(data.answer ?? ''))
     } catch (error) {
       console.error(error)
       failWith()

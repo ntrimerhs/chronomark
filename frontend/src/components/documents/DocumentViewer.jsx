@@ -12,33 +12,36 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
    lands on the exact slide. */
 
 function PdfFrame({ fileUrl, pageHint }, ref) {
-  const frameRef = useRef(null)
   const [loaded, setLoaded] = useState(false)
-
-  const goTo = (page) => {
-    const frame = frameRef.current
-    if (!frame) return
-    const base = fileUrl.split('#')[0]
-    // Keeping the document loaded while only the fragment changes avoids a
-    // full re-fetch on every citation click.
-    frame.src = `${base}#page=${page}&zoom=page-width`
-  }
-
-  useImperativeHandle(ref, () => ({ scrollToPage: goTo }), [fileUrl])
+  const base = fileUrl.split('#')[0]
+  const [page, setPage] = useState(pageHint || 1)
 
   useEffect(() => {
-    if (!pageHint) return
-    goTo(pageHint)
-  }, [pageHint, fileUrl])
+    if (pageHint) setPage(pageHint)
+  }, [pageHint])
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToPage(nextPage) {
+        setPage(Number(nextPage) || 1)
+      },
+    }),
+    [],
+  )
+
+  // Changing only the fragment of a loaded frame does not move the viewer in
+  // every browser, so the frame is keyed by the page: a new src mounts a fresh
+  // view already positioned at that page. PDFs here are small enough that this
+  // is imperceptible, and it is the only reliable jump.
   return (
     <div className="docs-frame-wrap">
       {!loaded ? <p className="docs-viewer-loading">Loading pages…</p> : null}
       <iframe
-        ref={frameRef}
+        key={`${base}-${page}`}
         className="docs-pdf-frame"
-        title="Document pages"
-        src={`${fileUrl}#page=1&zoom=page-width`}
+        title={`Document page ${page}`}
+        src={`${base}#page=${page}`}
         onLoad={() => setLoaded(true)}
       />
     </div>

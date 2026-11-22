@@ -3120,7 +3120,11 @@ async def api_delete_document(doc_id: str):
     return {"deleted": doc_id}
 
 
-_PAGE_CITATION_RE = re.compile(r"`\s*p\.?\s*(\d{1,4})\s*`", re.IGNORECASE)
+# The model is asked for `` `p. 12` ``, but it also produces "[p. 12]" and
+# "(p. 12)" -- the bracketed form is how the excerpts are labelled in its
+# context, so it copies that shape. All three mean the same citation, and all
+# three are normalised to the inline-code form the chat turns into a button.
+_PAGE_CITATION_RE = re.compile(r"[`\[(]\s*p\.?\s*(\d{1,4})\s*[`\])]", re.IGNORECASE)
 
 
 def _enforce_page_citations(answer: str, pages: set[int], fallback_page=None):
