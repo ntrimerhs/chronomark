@@ -200,9 +200,17 @@ function TextViewer({ pages, pageHint }, ref) {
             <span>{page.heading || 'page'}</span>
             <strong>p. {page.page}</strong>
           </header>
-          {page.text.split(/\n{2,}/).map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
-          ))}
+          {page.text
+            .split(/\n{2,}/)
+            // The extractor's heading is also the first line of the text; the
+            // frame already shows it, so printing it twice reads like a bug.
+            .filter(
+              (paragraph) =>
+                paragraph.trim().toLowerCase() !== (page.heading || '').trim().toLowerCase(),
+            )
+            .map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
         </article>
       ))}
     </div>
