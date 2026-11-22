@@ -190,6 +190,21 @@ def open_object(file_key: str):
     return response["Body"], int(response.get("ContentLength") or 0)
 
 
+def bucket_cors_rules():
+    """The bucket's CORS policy, or None when it cannot be read.
+
+    Used to decide how a PDF reaches the browser: with a CORS policy that allows
+    this site, the viewer can fetch a presigned URL straight from R2 and the VPS
+    carries no bytes at all. Without one the file has to be relayed by the API.
+    """
+    try:
+        response = _get_client().get_bucket_cors(Bucket=R2_BUCKET_NAME)
+    except (BotoCoreError, ClientError) as error:
+        print(f"[R2] CORS policy not readable: {error}")
+        return None
+    return response.get("CORSRules") or []
+
+
 def download_to_file(file_key: str, destination) -> str:
     """Fetch the object to a local path.
 

@@ -1558,6 +1558,12 @@ def _frame_data_url(frame_path):
 # search for.
 COVERAGE_INTERVAL_SEC = float(os.getenv("COVERAGE_INTERVAL_SEC", "30") or "30")
 
+# Frames are read by a vision model and written to disk, so their pixel count is
+# a direct cost. A 1080p lecture still is unreadable as a thumbnail and costs
+# four times what a 960px one does; the text the model needs survives the
+# downscale. 0 keeps the video's own resolution.
+FRAME_MAX_WIDTH = int(os.getenv("FRAME_MAX_WIDTH", "960") or "0")
+
 
 def _frame_halves_data_urls(frame_path, scale=3):
     """The left and right halves of a frame, upscaled, as data URLs.
@@ -2222,6 +2228,71 @@ def _start_video_cleanup_sweeper():
 _start_video_cleanup_sweeper()
 
 
+# --- Derived-artifact retention ----------------------------------------------
+# A video leaves its WAV (about 8 MB per 13 minutes) and its frames (a few MB)
+# on this disk forever, even though the video itself lives in R2. Nothing reads
+# them again once the student has moved on, so they age out. The video currently
+# open is skipped by name, and anything newer than the cutoff is skipped too, so
+# an upload in progress can never be deleted.
+ARTIFACT_RETENTION_DAYS = float(os.getenv("ARTIFACT_RETENTION_DAYS", "7") or "0")
+_ARTIFACT_SWEEP_INTERVAL = 6 * 3600
+
+
+def _artifact_cleanup_sweeper():
+    import shutil
+
+    while True:
+        time.sleep(_ARTIFACT_SWEEP_INTERVAL)
+        if ARTIFACT_RETENTION_DAYS <= 0:
+            continue
+        cutoff = time.time() - ARTIFACT_RETENTION_DAYS * 86400
+        removed = 0
+        freed = 0
+        try:
+            for wav in AUDIO_DIR.glob("*.wav"):
+                try:
+                    if wav.stem == CURRENT_VIDEO_ID:
+                        continue
+                    stat = wav.stat()
+                    if stat.st_mtime >= cutoff:
+                        continue
+                    freed += stat.st_size
+                    wav.unlink(missing_ok=True)
+                    removed += 1
+                except OSError:
+                    continue
+
+            for folder in FRAMES_DIR.iterdir():
+                try:
+                    if not folder.is_dir() or folder.name == CURRENT_VIDEO_ID:
+                        continue
+                    if folder.stat().st_mtime >= cutoff:
+                        continue
+                    size = sum(
+                        item.stat().st_size for item in folder.rglob("*") if item.is_file()
+                    )
+                    shutil.rmtree(folder, ignore_errors=True)
+                    freed += size
+                    removed += 1
+                except OSError:
+                    continue
+        except Exception as error:
+            print(f"[Retention] sweep skipped: {error}")
+            continue
+
+        if removed:
+            print(
+                f"[Retention] removed {removed} artifact(s) older than "
+                f"{ARTIFACT_RETENTION_DAYS:.0f} days, freed {freed / 1024 / 1024:.1f} MB"
+            )
+
+
+if ARTIFACT_RETENTION_DAYS > 0:
+    threading.Thread(
+        target=_artifact_cleanup_sweeper, name="artifact-retention", daemon=True
+    ).start()
+
+
 @app.get('/api/video-presence/{file_key:path}')
 async def api_video_presence(file_key: str, active: bool = True):
     """Presence beacon from the video page.
@@ -2287,7 +2358,7 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
                     extraction_mode="interval",
                     scene_threshold=0.12,
                     keyframes_only=False,
-                    max_width=0,
+                    max_width=FRAME_MAX_WIDTH,
                     min_gap_sec=0.0,
                     max_hash_distance=0,
                 )
@@ -2361,7 +2432,7 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
             local_copy = None  # processed and deleted; concept frames use the URL
 
         frame_count = _sync_concept_frames(
-            source_url, transcript_for_json, output_frames_dir, max_width=0,
+            source_url, transcript_for_json, output_frames_dir, max_width=FRAME_MAX_WIDTH,
             coverage_stamps=coverage_stamps,
         )
 
@@ -2795,6 +2866,39 @@ class DocumentStudyRequest(BaseModel):
     language: str | None = None
 
 
+def _document_cors_available() -> bool:
+    """Whether the browser may read PDFs straight from R2.
+
+    Checked once and cached: if the bucket has a GET rule for this site, the
+    viewer takes a presigned URL and the VPS never touches the bytes. If not,
+    the API relays them. The check is retried every ten minutes so granting the
+    permission in Cloudflare takes effect without a redeploy.
+    """
+    global _DOC_CORS_CACHE
+    now = time.time()
+    cached = _DOC_CORS_CACHE
+    if cached and now - cached[0] < 600:
+        return cached[1]
+
+    origin = os.getenv("PUBLIC_SITE_ORIGIN", "https://chronomark.0digital.xyz").rstrip("/")
+    available = False
+    rules = r2_service.bucket_cors_rules()
+    for rule in rules or []:
+        methods = [str(method).upper() for method in (rule.get("AllowedMethods") or [])]
+        origins = [str(item).rstrip("/") for item in (rule.get("AllowedOrigins") or [])]
+        if "GET" in methods and ("*" in origins or origin in origins):
+            available = True
+            break
+    if available:
+        print("[R2] CORS allows the browser to read documents directly")
+
+    _DOC_CORS_CACHE = (now, available)
+    return available
+
+
+_DOC_CORS_CACHE = (0.0, False)
+
+
 def _document_language(document: dict) -> str:
     """The language the document itself is written in.
 
@@ -3122,7 +3226,13 @@ async def api_get_document(doc_id: str):
         # Lets the chat label things in the document's own language ("Απάντηση:"
         # for a Greek handout) instead of hard-coding English.
         "language": _document_language(document),
-        "file_url": f"/api/document-file/{document['doc_id']}",
+        # Direct from R2 when the bucket allows this origin, relayed by the API
+        # otherwise. The relay works everywhere but every byte crosses the VPS.
+        "file_url": (
+            f"/api/document-stream/{document.get('file_key')}"
+            if _document_cors_available()
+            else f"/api/document-file/{document['doc_id']}"
+        ),
     }
 
 
