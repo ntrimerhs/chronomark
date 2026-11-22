@@ -12,6 +12,39 @@
   --docs-dim: rgba(245, 245, 248, 0.55);
   --docs-pink: #f42fa7;
   --docs-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* The video page turns .upload-shell into a two-column grid (copy left,
+     instrument right) and lets the loaded view cover both. A document is a
+     single reading surface, so this page stacks: intro, then pages and chat. */
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.docs-page .upload-hero {
+  grid-area: auto;
+  max-width: 760px;
+  margin: 0;
+}
+
+.docs-page .upload-grid {
+  grid-area: auto;
+  max-width: 100%;
+  margin: 0;
+}
+
+.docs-page .upload-grid.upload-grid-loaded {
+  grid-area: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+@media (max-width: 1080px) {
+  .docs-page .upload-grid.upload-grid-loaded {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── drop target ── */
@@ -114,6 +147,24 @@
 .docs-viewer-meta button:hover {
   color: var(--docs-ink);
   border-color: var(--docs-line-strong);
+}
+
+/* the pages / text switch reads as a label, not an icon button */
+.docs-viewer-meta .docs-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  height: 24px;
+  padding: 0 9px;
+  font-family: var(--docs-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.docs-viewer-meta .docs-mode-toggle svg {
+  color: var(--docs-pink);
 }
 
 /* ── pdf frame ── */

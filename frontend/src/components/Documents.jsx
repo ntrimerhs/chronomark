@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { FileText, FileUp, Loader2, Presentation, ScanText, X } from 'lucide-react'
-import { API_BASE_URL } from '../config'
+import { FileText, FileUp, Loader2, Presentation, ScanText, X } from 'lucide-react'import { API_BASE_URL } from '../config'
 import DocumentViewer from './documents/DocumentViewer.jsx'
 import DocumentChat from './documents/DocumentChat.jsx'
 import '../styles/proxeiro.css'
@@ -46,6 +45,9 @@ export default function Documents() {
   const [error, setError] = useState('')
   const [pageHint, setPageHint] = useState(null)
   const [dragging, setDragging] = useState(false)
+  // A PDF renders natively in a frame, but the extracted text is always there
+  // and scrolls to a page instantly, so the reader can switch between the two.
+  const [viewerMode, setViewerMode] = useState('pdf')
 
   const viewerRef = useRef(null)
   const inputRef = useRef(null)
@@ -266,6 +268,15 @@ export default function Documents() {
                 {current.file_name}
               </span>
               <span className="upload-secondary-action docs-viewer-meta">
+                <button
+                  type="button"
+                  className="docs-mode-toggle"
+                  onClick={() => setViewerMode((current) => (current === 'pdf' ? 'text' : 'pdf'))}
+                  title={viewerMode === 'pdf' ? 'Show extracted text' : 'Show the PDF pages'}
+                >
+                  {viewerMode === 'pdf' ? <ScanText size={12} /> : <FileText size={12} />}
+                  {viewerMode === 'pdf' ? 'Text' : 'Pages'}
+                </button>
                 {kindMeta.label} · {current.page_count} pages
                 <button
                   type="button"
@@ -276,7 +287,12 @@ export default function Documents() {
                 </button>
               </span>
             </header>
-            <DocumentViewer document={current} pageHint={pageHint} viewerRef={viewerRef} />
+            <DocumentViewer
+              document={current}
+              pageHint={pageHint}
+              viewerRef={viewerRef}
+              mode={viewerMode}
+            />
           </div>
 
           <div className="chat-panel docs-chat-panel">

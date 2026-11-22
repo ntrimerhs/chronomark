@@ -100,10 +100,12 @@ function TextViewer({ pages, pageHint }, ref) {
 
 const TextViewerWithRef = forwardRef(TextViewer)
 
-export default function DocumentViewer({ document: doc, pageHint, viewerRef }) {
+export default function DocumentViewer({ document: doc, pageHint, viewerRef, mode = 'pdf' }) {
   if (!doc) return null
 
-  if (doc.kind === 'pdf' && doc.file_url) {
+  const wantsPages = mode !== 'text' && doc.kind === 'pdf' && doc.file_url
+
+  if (wantsPages) {
     return <PdfFrameWithRef ref={viewerRef} fileUrl={doc.file_url} pageHint={pageHint} />
   }
 
