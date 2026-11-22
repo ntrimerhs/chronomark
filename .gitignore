@@ -35,3 +35,5 @@ video-analysis-pipeline/.env
 **/.env
 
 cookies.txt
+.tmp-*
+demo-sorting.pdf
