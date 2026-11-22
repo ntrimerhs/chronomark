@@ -3248,15 +3248,17 @@ async def api_document_ask(req: DocumentQuestion):
         answer_language = document_language
 
     if summary_mode:
-        # 60 evenly spaced chunks cover a whole handout in far fewer characters
-        # than the 120 this used to send, which leaves room for the summary
-        # itself in the model's context instead of starving the output.
-        summary_budget = 60
-        if len(chunks) <= summary_budget:
+        # A summary has to cover the whole handout, not a sample of it: the whole
+        # chunk list goes in whenever it fits, and only a document too large for
+        # one context is thinned out, evenly, so no section is skipped outright.
+        total_chars = sum(len((r.payload.get("text") or "")) for r in chunks)
+        if total_chars <= 90_000:
             selected = chunks
         else:
-            step = len(chunks) / summary_budget
-            selected = [chunks[int(i * step)] for i in range(summary_budget)]
+            budget = max(20, int(len(chunks) * 90_000 / total_chars))
+            step = len(chunks) / budget
+            selected = [chunks[int(i * step)] for i in range(budget)]
+        print(f"[Docs] summary context: {len(selected)}/{len(chunks)} chunks, {total_chars} chars")
     else:
         query_embedding = embed_query(question)
         vector_hits = search_text(query_embedding, limit=12, video_id=req.doc_id)

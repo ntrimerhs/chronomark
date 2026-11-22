@@ -62,6 +62,10 @@ _TEMPERATURE = 0.25
 # because one short budget has to cover a whole handout.
 _DOCUMENT_ANSWER_TOKENS = 2600
 _DOCUMENT_LONG_TOKENS = 4000
+# A whole-handout summary is the longest thing this app ever asks for; the model
+# is happy to produce it in one turn, so the budget allows a real study document
+# rather than three rounds of continuation.
+_DOCUMENT_SUMMARY_TOKENS = 6000
 
 
 def _tidy_document_answer(text: str) -> str:
@@ -312,12 +316,24 @@ def ask_document(
         )
     elif summary_mode:
         style = (
-            "The user wants a summary of the whole document. You are given every "
-            "extracted excerpt in page order. Cover the main topic, every "
-            "significant concept, key examples and the overall flow, in simpler "
-            "words than the document uses, then add a short paragraph of useful "
-            "general context. Any formula you mention must be glossed in plain "
-            "language."
+            "The user wants a full study summary of the whole document, not a "
+            "one-paragraph overview. You are given the extracted excerpts in page "
+            "order. Walk through the document the way it is organised, section by "
+            "section and chapter by chapter, and cover EVERYTHING that matters:\n"
+            "- one `###` heading per section or chapter, in the document's own "
+            "order, never skipping one;\n"
+            "- inside each section: every definition, every rule, every theorem, "
+            "every formula and every worked example the document gives;\n"
+            "- every formula gets the plain-language gloss described above, and "
+            "every symbol is defined when it first appears;\n"
+            "- the concrete example from the document, with its actual labels and "
+            "numbers, written out as a short walkthrough;\n"
+            "- a figure that the text depends on is drawn as a plain-text diagram.\n"
+            "Close with a short `###` section listing what a student should be able "
+            "to do after studying it, and the three ideas most likely to be "
+            "examined. Length follows the document: a 40-page handout deserves a "
+            "long, complete summary, not a teaser. Explain everything more simply "
+            "than the document does."
         )
     else:
         style = (
@@ -362,7 +378,7 @@ def ask_document(
         completion = _create(
             model=_OPENAI_MODEL,
             messages=messages,
-            max_tokens=_DOCUMENT_LONG_TOKENS if summary_mode else _DOCUMENT_ANSWER_TOKENS,
+            max_tokens=_DOCUMENT_SUMMARY_TOKENS if summary_mode else _DOCUMENT_ANSWER_TOKENS,
             temperature=_TEMPERATURE,
         )
     except Exception as error:
