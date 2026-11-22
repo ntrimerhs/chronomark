@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { FileText, FileUp, Loader2, Presentation, ScanText, X } from 'lucide-react'import { API_BASE_URL } from '../config'
+import { FileText, FileUp, Loader2, Presentation, ScanText, X } from 'lucide-react'
+import { API_BASE_URL } from '../config'
 import DocumentViewer from './documents/DocumentViewer.jsx'
 import DocumentChat from './documents/DocumentChat.jsx'
 import '../styles/proxeiro.css'
