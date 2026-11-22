@@ -173,7 +173,7 @@ def extract_docx(path: Path) -> dict:
     return {"kind": "docx", "page_count": len(pages), "pages": pages}
 
 
-def extract_figure_images(path: Path, max_pages: int = 40, min_bytes: int = 14_000) -> list:
+def extract_figure_images(path: Path, max_pages: int = 40, min_bytes: int = 3_500) -> list:
     """The largest embedded image of each page, for the figure reader.
 
     Text extraction drops every figure: a tree, a graph or a table drawn on the
@@ -181,8 +181,9 @@ def extract_figure_images(path: Path, max_pages: int = 40, min_bytes: int = 14_0
     stand on. Each page's biggest image is handed to vision once at ingest, and
     its description is indexed as a `[figure p.N]` chunk.
 
-    Capped on purpose: vision calls are the slow, paid part, and a deck where
-    every page has a screenshot should not multiply the upload cost.
+    The size floor is deliberately low: a simple line drawing of a tree compresses
+    to a few kilobytes, and those are exactly the figures worth reading. Capped on
+    pages because vision calls are the slow, paid part.
     """
     from pypdf import PdfReader
 
@@ -207,13 +208,17 @@ def extract_figure_images(path: Path, max_pages: int = 40, min_bytes: int = 14_0
                 continue
             if size > best_size:
                 best, best_size = image, size
-        if best is None or best_size < min_bytes:
+        if best is None:
+            continue
+        if best_size < min_bytes:
+            print(f"[Docs] page {index}: image {best_size} bytes, too small to read")
             continue
 
         suffix = (Path(getattr(best, "name", "") or "figure.png").suffix or ".png").lower()
         mime = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
         try:
             figures.append({"page": index, "data": best.data, "mime": mime})
+            print(f"[Docs] page {index}: figure {best_size} bytes ({mime})")
         except Exception:
             continue
 
