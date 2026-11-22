@@ -57,6 +57,46 @@ _MAX_CONTEXT_CHARS = {"openai": 120_000, "hf": 26_000}
 _MAX_OUTPUT_TOKENS = 1600
 _TEMPERATURE = 0.25
 
+# A document answer is a long-form read: summaries and study guides were being
+# cut mid-sentence (and mid-heading, which is why an answer could end at "## A")
+# because one short budget has to cover a whole handout.
+_DOCUMENT_ANSWER_TOKENS = 2600
+_DOCUMENT_LONG_TOKENS = 4000
+
+
+def _tidy_document_answer(text: str) -> str:
+    """Never return a dangling heading or half a sentence.
+
+    A model that runs out of budget stops wherever it happens to be, which reads
+    as broken: a trailing "## A" heading with nothing under it, or a sentence
+    that ends in the middle of a word. Both are trimmed so the visible answer
+    always ends cleanly, and the caller can continue it in a new message.
+    """
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return cleaned
+
+    lines = cleaned.splitlines()
+    while lines:
+        last = lines[-1].strip()
+        if not last or last.startswith("#"):
+            lines.pop()
+            continue
+        break
+
+    cleaned = "\n".join(lines).rstrip()
+    if not cleaned:
+        return cleaned
+
+    if cleaned[-1] not in ".!;:…»”\"'":
+        boundary = max(cleaned.rfind(". "), cleaned.rfind("! "), cleaned.rfind("? "))
+        if boundary > len(cleaned) * 0.6:
+            cleaned = cleaned[: boundary + 1]
+        else:
+            cleaned = cleaned + "…"
+
+    return cleaned
+
 
 def _extract_json(text: str):
     """Pull the first JSON object out of a model reply.
@@ -136,6 +176,11 @@ _DOCUMENT_SYSTEM_PROMPT = (
     "direct sentences.\n"
     "- Never use em dashes or en dashes. Use a comma, a full stop, or the word "
     "'και'. No emoji, no decorative symbols.\n"
+    "- Write all mathematics in LaTeX: inline as $O(n \\log n)$, display as "
+    "$$\\sum_{i=1}^{n} i$$ when it deserves its own line. Never write maths as "
+    "plain text: no n^2, no O(n log n) without dollars, no sqrt(), no fractions "
+    "with a slash, no underscores for subscripts. This is rendered by KaTeX, so "
+    "$O(n^2)$ becomes real notation while O(n^2) stays a caret.\n"
     "- Structure anything longer than a couple of sentences with short `###` "
     "headings of two to five words naming what the section explains. Two to "
     "four sections is usually right.\n"
@@ -237,7 +282,7 @@ def ask_document(
         completion = _create(
             model=_OPENAI_MODEL,
             messages=messages,
-            max_tokens=_MAX_OUTPUT_TOKENS,
+            max_tokens=_DOCUMENT_LONG_TOKENS if summary_mode else _DOCUMENT_ANSWER_TOKENS,
             temperature=_TEMPERATURE,
         )
     except Exception as error:
@@ -247,11 +292,16 @@ def ask_document(
         completion = client.chat.completions.create(
             model=_HF_MODEL,
             messages=[{"role": m["role"], "content": str(m["content"])} for m in messages],
-            max_tokens=_MAX_OUTPUT_TOKENS,
+            max_tokens=_DOCUMENT_ANSWER_TOKENS,
             temperature=_TEMPERATURE,
         )
 
-    return (completion.choices[0].message.content or "").strip()
+    choice = completion.choices[0]
+    raw = (choice.message.content or "").strip()
+    # "length" means the provider stopped because the budget ran out: exactly
+    # the case the chat continues in a new message.
+    truncated = getattr(choice, "finish_reason", None) == "length"
+    return _tidy_document_answer(raw), truncated
 
 
 def document_quiz(context: str, count: int = 6, language: str = "the document's language"):
@@ -280,7 +330,7 @@ def document_quiz(context: str, count: int = 6, language: str = "the document's 
             ),
         },
     ]
-    data = _chat_json(messages, max_tokens=1800, temperature=0.4)
+    data = _chat_json(messages, max_tokens=2600, temperature=0.4)
     questions = []
     for item in (data.get("questions") or []):
         options = [str(option).strip() for option in (item.get("options") or []) if str(option).strip()]
@@ -323,7 +373,7 @@ def document_flashcards(context: str, count: int = 10, language: str = "the docu
             ),
         },
     ]
-    data = _chat_json(messages, max_tokens=1600, temperature=0.3)
+    data = _chat_json(messages, max_tokens=2200, temperature=0.3)
     cards = []
     for item in (data.get("cards") or []):
         term = str(item.get("term") or "").strip()
@@ -350,18 +400,21 @@ def document_notes(context: str, language: str = "the document's language"):
         },
     ]
     if not _openai_client:
-        return ""
+        return "", False
     try:
         completion = _create(
             model=_OPENAI_MODEL,
             messages=messages,
-            max_tokens=_MAX_OUTPUT_TOKENS,
+            max_tokens=_DOCUMENT_LONG_TOKENS,
             temperature=0.3,
         )
-        return (completion.choices[0].message.content or "").strip()
+        choice = completion.choices[0]
+        raw = (choice.message.content or "").strip()
+        truncated = getattr(choice, "finish_reason", None) == "length"
+        return _tidy_document_answer(raw), truncated
     except Exception as error:
         print(f"[LLM] study guide failed: {error}")
-        return ""
+        return "", False
 
 
 def transcribe_image(data_url: str) -> str:
@@ -643,6 +696,11 @@ def ask_llama(
                 "stop, or the word 'και'. This is the single clearest sign of "
                 "machine-written text.\n"
                 "- No emoji, no icons, no decorative symbols.\n"
+                "- Write all mathematics in LaTeX: inline as $O(n \\log n)$, "
+                "display as $$O(n^2)$$ when it deserves its own line. Never write "
+                "maths as plain text: no n^2, no O(n log n) without dollars, no "
+                "sqrt(), no slash fractions, no underscore subscripts. KaTeX "
+                "renders $O(n^2)$ properly; O(n^2) stays a caret.\n"
                 "- Structure any answer longer than a couple of sentences with "
                 "short section headings: a `###` heading of two to five words "
                 "naming what the section explains, followed by its paragraphs. "

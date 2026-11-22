@@ -3211,11 +3211,15 @@ async def api_document_ask(req: DocumentQuestion):
         answer_language = document_language
 
     if summary_mode:
-        candidates = chunks[:120]
-        if len(chunks) > 120:
-            step = len(chunks) / 120
-            candidates = [chunks[int(i * step)] for i in range(120)]
-        selected = candidates
+        # 60 evenly spaced chunks cover a whole handout in far fewer characters
+        # than the 120 this used to send, which leaves room for the summary
+        # itself in the model's context instead of starving the output.
+        summary_budget = 60
+        if len(chunks) <= summary_budget:
+            selected = chunks
+        else:
+            step = len(chunks) / summary_budget
+            selected = [chunks[int(i * step)] for i in range(summary_budget)]
     else:
         query_embedding = embed_query(question)
         vector_hits = search_text(query_embedding, limit=12, video_id=req.doc_id)
@@ -3296,7 +3300,7 @@ async def api_document_ask(req: DocumentQuestion):
     transcript_available = bool(context.strip())
 
     try:
-        answer = ask_document(
+        answer, truncated = ask_document(
             question=question,
             context=context,
             history=(req.history or [])[-6:],
@@ -3333,6 +3337,9 @@ async def api_document_ask(req: DocumentQuestion):
         "source": "document",
         "doc_id": req.doc_id,
         "answer": answer,
+        # True when the model ran out of output budget:
+        # the chat asks for the rest in a new message instead of showing a cut.
+        "truncated": truncated,
         "pages": page_rows,
         "text_results": [
             {
@@ -3386,5 +3393,5 @@ async def api_document_notes(req: DocumentStudyRequest):
         f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
         for r in chunks[:120]
     )
-    notes = document_notes(context, language=language)
-    return {"doc_id": req.doc_id, "notes": notes}
+    notes, notes_truncated = document_notes(context, language=language)
+    return {"doc_id": req.doc_id, "notes": notes, "truncated": notes_truncated}

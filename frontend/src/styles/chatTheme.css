@@ -455,3 +455,27 @@
     animation: none;
   }
 }
+
+/* ── math ──
+   KaTeX ships its own stylesheet; these rules only make it sit in this skin.
+   Display math can be wider than the column, so it scrolls sideways instead of
+   pushing the message out of the panel. */
+
+.chatbot .katex {
+  font-size: 1.02em;
+  color: inherit;
+}
+
+.chatbot .katex-display {
+  margin: 10px 0;
+  padding: 2px 0 2px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* the same hairline a code block gets, so a formula reads as content rather
+     than as floating symbols */
+  border-left: 2px solid rgba(244, 47, 167, 0.4);
+}
+
+.chatbot .katex-display > .katex {
+  color: inherit;
+}

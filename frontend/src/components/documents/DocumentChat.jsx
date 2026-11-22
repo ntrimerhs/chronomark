@@ -50,39 +50,88 @@ function DocumentChat({ document: doc, onJumpToPage }) {
     messages.length > 0 && messages[messages.length - 1].loading
 
   function revealAnswer(fullAnswer, extra = {}) {
-    setMessages((draft) => {
-      draft[draft.length - 1] = {
-        role: 'assistant',
-        content: '',
-        loading: false,
-        streaming: !!fullAnswer,
-        ...extra,
-      }
-    })
-
-    if (!fullAnswer) return
-
-    // Chunked reveal, same reasoning as the video chat: one char per tick
-    // re-parses markdown hundreds of times a second.
-    const totalSteps = Math.min(fullAnswer.length, 60)
-    const stepSize = Math.max(1, Math.ceil(fullAnswer.length / totalSteps))
-    const speed = Math.max(20, Math.min(40, 1200 / totalSteps))
-    let index = 0
-
-    const intervalId = window.setInterval(() => {
-      index += stepSize
-      const done = index >= fullAnswer.length
+    return new Promise((resolve) => {
       setMessages((draft) => {
-        if (draft[draft.length - 1]?.role === 'assistant') {
-          draft[draft.length - 1] = {
-            ...draft[draft.length - 1],
-            content: fullAnswer.slice(0, Math.min(index, fullAnswer.length)),
-            streaming: !done,
-          }
+        draft[draft.length - 1] = {
+          role: 'assistant',
+          content: '',
+          loading: false,
+          streaming: !!fullAnswer,
+          ...extra,
         }
       })
-      if (done) window.clearInterval(intervalId)
-    }, speed)
+
+      if (!fullAnswer) {
+        resolve()
+        return
+      }
+
+      // Chunked reveal, same reasoning as the video chat: one char per tick
+      // re-parses markdown hundreds of times a second.
+      const totalSteps = Math.min(fullAnswer.length, 60)
+      const stepSize = Math.max(1, Math.ceil(fullAnswer.length / totalSteps))
+      const speed = Math.max(20, Math.min(40, 1200 / totalSteps))
+      let index = 0
+
+      const intervalId = window.setInterval(() => {
+        index += stepSize
+        const done = index >= fullAnswer.length
+        setMessages((draft) => {
+          if (draft[draft.length - 1]?.role === 'assistant') {
+            draft[draft.length - 1] = {
+              ...draft[draft.length - 1],
+              content: fullAnswer.slice(0, Math.min(index, fullAnswer.length)),
+              streaming: !done,
+            }
+          }
+        })
+        if (done) {
+          window.clearInterval(intervalId)
+          resolve()
+        }
+      }, speed)
+    })
+  }
+
+  /* The model has a fixed output budget. When it runs out mid-thought the
+     backend says so, and the rest is asked for as a plain follow-up turn: the
+     answer becomes a second message in the conversation instead of a sentence
+     that stops at "## A". */
+  const CONTINUE_PROMPT =
+    'Continue exactly where you stopped. Do not repeat what you already wrote, ' +
+    'do not restart the answer, and do not add an introduction. Keep the same ' +
+    'section structure and the same page citations.'
+
+  async function askWithContinuations(question, history) {
+    let nextQuestion = question
+    let turns = [...history]
+
+    for (let round = 0; round < 3; round += 1) {
+      const response = await fetch(`${API_BASE_URL}/api/document/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: nextQuestion, doc_id: doc.doc_id, history: turns }),
+      })
+      if (!response.ok) throw new Error(`Backend error ${response.status}`)
+
+      const data = await response.json()
+      const text = normaliseCitations(data.answer ?? '')
+      await revealAnswer(text)
+
+      if (!data.truncated || !text) return
+
+      // A fresh message for the remainder, so the reader sees a clean break
+      // rather than one answer that ends mid-sentence.
+      setMessages((draft) => {
+        draft.push({ role: 'assistant', content: '', loading: true })
+      })
+      turns = [
+        ...turns,
+        { role: 'user', content: nextQuestion },
+        { role: 'assistant', content: text },
+      ].slice(-6)
+      nextQuestion = CONTINUE_PROMPT
+    }
   }
 
   function pushUserAndPlaceholder(text) {
@@ -116,14 +165,7 @@ function DocumentChat({ document: doc, onJumpToPage }) {
     setNewMessage('')
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/document/ask`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: trimmed, doc_id: doc.doc_id, history }),
-      })
-      if (!response.ok) throw new Error(`Backend error ${response.status}`)
-      const data = await response.json()
-      revealAnswer(normaliseCitations(data.answer ?? ''))
+      await askWithContinuations(trimmed, history)
     } catch (error) {
       console.error(error)
       failWith()
@@ -182,7 +224,41 @@ function DocumentChat({ document: doc, onJumpToPage }) {
         markdown = data.notes || 'No study guide could be written for this document.'
       }
 
-      revealAnswer(markdown)
+      await revealAnswer(markdown)
+
+      // A study guide is the one study answer long enough to hit the output
+      // budget; the remainder is asked for as a follow-up turn, exactly like a
+      // long chat answer.
+      if (kind === 'notes' && data.truncated && markdown) {
+        let turns = [
+          { role: 'user', content: label },
+          { role: 'assistant', content: markdown },
+        ]
+        for (let round = 0; round < 2; round += 1) {
+          const followUp = await fetch(`${API_BASE_URL}/api/document/ask`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question: CONTINUE_PROMPT,
+              doc_id: doc.doc_id,
+              history: turns,
+            }),
+          })
+          if (!followUp.ok) break
+          const part = await followUp.json()
+          const text = normaliseCitations(part.answer ?? '')
+          setMessages((draft) => {
+            draft.push({ role: 'assistant', content: '', loading: true })
+          })
+          await revealAnswer(text)
+          if (!part.truncated) break
+          turns = [
+            ...turns,
+            { role: 'user', content: CONTINUE_PROMPT },
+            { role: 'assistant', content: text },
+          ].slice(-6)
+        }
+      }
     } catch (error) {
       console.error(error)
       failWith('Could not build the study material.')

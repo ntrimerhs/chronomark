@@ -1,5 +1,8 @@
 import { memo, createContext, useContext } from 'react';
 import Markdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import useAutoScroll from '../hooks/useAutoScroll';
 import { User, Bot, Loader2 } from 'lucide-react';
 import { CircleX } from 'lucide-react';
@@ -79,6 +82,11 @@ function MarkdownCode({ children, className }) {
 
 const markdownComponents = { code: MarkdownCode };
 
+// Math is written by the model as LaTeX ($...$ inline, $$...$$ display) and
+// rendered with KaTeX, so O(n^2) arrives as real notation instead of a caret.
+const remarkPlugins = [remarkMath];
+const rehypePlugins = [rehypeKatex];
+
 function ChatMessages({ messages, isLoading, onSeek }) {
   const scrollContentRef = useAutoScroll(isLoading);
 
@@ -112,7 +120,13 @@ function ChatMessages({ messages, isLoading, onSeek }) {
               <div className="chat-message-content">
                 <div className="markdown-container">
                   {role === 'assistant' && !streaming ? (
-                    <Markdown components={markdownComponents}>{content}</Markdown>
+                    <Markdown
+                      remarkPlugins={remarkPlugins}
+                      rehypePlugins={rehypePlugins}
+                      components={markdownComponents}
+                    >
+                      {content}
+                    </Markdown>
                   ) : (
                     <div className="chat-message-text">{content}</div>
                   )}
