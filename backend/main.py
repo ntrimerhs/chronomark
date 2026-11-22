@@ -27,6 +27,7 @@ import metrics
 from llama import (
     ask_llama,
     ask_document,
+    describe_figure,
     digest_segment,
     document_flashcards,
     document_notes,
@@ -2825,6 +2826,37 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
             raise ValueError("no readable text found in this document")
         print(f"[Docs] {len(chunks)} chunks from {len(extracted['pages'])} pages")
 
+        # Figures are invisible to text extraction, so each page's image is read
+        # once and indexed as a chunk. A question about "the tree in Figure 14"
+        # then has the tree itself to reason about, and the answer can draw it.
+        _set_job_status(job_id, status="processing", stage="reading_figures", progress=52)
+        figure_blocks = []
+        try:
+            figures = document_tools.extract_figure_images(Path(temp_path))
+            if figures:
+                print(f"[Docs] reading {len(figures)} figure(s)")
+            for figure in figures:
+                try:
+                    encoded = base64.b64encode(figure["data"]).decode("ascii")
+                    description = describe_figure(f"data:{figure['mime']};base64,{encoded}")
+                except Exception as figure_error:
+                    print(f"[Docs] figure p.{figure['page']} skipped: {figure_error}")
+                    continue
+                if not description:
+                    continue
+                figure_blocks.append(
+                    {
+                        "page": figure["page"],
+                        "heading": f"figure p.{figure['page']}",
+                        "text": f"[figure p.{figure['page']}] {description}",
+                    }
+                )
+                print(f"[Docs] figure p.{figure['page']}: {len(description)} chars")
+        except Exception as figure_error:
+            print(f"[Docs] figure pass skipped: {figure_error}")
+
+        chunks.extend(figure_blocks)
+
         _set_job_status(job_id, status="processing", stage="embedding", progress=65)
         segments = [
             {"text": chunk["text"], "timestamp": [chunk["page"], chunk["page"]], "page": chunk["page"]}
@@ -2864,6 +2896,7 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
             "page_count": extracted["page_count"],
             "indexed_pages": sorted({p["page"] for p in extracted["pages"]}),
             "chunk_count": len(chunks),
+            "figure_count": len(figure_blocks),
             "created_at": time.time(),
             # Stored once here so every later answer, quiz and flashcard follows
             # the document's own language instead of the question's.
@@ -2888,6 +2921,7 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
                 "page_count": extracted["page_count"],
                 "indexed_pages": document["indexed_pages"],
                 "chunk_count": len(chunks),
+                "figure_count": len(figure_blocks),
                 "total_time_sec": round(total_time, 1),
             },
         )
@@ -3292,10 +3326,28 @@ async def api_document_ask(req: DocumentQuestion):
             page = int(start) if isinstance(start, (int, float)) else None
         return page
 
+    # Figures are always part of the context, not only when retrieval happens to
+    # pick them: a question about a tree can score badly against prose and would
+    # otherwise be answered from memory.
+    figure_points = [
+        p for p in chunks if (p.payload.get("text") or "").lstrip().startswith("[figure")
+    ]
+    seen_figures = {str(p.id) for p in ordered}
+    ordered_with_figures = [
+        _Ranked(str(p.id), p.payload or {}, 0.0)
+        for p in figure_points
+        if str(p.id) not in seen_figures
+    ] + ordered
+
     context = "\n".join(
-        f"[p.{_page_of(r.payload)}] {(r.payload.get('text') or '').strip()}"
-        for r in ordered
-        if (r.payload.get("text") or "").strip()
+        # Figure chunks already say which page they belong to ("[figure p.7]"),
+        # so they are not labelled twice.
+        text
+        if text.startswith("[figure")
+        else f"[p.{_page_of(r.payload)}] {text}"
+        for r in ordered_with_figures
+        for text in [(r.payload.get("text") or "").strip()]
+        if text
     )
 
     pages_in_context = {_page_of(r.payload) for r in ordered if _page_of(r.payload) is not None}
@@ -3355,6 +3407,28 @@ async def api_document_ask(req: DocumentQuestion):
     }
 
 
+def _study_context(chunks: list, limit: int) -> str:
+    """Context for quiz / flashcards / study guide.
+
+    Figures come first and are never truncated away: a question about a tree is
+    only answerable if the tree's description is in the prompt, and that is
+    exactly the material a student needs drawn for them.
+    """
+    figures = [
+        r for r in chunks if (r.payload.get("text") or "").lstrip().startswith("[figure")
+    ]
+    rest = [r for r in chunks if r not in figures]
+    selected = (figures + rest)[:limit]
+    return "\n".join(
+        text
+        if text.startswith("[figure")
+        else f"[p.{(r.payload or {}).get('page')}] {text}"
+        for r in selected
+        for text in [((r.payload or {}).get("text") or "").strip()]
+        if text
+    )
+
+
 @app.post("/api/document/quiz")
 async def api_document_quiz(req: DocumentStudyRequest):
     document = _load_document(req.doc_id)
@@ -3362,10 +3436,7 @@ async def api_document_quiz(req: DocumentStudyRequest):
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
     language = req.language or _document_language(document) or "English"
-    context = "\n".join(
-        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
-        for r in chunks[:80]
-    )
+    context = _study_context(chunks, 80)
     questions = document_quiz(context, count=req.count or 6, language=language)
     return {"doc_id": req.doc_id, "questions": questions}
 
@@ -3377,10 +3448,7 @@ async def api_document_flashcards(req: DocumentStudyRequest):
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
     language = req.language or _document_language(document) or "English"
-    context = "\n".join(
-        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
-        for r in chunks[:80]
-    )
+    context = _study_context(chunks, 80)
     cards = document_flashcards(context, count=req.count or 10, language=language)
     return {"doc_id": req.doc_id, "cards": cards}
 
@@ -3392,9 +3460,6 @@ async def api_document_notes(req: DocumentStudyRequest):
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
     language = req.language or _document_language(document) or "English"
-    context = "\n".join(
-        f"[p.{(r.payload or {}).get('page')}] {(r.payload or {}).get('text', '')}"
-        for r in chunks[:120]
-    )
+    context = _study_context(chunks, 120)
     notes, notes_truncated = document_notes(context, language=language)
     return {"doc_id": req.doc_id, "notes": notes, "truncated": notes_truncated}

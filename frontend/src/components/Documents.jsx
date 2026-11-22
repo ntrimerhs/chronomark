@@ -29,6 +29,8 @@ function statusLabel(stage) {
       return 'Reading'
     case 'chunking':
       return 'Splitting'
+    case 'reading_figures':
+      return 'Reading figures'
     case 'embedding':
       return 'Indexing'
     case 'finalizing':

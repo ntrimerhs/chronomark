@@ -221,6 +221,56 @@ _DOCUMENT_SYSTEM_PROMPT = (
 )
 
 
+def describe_figure(data_url: str) -> str:
+    """Read a figure drawn on a document page.
+
+    Text extraction cannot see a tree, a graph or a table, so a question about
+    "the tree in Figure 14" would be answered from prose alone. This turns the
+    page's image into a description the index can hold: the structure first, then
+    a small plain-text diagram, so later answers can draw it for the reader.
+    """
+    if not _openai_client:
+        return ""
+
+    try:
+        completion = _create(
+            model=_OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "This is a figure from a study document.\n\n"
+                                "Describe it so that someone who cannot see it can "
+                                "reconstruct it exactly.\n"
+                                "- If it is a tree or a graph: list every node label, "
+                                "every edge as a pair (a-b), and state which node is "
+                                "the root.\n"
+                                "- If it is a table: reproduce its rows.\n"
+                                "- If it is a diagram of a process: list the parts "
+                                "and the connections in order.\n"
+                                "Then draw it as a compact plain-text diagram, at "
+                                "most fourteen lines, using spaces, + - | / \\ and "
+                                "the labels.\n\n"
+                                "Reply with the description only. No preamble, no "
+                                "markdown headings, no commentary."
+                            ),
+                        },
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+            ],
+            max_tokens=1200,
+            temperature=0,
+        )
+        return (completion.choices[0].message.content or "").strip()
+    except Exception as error:
+        print(f"[Figure] read failed: {error}")
+        return ""
+
+
 def ask_document(
     question: str,
     context: str,
