@@ -186,7 +186,13 @@ function DocumentChat({ document: doc, onJumpToPage }) {
     pushUserAndPlaceholder(label)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/document/${kind}`, {
+      // The quick-action key and the endpoint name are not the same: "cards"
+      // is /flashcards. Mapping it explicitly is what keeps the button from
+      // 404-ing.
+      const endpoint =
+        kind === 'quiz' ? 'quiz' : kind === 'cards' ? 'flashcards' : 'notes'
+
+      const response = await fetch(`${API_BASE_URL}/api/document/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ doc_id: doc.doc_id }),

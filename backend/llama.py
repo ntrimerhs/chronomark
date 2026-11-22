@@ -212,6 +212,12 @@ _DOCUMENT_SYSTEM_PROMPT = (
     "fully and say which part it does not cover.\n"
     "- Show worked examples in the same order the document introduces them, each "
     "with its explanation directly underneath.\n"
+    "- When the answer depends on a figure (a tree, a graph, a diagram, a table) "
+    "that the reader cannot see while reading, draw it yourself: a small "
+    "plain-text diagram in a fenced code block, built from + - | / \\ and the "
+    "node or cell labels, at most twelve lines, immediately above the "
+    "explanation. A reader should understand the answer without going back to "
+    "the page. Label each step of a traversal or walk next to the diagram.\n"
 )
 
 
@@ -327,7 +333,14 @@ def document_quiz(context: str, count: int = 6, language: str = "the document's 
                 "Write every mathematical expression in LaTeX, inline as "
                 "$\\frac{n(n-1)}{2}$ -- in the question, in every option and in "
                 "the explanation. Never write maths as plain text (no n^2, no "
-                "n(n-1)/2, no sqrt()).\n\n"
+                "n(n-1)/2, no sqrt()).\n"
+                "When a question refers to a figure (a tree, a graph, a table, an "
+                "automaton), the explanation must include a small plain-text "
+                "diagram of it inside a fenced code block, drawn with spaces and "
+                "the characters + - | / \\ and the node labels, so the reader can "
+                "see the structure while reading the answer. Keep the diagram "
+                "under twelve lines and mark the walk with numbered steps after "
+                "it.\n\n"
                 'Shape: {"questions":[{"question":"...","options":["a","b","c","d"],'
                 '"answer":0,"explain":"...","page":3}]}\n\n'
                 f"Material:\n{context}"
