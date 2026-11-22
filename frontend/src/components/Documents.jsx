@@ -62,6 +62,7 @@ export default function Documents() {
         file_name: data.file_name,
         kind: data.kind,
         page_count: data.page_count,
+        language: data.language,
         file_url: `${API_BASE_URL}${data.file_url}`,
         pages: data.pages || [],
       })

@@ -197,18 +197,24 @@ function DocumentChat({ document: doc, onJumpToPage }) {
       let markdown = ''
       if (kind === 'quiz') {
         const questions = data.questions || []
+        // The label follows the document's language, so a Greek handout reads
+        // "Απάντηση:" like the material it came from.
+        const answerLabel = doc?.language === 'Greek' ? 'Απάντηση' : 'Answer'
         markdown = questions.length
           ? questions
               .map((question, index) => {
+                // Two trailing spaces are a markdown hard break: each option sits
+                // on its own line, like a printed test, while LaTeX in it still
+                // renders through KaTeX.
                 const options = question.options
-                  .map((option, optionIndex) => `${'ABCD'[optionIndex]}. ${option}`)
+                  .map((option, optionIndex) => `${'ABCD'[optionIndex]}. ${option}  `)
                   .join('\n')
-                const answer = `**Answer: ${'ABCD'[question.answer]}**${
-                  question.page ? ` (\`p. ${question.page}\`)` : ''
-                }${question.explain ? ` — ${question.explain}` : ''}`
+                const answer = `**${answerLabel}: ${'ABCD'[question.answer]}**${
+                  question.page ? ` — \`p. ${question.page}\`` : ''
+                }${question.explain ? `\n\n${question.explain}` : ''}`
                 return `### ${index + 1}. ${question.question}\n\n${options}\n\n${answer}`
               })
-              .join('\n\n')
+              .join('\n\n---\n\n')
           : 'No questions could be built from this document.'
       } else if (kind === 'cards') {
         const cards = data.cards || []

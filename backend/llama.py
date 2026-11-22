@@ -323,7 +323,11 @@ def document_quiz(context: str, count: int = 6, language: str = "the document's 
                 "Each question needs exactly four options, one correct index "
                 "(0-3), a one-sentence explanation, and the page it comes from.\n"
                 "Vary difficulty and avoid questions answerable by elimination "
-                "alone.\n\n"
+                "alone.\n"
+                "Write every mathematical expression in LaTeX, inline as "
+                "$\\frac{n(n-1)}{2}$ -- in the question, in every option and in "
+                "the explanation. Never write maths as plain text (no n^2, no "
+                "n(n-1)/2, no sqrt()).\n\n"
                 'Shape: {"questions":[{"question":"...","options":["a","b","c","d"],'
                 '"answer":0,"explain":"...","page":3}]}\n\n'
                 f"Material:\n{context}"
@@ -368,6 +372,8 @@ def document_flashcards(context: str, count: int = 10, language: str = "the docu
             "content": (
                 f"Make {count} flashcards from this material.\n"
                 f"Write them in {language}.\n"
+                "Write every mathematical expression in LaTeX, inline as $O(n^2)$ "
+                "or $\\frac{n(n-1)}{2}$. Never write maths as plain text.\n"
                 'Shape: {"cards":[{"term":"...","definition":"...","page":2}]}\n\n'
                 f"Material:\n{context}"
             ),

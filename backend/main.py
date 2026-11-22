@@ -3027,6 +3027,9 @@ async def api_get_document(doc_id: str):
         "page_count": document.get("page_count"),
         "indexed_pages": document.get("indexed_pages") or [],
         "pages": document.get("pages") or [],
+        # Lets the chat label things in the document's own language ("Απάντηση:"
+        # for a Greek handout) instead of hard-coding English.
+        "language": _document_language(document),
         "file_url": f"/api/document-file/{document['doc_id']}",
     }
 
