@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import RedirectResponse, StreamingResponse
 from pathlib import Path
 import os
@@ -1008,6 +1009,11 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+# API answers are JSON and text, which is exactly what compresses well. Caddy
+# proxies straight to this app, so nginx's gzip never sees these responses;
+# compressing here saves the bandwidth anyway, on every question.
+app.add_middleware(GZipMiddleware, minimum_size=800)
 
 # Static mounts expose generated files directly over HTTP, so the frontend can
 # render videos and access derived assets without a separate download endpoint.
