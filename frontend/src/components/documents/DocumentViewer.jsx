@@ -35,21 +35,36 @@ function PdfViewer({ fileUrl, pageHint, onFailed }, ref) {
     setDoc(null)
     setError('')
     const task = pdfjsLib.getDocument({ url: fileUrl, withCredentials: false })
+    let loaded = false
+
+    // Some environments (a worker blocked by policy, a proxy that stalls the
+    // fetch) leave getDocument pending forever rather than rejecting, which
+    // would strand the viewer on "Rendering document…". After this long the
+    // extracted text is a better answer than a spinner.
+    const guard = window.setTimeout(() => {
+      if (!cancelled && !loaded) {
+        console.warn('[Docs] PDF load timed out, switching to the text view')
+        failedRef.current?.()
+      }
+    }, 12000)
+
     task.promise
-      .then((loaded) => {
+      .then((document) => {
+        loaded = true
+        window.clearTimeout(guard)
         if (cancelled) return
-        setDoc(loaded)
+        setDoc(document)
       })
       .catch((loadError) => {
+        window.clearTimeout(guard)
         if (cancelled) return
         console.error('[Docs] PDF load failed', loadError)
         setError('Could not load this PDF.')
-        // Never leave an empty frame: the extracted text is a complete answer
-        // even when the canvas renderer is unavailable in this browser.
         failedRef.current?.()
       })
     return () => {
       cancelled = true
+      window.clearTimeout(guard)
       task.destroy?.()
     }
   }, [fileUrl])
