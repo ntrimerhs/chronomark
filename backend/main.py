@@ -3415,9 +3415,13 @@ def _document_figures(chunks: list) -> list:
         text = (payload.get("text") or "").strip()
         if not text.startswith("[figure"):
             continue
+        page = payload.get("page")
+        if page is None:
+            start = payload.get("start")
+            page = int(start) if isinstance(start, (int, float)) else None
         rows.append(
             {
-                "page": payload.get("page"),
+                "page": page,
                 # Drop the internal label: the chat prints its own heading.
                 "text": text.split("]", 1)[-1].strip() if "]" in text else text,
             }

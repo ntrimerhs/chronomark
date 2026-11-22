@@ -58,6 +58,9 @@ def create_embeddings_from_transcript(transcript: dict):
         results.append({
             "text": text,
             "timestamp": timestamp,
+            # Documents address their chunks by page: without carrying it here
+            # the page number died between extraction and the Qdrant payload.
+            "page": chunk.get("page"),
             "embedding": embedding,
         })
 
