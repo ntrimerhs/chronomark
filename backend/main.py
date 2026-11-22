@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pathlib import Path
 import os
 import re
@@ -3003,7 +3003,7 @@ async def api_get_document(doc_id: str):
         "page_count": document.get("page_count"),
         "indexed_pages": document.get("indexed_pages") or [],
         "pages": document.get("pages") or [],
-        "file_url": f"/api/document-stream/{document.get('file_key')}",
+        "file_url": f"/api/document-file/{document['doc_id']}",
     }
 
 
@@ -3020,6 +3020,49 @@ async def api_document_stream(file_key: str):
     except RuntimeError as error:
         raise HTTPException(status_code=502, detail=str(error))
     return RedirectResponse(download_url, status_code=302)
+
+
+@app.get("/api/document-file/{doc_id}")
+async def api_document_file(doc_id: str):
+    """Stream the original file through this API, same-origin.
+
+    A presigned R2 URL would be cross-origin, and the browser's fetch of it
+    needs a bucket CORS policy. R2 tokens created for object access cannot set
+    one (PutBucketCors is AccessDenied), so the viewer reads the bytes from here
+    instead: one origin, no CORS, and the credentials never leave the server.
+    """
+    document = _load_document(doc_id)
+    file_key = document.get("file_key")
+    if not file_key:
+        raise HTTPException(status_code=404, detail="Document has no stored file")
+
+    suffix = Path(document.get("file_name") or "").suffix.lower()
+    media_type = _DOCUMENT_CONTENT_TYPES.get(suffix, "application/octet-stream")
+
+    def _open():
+        return r2_service.open_object(file_key)
+
+    try:
+        body, size = await run_in_threadpool(_open)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+
+    def _iter():
+        try:
+            for chunk in body.iter_chunks(chunk_size=256 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            body.close()
+
+    headers = {
+        "Content-Disposition": f'inline; filename="{Path(document.get("file_name") or "document").name}"',
+    }
+    if size:
+        headers["Content-Length"] = str(size)
+    return StreamingResponse(_iter(), media_type=media_type, headers=headers)
 
 
 @app.delete("/api/document/{doc_id}")
