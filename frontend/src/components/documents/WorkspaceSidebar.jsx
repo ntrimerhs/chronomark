@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { PanelLeft, Plus, Search, Trash2 } from 'lucide-react'
-import ChronoMarkLogo from '../../icons/ChronoMarkLogo.jsx'
 
-/* Conversations sidebar: the ChronoMark mark on top, a collapse control, New
-   chat / Search chats, grouped history with delete, and the document this
-   workspace belongs to pinned at the bottom.
+/* Conversations sidebar: the wordmark on top, a collapse control, New chat /
+   Search chats, grouped history with delete, and the document this workspace
+   belongs to pinned at the bottom.
 
-   The mark is the way home: the workspace header lost its bar, so the one
-   always-visible piece of chrome is the logo, and it does what a logo does. */
+   The wordmark is the way home. No mark beside it: the workspace header is gone,
+   so the one always-visible piece of chrome is the name itself, set in type the
+   way the site header sets it. */
 
 function groupFor(timestamp) {
   if (!timestamp) return 'Earlier'
@@ -52,7 +52,6 @@ export default function WorkspaceSidebar({
       <aside className={`sidebar${collapsed ? ' collapsed' : ''}${open ? ' mobile-open' : ''}`}>
         <div className="sidebar-top">
           <a href="/" className="sidebar-brand" title="ChronoMark — home">
-            <ChronoMarkLogo variant="mark" height={20} className="sidebar-brand-mark" decorative />
             <span className="sidebar-copy sidebar-brand-name">ChronoMark</span>
           </a>
           <button

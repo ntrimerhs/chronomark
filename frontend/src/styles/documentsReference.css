@@ -799,26 +799,22 @@
   user-select: none;
 }
 
-/* The logo is the way home now that the workspace has no header bar. */
+/* The wordmark is the way home now that the workspace has no header bar. No
+   mark beside it: the name carries the identity on its own, in the same spaced
+   uppercase type the site header sets. */
 .docs-app .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 9px;
   min-width: 0;
   text-decoration: none;
-  color: var(--ink);
-}
-
-.docs-app .sidebar-brand-mark {
-  width: auto;
-  height: 20px;
-  flex: none;
+  color: #F5F5F8;
 }
 
 .docs-app .sidebar-brand-name {
-  font-size: 11.5px;
-  font-weight: 760;
-  letter-spacing: 0.16em;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   white-space: nowrap;
   transition: color 0.15s ease;
@@ -833,10 +829,6 @@
   outline: 2px solid var(--pink);
   outline-offset: 3px;
   border-radius: 6px;
-}
-
-.docs-app .sidebar.collapsed .sidebar-brand {
-  justify-content: center;
 }
 
 /* On a phone the two panes are one at a time, so the rail carries the switch
@@ -871,17 +863,19 @@
 }
 
 /* ── The answer ──────────────────────────────────────────────────────────────
-   The conversation keeps the ChatGPT shape -- plain text on the panel, no
-   bubble -- but speaks in the same voice as the video workspace: Inconsolata
-   for the body, white bold section headings marked with a pink '#', pink list
-   markers. Both chats are the same product, so they read the same. */
+   Every value below is the video workspace's, copied from chatTheme.css without
+   translation: Inconsolata 13px on 1.8, the answer in #F5F5F8, headings in white
+   with a pink '#', pink markers on lists and links, and the same hairline
+   borders. The document chat and the video chat are the same product reading the
+   same model, so an answer must not change colour or voice because the source is
+   a PDF; nothing here is slate, navy or blue-grey. */
 
 .docs-app .answer {
   font-family: 'Inconsolata', ui-monospace, 'SF Mono', 'Fira Code', 'Roboto Mono', Consolas, monospace;
-  font-size: 13.5px;
-  line-height: 1.88;
+  font-size: 13px;
+  line-height: 1.8;
   letter-spacing: 0.01em;
-  color: rgba(245, 245, 248, 0.86);
+  color: #F5F5F8;
 }
 
 .docs-app .answer p {
@@ -889,22 +883,40 @@
   line-height: 1.9;
 }
 
+/* The site's global `p { color: var(--text-muted) }` is a blue-grey (#7093C3),
+   and a paragraph inside an answer inherits nothing from .answer: the direct
+   rule wins over inheritance, so every answer read blue. Children take the
+   answer colour explicitly, exactly as the video chat does. */
+.docs-app .answer p,
+.docs-app .answer li,
+.docs-app .answer span,
+.docs-app .answer td,
+.docs-app .answer h1,
+.docs-app .answer h2,
+.docs-app .answer h3,
+.docs-app .answer h4,
+.docs-app .answer strong {
+  color: inherit;
+}
+
+.docs-app .answer h1,
+.docs-app .answer h2,
+.docs-app .answer h3,
+.docs-app .answer h4 {
+  color: #FFFFFF;
+}
+
 .docs-app .answer p:last-child {
   margin-bottom: 0;
 }
 
 .docs-app .answer strong {
-  color: #ffffff;
-  font-weight: 700;
-}
-
-.docs-app .answer em {
-  color: rgba(245, 245, 248, 0.62);
-  font-style: italic;
+  color: #F5F5F8;
+  font-weight: 600;
 }
 
 .docs-app .answer a {
-  color: var(--pink);
+  color: #F42FA7;
   text-decoration: none;
   border-bottom: 1px solid rgba(244, 47, 167, 0.4);
 }
@@ -913,10 +925,10 @@
 .docs-app .answer h2,
 .docs-app .answer h3,
 .docs-app .answer h4 {
-  margin: 1.7rem 0 0.85rem;
-  color: #ffffff;
+  margin: 1.6rem 0 0.8rem;
+  color: #FFFFFF;
   font-family: inherit;
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.5;
   letter-spacing: 0.01em;
@@ -926,7 +938,7 @@
 }
 
 .docs-app .answer h1 {
-  font-size: 15.5px;
+  font-size: 16px;
 }
 
 /* the marker: a heading reads like the markdown that produced it */
@@ -937,7 +949,7 @@
   content: '#';
   display: inline-block;
   margin-right: 9px;
-  color: var(--pink);
+  color: #F42FA7;
   font-weight: 700;
 }
 
@@ -974,20 +986,20 @@
 }
 
 .docs-app .answer blockquote {
-  margin: 0.5rem 0 1rem;
-  padding: 2px 0 2px 12px;
-  border-left: 2px solid rgba(244, 47, 167, 0.5);
-  color: rgba(245, 245, 248, 0.62);
+  margin: 0.5rem 0;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid rgba(168, 85, 247, 0.5);
+  color: rgba(245, 245, 248, 0.6);
 }
 
 .docs-app .answer code {
   font-family: inherit;
-  font-size: 0.94em;
+  font-size: 0.92em;
   padding: 1px 5px;
   border-radius: 2px;
   border: 1px solid rgba(245, 245, 248, 0.1);
   background: rgba(245, 245, 248, 0.05);
-  color: rgba(245, 245, 248, 0.92);
+  color: rgba(245, 245, 248, 0.9);
 }
 
 .docs-app .answer pre {
@@ -1024,8 +1036,8 @@
 }
 
 .docs-app .answer th {
-  color: #ffffff;
-  font-weight: 700;
+  color: #F5F5F8;
+  font-weight: 600;
   background: rgba(245, 245, 248, 0.04);
 }
 
