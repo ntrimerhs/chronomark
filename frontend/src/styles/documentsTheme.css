@@ -12,10 +12,10 @@
   --docs-dim: rgba(245, 245, 248, 0.55);
   --docs-pink: #f42fa7;
   --docs-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* Header (76) + page padding + the compact reading line. The workspace takes
-     the rest of the viewport, so pages and chat are as tall as the screen
-     allows instead of a fixed 560px box. */
-  --docs-workspace-height: calc(100vh - 176px);
+  /* Header (76) + page padding + the compact reading line + the page's own
+     bottom padding. The workspace takes what is left of the viewport, so pages
+     and chat are as tall as the screen allows and nothing falls below the fold. */
+  --docs-workspace-height: calc(100vh - 250px);
 
   /* The video page turns .upload-shell into a two-column grid (copy left,
      instrument right) and lets the loaded view cover both. A document is a
