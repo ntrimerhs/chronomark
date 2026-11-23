@@ -1048,3 +1048,13 @@
     display: inline-flex;
   }
 }
+
+/* The workspace owns the viewport: the page itself must not scroll, or the
+   header and the file line drift out of view while reading a long answer. */
+@media (min-width: 821px) {
+  .docs-app {
+    height: calc(100vh - 76px);
+    min-height: 560px;
+    overflow: hidden;
+  }
+}

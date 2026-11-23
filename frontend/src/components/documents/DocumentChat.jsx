@@ -36,7 +36,7 @@ export default function DocumentChat({
   const [busy, setBusy] = useState(false)
   const [busyTool, setBusyTool] = useState('')
   const [error, setError] = useState('')
-  const bottomRef = useRef(null)
+  const scrollRef = useRef(null)
 
   const isLoading = busy || !!busyTool
 
@@ -69,7 +69,10 @@ export default function DocumentChat({
   }, [chatId, doc?.doc_id])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    // Scroll the conversation itself, not the window: scrollIntoView on a
+    // sentinel drags the whole page down and hides the workspace header.
+    const node = scrollRef.current
+    if (node) node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
   }, [messages, isLoading])
 
   async function ensureChat() {
@@ -208,7 +211,7 @@ export default function DocumentChat({
 
   return (
     <section className="docs-chat chatbot">
-      <div className="docs-chat-scroll">
+      <div className="docs-chat-scroll" ref={scrollRef}>
         {empty && !isLoading ? (
           <div className="docs-welcome">
             <span className="docs-welcome-icon">
@@ -225,7 +228,6 @@ export default function DocumentChat({
         ) : null}
 
         <ChatMessages messages={messages} isLoading={isLoading} onSeek={onJumpToPage} />
-        <div ref={bottomRef} />
       </div>
 
       {error ? <p className="docs-chat-error">{error}</p> : null}
