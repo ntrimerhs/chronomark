@@ -1,12 +1,39 @@
 /* Document workspace, ported from the design reference.
    Every selector is scoped under .docs-app so importing this file cannot
    repaint the rest of the application. Generated from the prototype's own
-   stylesheet, palette and measurements kept as they were. */
+   stylesheet; palette and measurements kept as they were. */
+
+/* Brand tokens, from the implementation brief. Scoped to the workspace. */
+.docs-app {
+  color-scheme: dark;
+  --plate: #0A121C;
+  --panel: #101823;
+  --ink: #F5F5F8;
+  --muted: rgba(245, 245, 248, 0.55);
+  --hairline: rgba(245, 245, 248, 0.12);
+  --pink: #F42FA7;
+  --pink-soft: rgba(244, 47, 167, 0.12);
+  --violet: #A855F7;
+  --success: #3CDCA0;
+  --danger: #FF9DBB;
+  --bg: var(--plate);
+  --surface: var(--panel);
+  --surface2: var(--panel);
+  --line: var(--hairline);
+  --text: var(--ink);
+  --accent: var(--pink);
+  --accent-ink: var(--pink);
+  --tint: var(--pink-soft);
+  --shadow: none;
+  --reader: #080f19;
+  /* the global ChronoMark header sits above the workspace */
+  height: calc(100vh - 76px);
+  min-height: 560px;
+}
 
 .docs-app ﻿
     :root {color-scheme:light;--bg:#f6f7fa;--surface:#fff;--surface2:#fafbfe;--line:#e6e9f0;--text:#171b29;--muted:#7b8293;--accent:#6554d9;--accent-ink:#4e3ccc;--tint:#f0edff;--shadow:0 10px 32px rgba(24,33,61,.035);--reader:#eef0f5}
 .docs-app * {box-sizing:border-box}
-.docs-app, .docs-app {margin:0;height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--text);background:var(--bg)}
 .docs-app button, .docs-app input, .docs-app textarea {font:inherit}
 .docs-app button {cursor:pointer}
 .docs-app button:focus-visible, .docs-app textarea:focus-visible {outline:3px solid #a99bf5;outline-offset:2px}
@@ -125,23 +152,24 @@
 .docs-app .disclaimer {font-size:10px;text-align:center;color:#a6adba;margin-top:9px}
 .docs-app .mobile-tabs {display:none}
 .docs-app .demo-label {font-size:10px;background:#f4f1ff;color:#6e59c9;padding:6px 9px;border-radius:7px;font-weight:740}
-.docs-app.dark {--bg:#111420;--surface:#1a1f2d;--surface2:#1c2331;--line:#30384b;--text:#eef0fa;--muted:#929db4;--accent:#ae9dff;--accent-ink:#cabaff;--tint:#29253e;--reader:#111725;--shadow:none;color-scheme:dark}
-.docs-app.dark .topbar, .docs-app.dark .composer-wrap {background:#1a1f2d}
-.docs-app.dark .nav .active {background:#302948;color:#d6caff}
-.docs-app.dark .nav button, .docs-app.dark .top-aux, .docs-app.dark .chat-info small, .docs-app.dark .fileline, .docs-app.dark .eyebrow {color:#9ba7ba}
-.docs-app.dark .file-icon, .docs-app.dark .chat-icon, .docs-app.dark .welcome-logo, .docs-app.dark .assistant-badge {background:#312b47;border-color:#3c345c}
-.docs-app.dark .outline-btn, .docs-app.dark .pagefield, .docs-app.dark .composer {background:#22283a;border-color:#343d51;color:#e2e5f0}
-.docs-app.dark .thumbs {background:#171c28}
-.docs-app.dark .thumb-paper {background:#f7f7f8}
-.docs-app.dark .bubble, .docs-app.dark .prompt-chip {background:#272f42;color:#e3e8f5;border-color:#303a50}
-.docs-app.dark .answer {color:#b8c3d7}
-.docs-app.dark .answer strong {color:#f0f2f8}
-.docs-app.dark .ai-welcome p {color:#9ba7bc}
-.docs-app.dark .citation {background:#352f51;color:#c3b7ff;border-color:#494060}
-.docs-app.dark .composer textarea {color:#f7f7fc}
-.docs-app.dark .paper {color:#2d354e}
-.docs-app.dark .resize:before {background:#47506a}
-@media(max-width:1180px) {.docs-app .workspace {--left:53%}
+.docs-app .dark {--bg:#111420;--surface:#1a1f2d;--surface2:#1c2331;--line:#30384b;--text:#eef0fa;--muted:#929db4;--accent:#ae9dff;--accent-ink:#cabaff;--tint:#29253e;--reader:#111725;--shadow:none;color-scheme:dark}
+.docs-app .dark .topbar, .docs-app .dark .composer-wrap {background:#1a1f2d}
+.docs-app .dark .nav .active {background:#302948;color:#d6caff}
+.docs-app .dark .nav button, .docs-app .dark .top-aux, .docs-app .dark .chat-info small, .docs-app .dark .fileline, .docs-app .dark .eyebrow {color:#9ba7ba}
+.docs-app .dark .file-icon, .docs-app .dark .chat-icon, .docs-app .dark .welcome-logo, .docs-app .dark .assistant-badge {background:#312b47;border-color:#3c345c}
+.docs-app .dark .outline-btn, .docs-app .dark .pagefield, .docs-app .dark .composer {background:#22283a;border-color:#343d51;color:#e2e5f0}
+.docs-app .dark .thumbs {background:#171c28}
+.docs-app .dark .thumb-paper {background:#f7f7f8}
+.docs-app .dark .bubble, .docs-app .dark .prompt-chip {background:#272f42;color:#e3e8f5;border-color:#303a50}
+.docs-app .dark .answer {color:#b8c3d7}
+.docs-app .dark .answer strong {color:#f0f2f8}
+.docs-app .dark .ai-welcome p {color:#9ba7bc}
+.docs-app .dark .citation {background:#352f51;color:#c3b7ff;border-color:#494060}
+.docs-app .dark .composer textarea {color:#f7f7fc}
+.docs-app .dark .paper {color:#2d354e}
+.docs-app .dark .resize:before {background:#47506a}
+@media(max-width:1180px) {
+.docs-app .workspace {--left:53%}
 .docs-app .topbar {padding:0 18px}
 .docs-app .app-body {padding:13px 14px 16px}
 .docs-app .panel-head {padding:0 11px}
@@ -150,8 +178,10 @@
 .docs-app .thumbs {width:112px;padding:14px 11px}
 .docs-app .paper {padding:45px 38px}
 .docs-app .brand-wrap {gap:23px}
-.docs-app .top-aux {display:none}}
-@media(max-width:770px) {.docs-app {min-height:520px}
+.docs-app .top-aux {display:none}
+}
+@media(max-width:770px) {
+.docs-app {min-height:520px}
 .docs-app .topbar {height:56px;padding:0 13px}
 .docs-app .nav, .docs-app .top-aux, .docs-app .doc-badge .outline-btn {display:none}
 .docs-app .brand {font-size:12px}
@@ -171,8 +201,10 @@
 .docs-app .thumbs {width:95px}
 .docs-app .thumb-paper {width:64px;height:85px}
 .docs-app .chat-scroll {padding:23px 22px 2px}
-.docs-app.dark .mobile-tabs {background:#1a1f2d}}
-@media(max-width:450px) {.docs-app .workspace-info .doc-badge .primary-btn {font-size:0;gap:0;width:35px;padding:10px;justify-content:center}
+.docs-app .dark .mobile-tabs {background:#1a1f2d}
+}
+@media(max-width:450px) {
+.docs-app .workspace-info .doc-badge .primary-btn {font-size:0;gap:0;width:35px;padding:10px;justify-content:center}
 .docs-app .file-intro {gap:8px}
 .docs-app .file-icon {width:34px;height:36px}
 .docs-app .panel-head .toolset {gap:1px}
@@ -182,21 +214,9 @@
 .docs-app .icon-btn {min-width:27px;height:29px}
 .docs-app .zoom {width:28px}
 .docs-app .paper {padding:37px 24px}
-.docs-app .page-scroll {padding:15px 11px 30px}}
-.docs-app /* Chronomark brand palette β€” all interface chrome uses supplied design tokens. */
-:root {
-  color-scheme:dark;
-  --plate:#0A121C;--panel:#101823;--ink:#F5F5F8;
-  --muted:rgba(245,245,248,.55);--hairline:rgba(245,245,248,.12);
-  --pink:#F42FA7;--pink-soft:rgba(244,47,167,.12);--violet:#A855F7;
-  --success:#3CDCA0;--danger:#FF9DBB;
-  --bg:var(--plate);--surface:var(--panel);--surface2:var(--panel);
-  --line:var(--hairline);--text:var(--ink);--accent:var(--pink);
-  --accent-ink:var(--pink);--tint:var(--pink-soft);--shadow:none;
-  --reader:#080f19;
+.docs-app .page-scroll {padding:15px 11px 30px}
 }
 .docs-app * {scrollbar-width:thin;scrollbar-color:rgba(245,245,248,.16) transparent}
-.docs-app, .docs-app {background:var(--plate);color:var(--ink)}
 .docs-app button:focus-visible, .docs-app input:focus-visible, .docs-app textarea:focus-visible, .docs-app [tabindex]:focus-visible {outline:2px solid var(--pink)!important;outline-offset:2px}
 .docs-app {min-height:530px; background:radial-gradient(ellipse 520px 440px at 95% 97%,rgba(168,85,247,.06),transparent 75%),var(--plate)}
 .docs-app .topbar {height:66px;padding:0 27px;background:var(--plate);border-bottom:1px solid var(--hairline)}
@@ -294,8 +314,7 @@
 .docs-app .thumb {color:var(--muted)}
 .docs-app .thumb.selected {color:var(--pink)}
 .docs-app .thumb.selected .thumb-paper {border:2px solid var(--pink);box-shadow:0 0 0 3px var(--pink-soft)}
-.docs-app /* The document paper stays white to preserve the legibility and native colors of uploaded PDFs. */
-.paper {color:#2d354e}
+.docs-app .paper {color:#2d354e}
 .docs-app .paper .definition {border-left-color:var(--pink)}
 .docs-app .chat-panel .panel-head {padding:0 21px}
 .docs-app .chat-icon {background:var(--pink-soft);color:var(--pink);border-radius:9px;width:35px;height:35px}
@@ -329,14 +348,17 @@
 .docs-app .send {color:var(--plate);background:var(--pink);border-radius:9px;height:33px;width:33px}
 .docs-app .send:hover {background:#ff4cba}
 .docs-app .mobile-tabs {display:none}
-@media (max-width:1350px) {.docs-app .sidebar {width:235px;min-width:235px}
+@media (max-width:1350px) {
+.docs-app .sidebar {width:235px;min-width:235px}
 .docs-app .app-body {padding:19px 16px 18px}
 .docs-app .workspace {--left:54%}
 .docs-app .thumbs {width:114px;padding:13px 10px}
 .docs-app .paper {padding:42px 38px}
 .docs-app .chat-scroll {padding:24px 19px 10px}
-.docs-app .composer-wrap {padding:11px 13px 12px}}
-@media (max-width:1080px) {.docs-app .sidebar {width:214px;min-width:214px}
+.docs-app .composer-wrap {padding:11px 13px 12px}
+}
+@media (max-width:1080px) {
+.docs-app .sidebar {width:214px;min-width:214px}
 .docs-app .topbar {padding:0 18px}
 .docs-app .sidebar-bottom .doc-status {display:none}
 .docs-app .doc-meta h1 {font-size:16px}
@@ -347,8 +369,10 @@
 .docs-app .chat-scroll {padding:20px 15px 10px}
 .docs-app .paper {padding:34px 28px}
 .docs-app .thumbs {width:90px;padding:10px 6px}
-.docs-app .thumb-paper {width:63px;height:90px}}
-@media (max-width:820px) {.docs-app {min-height:520px}
+.docs-app .thumb-paper {width:63px;height:90px}
+}
+@media (max-width:820px) {
+.docs-app {min-height:520px}
 .docs-app .topbar {height:57px;padding:0 14px}
 .docs-app .topbar-menu {display:grid;min-width:32px}
 .docs-app .topbar-crumb, .docs-app .top-divider {display:none}
@@ -384,9 +408,9 @@
 .docs-app .paper-wrap {width:min(100%,550px)}
 .docs-app .chat-scroll {padding:22px 20px 3px}
 .docs-app .chat-panel .panel-head {padding:0 14px}
-
 }
-@media (max-width:470px) {.docs-app .demo-label {display:none}
+@media (max-width:470px) {
+.docs-app .demo-label {display:none}
 .docs-app .workspace-info .doc-badge .primary-btn {font-size:0;gap:0;width:35px;padding:10px;justify-content:center}
 .docs-app .file-icon {width:34px;height:36px}
 .docs-app .file-intro {gap:9px}
@@ -401,8 +425,10 @@
 .docs-app .chat-panel .panel-head {padding:0 11px}
 .docs-app .chat-scroll {padding:18px 14px 3px}
 .docs-app .composer-wrap {padding:11px}
-.docs-app .chat-info small {font-size:9.5px}}
-@media (max-width:470px) {.docs-app .workspace-info .eyebrow {display:none}
+.docs-app .chat-info small {font-size:9.5px}
+}
+@media (max-width:470px) {
+.docs-app .workspace-info .eyebrow {display:none}
 .docs-app .workspace-info .fileline .sep-dot, .docs-app .workspace-info .fileline .saved, .docs-app .workspace-info #pagesMeta {display:none}
 .docs-app .workspace-info .doc-meta h1 {margin:0 0 5px}
 .docs-app .workspace-info .file-intro {min-width:0;flex:1}
@@ -410,7 +436,22 @@
 .docs-app .workspace-info .mobile-tabs button {padding:8px 10px;min-width:58px}
 .docs-app .workspace-info {min-height:50px}
 .docs-app .workspace-info .file-icon {flex:none}
-.docs-app .workspace-info .doc-meta {min-width:0}}
-@media (prefers-reduced-motion:reduce) {.docs-app *, .docs-app *:before, .docs-app *:after {scroll-behavior:auto!important;transition:none!important}}
+.docs-app .workspace-info .doc-meta {min-width:0}
+}
+@media (prefers-reduced-motion:reduce) {
+.docs-app *, .docs-app *:before, .docs-app *:after {scroll-behavior:auto!important;transition:none!important}
+}
 
-  
+/* The workspace sits under the application's own header, so it takes the rest of
+   the viewport instead of the full 100vh the standalone prototype used. */
+.docs-app {
+  height: calc(100vh - 76px);
+  min-height: 560px;
+}
+
+@media (max-width: 820px) {
+  .docs-app {
+    height: calc(100vh - 64px);
+    min-height: 0;
+  }
+}
