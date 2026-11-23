@@ -2872,6 +2872,27 @@ class DocumentStudyRequest(BaseModel):
     language: str | None = None
 
 
+def _origin_matches(origin: str, patterns: list) -> bool:
+    """Does this site origin appear in the bucket's AllowedOrigins?
+
+    R2 accepts two wildcard shapes and both are in use: a bare "*" and a
+    subdomain pattern such as "https://*.pages.dev". Comparing the strings alone
+    silently misses the second one.
+    """
+    for raw in patterns:
+        pattern = str(raw or "").strip().rstrip("/")
+        if not pattern:
+            continue
+        if pattern == "*" or pattern == origin:
+            return True
+        if pattern.startswith("https://*.") and origin.startswith("https://"):
+            suffix = pattern[len("https://*"):]  # ".pages.dev"
+            host = origin[len("https://"):].split("/")[0]
+            if host.endswith(suffix) and host != suffix.lstrip("."):
+                return True
+    return False
+
+
 def _document_cors_available() -> bool:
     """Whether the browser may read PDFs straight from R2.
 
@@ -2891,12 +2912,12 @@ def _document_cors_available() -> bool:
     rules = r2_service.bucket_cors_rules()
     for rule in rules or []:
         methods = [str(method).upper() for method in (rule.get("AllowedMethods") or [])]
-        origins = [str(item).rstrip("/") for item in (rule.get("AllowedOrigins") or [])]
-        if "GET" in methods and ("*" in origins or origin in origins):
+        origins = list(rule.get("AllowedOrigins") or [])
+        if "GET" in methods and _origin_matches(origin, origins):
             available = True
             break
     if available:
-        print("[R2] CORS allows the browser to read documents directly")
+        print(f"[R2] CORS allows {origin} to read documents directly")
 
     _DOC_CORS_CACHE = (now, available)
     return available
