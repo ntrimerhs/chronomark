@@ -31,7 +31,7 @@
   min-height: 560px;
 }
 
-.docs-app ﻿
+.docs-app ï»¿
     :root {color-scheme:light;--bg:#f6f7fa;--surface:#fff;--surface2:#fafbfe;--line:#e6e9f0;--text:#171b29;--muted:#7b8293;--accent:#6554d9;--accent-ink:#4e3ccc;--tint:#f0edff;--shadow:0 10px 32px rgba(24,33,61,.035);--reader:#eef0f5}
 .docs-app * {box-sizing:border-box}
 .docs-app button, .docs-app input, .docs-app textarea {font:inherit}
@@ -442,16 +442,23 @@
 .docs-app *, .docs-app *:before, .docs-app *:after {scroll-behavior:auto!important;transition:none!important}
 }
 
-/* The workspace sits under the application's own header, so it takes the rest of
-   the viewport instead of the full 100vh the standalone prototype used. */
+/* The workspace is the screen.
+
+   It used to subtract the application header's height (76px, 64px on a phone)
+   from the viewport, because the header sat above it. The header is gone from
+   /documents now, so that subtraction left a band of empty page at the bottom
+   where the footer used to be. The workspace takes the whole viewport and the
+   layout inside it is flush: no outer padding, no floating cards. */
 .docs-app {
-  height: calc(100vh - 76px);
-  min-height: 560px;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
 }
 
 @media (max-width: 820px) {
   .docs-app {
-    height: calc(100vh - 64px);
+    height: 100vh;
+    height: 100dvh;
     min-height: 0;
   }
 }
@@ -766,7 +773,7 @@
   background: rgba(244, 47, 167, 0.3);
 }
 
-/* ── One workspace per document ──────────────────────────────────────────────
+/* â”€â”€ One workspace per document â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    The context bar is gone: no eyebrow, no file card, no "New chat" / "Open a
    PDF" pair. The file name now lives in the viewer's head as a small label, and
    the only thing left above the panels is a mobile-only rail that switches
@@ -862,7 +869,7 @@
   }
 }
 
-/* ── The answer ──────────────────────────────────────────────────────────────
+/* â”€â”€ The answer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Every value below is the video workspace's, copied from chatTheme.css without
    translation: Inconsolata 13px on 1.8, the answer in #F5F5F8, headings in white
    with a pink '#', pink markers on lists and links, and the same hairline
@@ -1040,4 +1047,41 @@
   font-weight: 600;
   background: rgba(245, 245, 248, 0.04);
 }
+/* ── Full bleed ──────────────────────────────────────────────────────────────
+   The panes are the screen, not cards floating on it: no outer padding, no
+   rounded corners, no shadow, no border. What separates them is a hairline and
+   the seam you can drag -- the small gaps, and nothing else. */
+.docs-app .app-body {
+  padding: 0;
+  gap: 0;
+}
 
+.docs-app .panel {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.docs-app .workspace {
+  gap: 0;
+}
+
+/* the seam: a hairline at rest, pink while you drag it */
+.docs-app .resize {
+  width: 12px;
+}
+
+.docs-app .resize:before {
+  content: '';
+  width: 1px;
+  height: 100%;
+  border-radius: 0;
+  background: var(--hairline);
+}
+
+.docs-app .resize:hover:before,
+.docs-app .resize.drag:before {
+  width: 3px;
+  border-radius: 3px;
+  background: var(--pink);
+}

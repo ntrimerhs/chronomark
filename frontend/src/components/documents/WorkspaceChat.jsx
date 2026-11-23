@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkMath from 'remark-math'
+import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
 import {
   BookOpen,
@@ -50,7 +51,9 @@ function buildMarkdownComponents(onJump, label) {
   return { code: Code }
 }
 
-const remarkPlugins = [remarkMath]
+// GFM on top of the maths: answers routinely come back with a pipe table, and
+// without it the pipes and dashes were printed as text.
+const remarkPlugins = [remarkGfm, remarkMath]
 const rehypePlugins = [rehypeKatex]
 
 export default function WorkspaceChat({
