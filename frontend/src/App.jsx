@@ -13,8 +13,10 @@ function App() {
     <Router>
       <Routes>
         <Route path='/' element={<Form><MainPage></MainPage></Form>}/>
-        <Route path='/upload' element={<Form><Proxeiro></Proxeiro></Form>}/>
-        <Route path='/documents' element={<Form><Documents></Documents></Form>}/>
+        {/* The two chat workspaces carry no footer: video and documents both end
+            in a conversation, and a footer under it only pushes the composer up. */}
+        <Route path='/upload' element={<Form footer={false}><Proxeiro></Proxeiro></Form>}/>
+        <Route path='/documents' element={<Form footer={false}><Documents></Documents></Form>}/>
       </Routes>
     </Router>
   )

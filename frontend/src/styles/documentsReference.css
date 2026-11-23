@@ -765,3 +765,267 @@
 .docs-app .composer textarea::selection {
   background: rgba(244, 47, 167, 0.3);
 }
+
+/* ── One workspace per document ──────────────────────────────────────────────
+   The context bar is gone: no eyebrow, no file card, no "New chat" / "Open a
+   PDF" pair. The file name now lives in the viewer's head as a small label, and
+   the only thing left above the panels is a mobile-only rail that switches
+   between the pages and the conversation. */
+
+.docs-app .workspace-rail {
+  display: none;
+}
+
+.docs-app .workspace-rail .mobile-tabs {
+  flex: none;
+}
+
+.docs-app .file-chip {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+/* While the seam is dragged the PDF stops receiving pointer events, so the
+   pointer crossing it cannot steal the drag from the handle. */
+.docs-app .workspace.is-resizing .pdf-frame {
+  pointer-events: none;
+}
+
+.docs-app .workspace.is-resizing {
+  user-select: none;
+}
+
+/* The logo is the way home now that the workspace has no header bar. */
+.docs-app .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.docs-app .sidebar-brand-mark {
+  width: auto;
+  height: 20px;
+  flex: none;
+}
+
+.docs-app .sidebar-brand-name {
+  font-size: 11.5px;
+  font-weight: 760;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.docs-app .sidebar-brand:hover .sidebar-brand-name,
+.docs-app .sidebar-brand:focus-visible .sidebar-brand-name {
+  color: var(--pink);
+}
+
+.docs-app .sidebar-brand:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.docs-app .sidebar.collapsed .sidebar-brand {
+  justify-content: center;
+}
+
+/* On a phone the two panes are one at a time, so the rail carries the switch
+   that the removed bar used to hold -- and the way into the conversation list. */
+@media (max-width: 820px) {
+  .docs-app .workspace-rail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex: none;
+    padding-bottom: 9px;
+  }
+
+  .docs-app .workspace-rail .rail-history {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 9px;
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .docs-app .workspace-rail .rail-history:hover {
+    color: var(--pink);
+    border-color: rgba(244, 47, 167, 0.4);
+  }
+}
+
+/* ── The answer ──────────────────────────────────────────────────────────────
+   The conversation keeps the ChatGPT shape -- plain text on the panel, no
+   bubble -- but speaks in the same voice as the video workspace: Inconsolata
+   for the body, white bold section headings marked with a pink '#', pink list
+   markers. Both chats are the same product, so they read the same. */
+
+.docs-app .answer {
+  font-family: 'Inconsolata', ui-monospace, 'SF Mono', 'Fira Code', 'Roboto Mono', Consolas, monospace;
+  font-size: 13.5px;
+  line-height: 1.88;
+  letter-spacing: 0.01em;
+  color: rgba(245, 245, 248, 0.86);
+}
+
+.docs-app .answer p {
+  margin: 0 0 14px;
+  line-height: 1.9;
+}
+
+.docs-app .answer p:last-child {
+  margin-bottom: 0;
+}
+
+.docs-app .answer strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.docs-app .answer em {
+  color: rgba(245, 245, 248, 0.62);
+  font-style: italic;
+}
+
+.docs-app .answer a {
+  color: var(--pink);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(244, 47, 167, 0.4);
+}
+
+.docs-app .answer h1,
+.docs-app .answer h2,
+.docs-app .answer h3,
+.docs-app .answer h4 {
+  margin: 1.7rem 0 0.85rem;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  padding: 0;
+  border: 0;
+}
+
+.docs-app .answer h1 {
+  font-size: 15.5px;
+}
+
+/* the marker: a heading reads like the markdown that produced it */
+.docs-app .answer h1::before,
+.docs-app .answer h2::before,
+.docs-app .answer h3::before,
+.docs-app .answer h4::before {
+  content: '#';
+  display: inline-block;
+  margin-right: 9px;
+  color: var(--pink);
+  font-weight: 700;
+}
+
+.docs-app .answer > h1:first-child,
+.docs-app .answer > h2:first-child,
+.docs-app .answer > h3:first-child,
+.docs-app .answer > h4:first-child {
+  margin-top: 0;
+}
+
+.docs-app .answer ul,
+.docs-app .answer ol {
+  margin: 4px 0 16px;
+  padding-left: 22px;
+}
+
+.docs-app .answer li {
+  margin-bottom: 9px;
+  line-height: 1.85;
+}
+
+.docs-app .answer li:last-child {
+  margin-bottom: 0;
+}
+
+.docs-app .answer li::marker {
+  color: rgba(244, 47, 167, 0.75);
+}
+
+.docs-app .answer hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid rgba(245, 245, 248, 0.1);
+}
+
+.docs-app .answer blockquote {
+  margin: 0.5rem 0 1rem;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid rgba(244, 47, 167, 0.5);
+  color: rgba(245, 245, 248, 0.62);
+}
+
+.docs-app .answer code {
+  font-family: inherit;
+  font-size: 0.94em;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid rgba(245, 245, 248, 0.1);
+  background: rgba(245, 245, 248, 0.05);
+  color: rgba(245, 245, 248, 0.92);
+}
+
+.docs-app .answer pre {
+  margin: 0.6rem 0 1rem;
+  padding: 12px 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(245, 245, 248, 0.1);
+  background: rgba(8, 13, 25, 0.7);
+  overflow-x: auto;
+}
+
+.docs-app .answer pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+/* a table is the clearest way a model can line up facts; give it room */
+.docs-app .answer table {
+  width: 100%;
+  margin: 0.6rem 0 1rem;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.docs-app .answer th,
+.docs-app .answer td {
+  padding: 7px 10px;
+  border: 1px solid rgba(245, 245, 248, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-app .answer th {
+  color: #ffffff;
+  font-weight: 700;
+  background: rgba(245, 245, 248, 0.04);
+}
+

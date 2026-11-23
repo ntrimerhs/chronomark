@@ -57,6 +57,7 @@ export default function WorkspaceChat({
   chatId,
   title,
   onCreateChat,
+  onNewChat,
   onChatChanged,
   onJumpToPage,
 }) {
@@ -233,7 +234,12 @@ export default function WorkspaceChat({
           </div>
         </div>
         <div className="chat-actions">
-          <button type="button" className="icon-btn" title="Start new conversation" onClick={onCreateChat}>
+          <button
+            type="button"
+            className="icon-btn"
+            title="New chat (upload another document)"
+            onClick={onNewChat || onCreateChat}
+          >
             <MessageSquarePlus size={16} />
           </button>
         </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { FileUp, Loader2, MessageSquarePlus, Upload, X } from 'lucide-react'
+import { FileUp, Loader2, PanelLeft } from 'lucide-react'
 import { API_BASE_URL } from '../config'
 import WorkspaceSidebar from './documents/WorkspaceSidebar.jsx'
 import WorkspaceViewer from './documents/WorkspaceViewer.jsx'
@@ -8,10 +8,13 @@ import WorkspaceChat from './documents/WorkspaceChat.jsx'
 import '../styles/documentsReference.css'
 import '../styles/documentsLanding.css'
 
-/* Documents workspace, built to the design reference: conversations on the left,
-   the pages in the middle, the chat on the right, all inside the reference's own
-   layout and spacing. Every control acts on real data: the PDF comes from R2, the
-   conversations from the API, the citations from the model's answer. */
+/* Documents workspace: conversations on the left, the pages in the middle, the
+   chat on the right. Every control acts on real data: the PDF comes from R2, the
+   conversations from the API, the citations from the model's answer.
+
+   One workspace per document. There is no top bar: the file name moved into the
+   viewer's head, and "New chat" returns to the landing screen, because a new
+   conversation means a new document to read. */
 
 const ACCEPT = '.pdf,.pptx,.docx'
 const ZOOM_STEPS = [75, 90, 100, 110, 125, 150, 175, 200]
@@ -54,7 +57,6 @@ export default function Documents() {
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [zoom, setZoom] = useState(100)
-  const [showThumbs, setShowThumbs] = useState(true)
   const [mobilePane, setMobilePane] = useState('document')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
     readStored('cm.docs.sidebarCollapsed', false),
@@ -195,7 +197,9 @@ export default function Documents() {
     [openDocument],
   )
 
-  const newChat = useCallback(async () => {
+  // A new conversation on the document already open. Used silently the first
+  // time a question is asked in a workspace that has no conversation yet.
+  const createChat = useCallback(async () => {
     if (!current) return null
     try {
       const { data } = await axios.post(
@@ -212,6 +216,18 @@ export default function Documents() {
       return null
     }
   }, [current, loadChats])
+
+  // A new chat means a new document, so it starts at the landing screen and
+  // nothing of the old workspace survives.
+  const startNewWorkspace = useCallback(() => {
+    setChatId(null)
+    setChats([])
+    setPage(1)
+    setZoom(100)
+    setError('')
+    setMobilePane('document')
+    setCurrent(null)
+  }, [])
 
   const deleteChat = useCallback(
     async (id) => {
@@ -246,10 +262,30 @@ export default function Documents() {
     setZoom(next)
   }
 
-  // Drag the seam: the ratio lives in --left, which the reference layout reads.
+  // Drag the seam: the ratio lives in --left, which the layout reads.
+  //
+  // The drag used to die the moment the cursor crossed the PDF. An iframe is a
+  // document of its own, so the moves and the release went to the PDF viewer
+  // instead of this window: the seam froze under the mouse while the cursor kept
+  // travelling, and the next mouse move over the chat carried on resizing. The
+  // handle captures the pointer (so events keep coming here whatever they are
+  // over), the frame ignores the pointer for the duration (see the .is-resizing
+  // rule), and a release outside the window -- pointercancel, blur, or a move
+  // with no buttons down -- ends the drag instead of leaving it armed.
   useEffect(() => {
+    if (!dragging) return undefined
+
+    const previousCursor = document.body.style.cursor
+    const previousSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
     function move(event) {
-      if (!dragging || !workspaceRef.current) return
+      if (!workspaceRef.current) return
+      if (event.pointerType === 'mouse' && event.buttons === 0) {
+        setDragging(false)
+        return
+      }
       const rect = workspaceRef.current.getBoundingClientRect()
       if (!rect.width) return
       const percent = ((event.clientX - rect.left) / rect.width) * 100
@@ -258,11 +294,19 @@ export default function Documents() {
     function stop() {
       setDragging(false)
     }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', stop)
+
+    window.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', stop, true)
+    window.addEventListener('pointercancel', stop, true)
+    window.addEventListener('blur', stop)
+
     return () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', stop)
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousSelect
+      window.removeEventListener('pointermove', move, true)
+      window.removeEventListener('pointerup', stop, true)
+      window.removeEventListener('pointercancel', stop, true)
+      window.removeEventListener('blur', stop)
     }
   }, [dragging])
 
@@ -339,7 +383,7 @@ export default function Documents() {
           open={sidebarOpen}
           onToggle={() => setSidebarCollapsed((value) => !value)}
           onNewChat={() => {
-            newChat()
+            startNewWorkspace()
             setSidebarOpen(false)
           }}
           onSelect={(id) => {
@@ -352,76 +396,41 @@ export default function Documents() {
         />
 
         <main className="app-body">
-          <section className="workspace-info">
-            <div className="file-intro">
+          {/* Mobile only: one segmented control to move between the pages and
+              the conversation. On a desktop both are on screen at once, and the
+              top bar that used to hold this, the file name and the two buttons
+              is gone -- the file name now sits in the viewer's head. */}
+          <div className="workspace-rail">
+            <button
+              type="button"
+              className="rail-history"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open conversation history"
+            >
+              <PanelLeft size={15} />
+              Chats
+            </button>
+            <div className="mobile-tabs">
               <button
                 type="button"
-                className="icon-btn topbar-menu"
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open conversation history"
+                className={mobilePane === 'document' ? 'active' : ''}
+                onClick={() => setMobilePane('document')}
               >
-                <MessageSquarePlus size={16} />
-              </button>
-              <div className="file-icon">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M6 2.5h8l5 5V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2Z" />
-                  <path d="M14 2.5v5h5M8 13h8M8 17h6" />
-                </svg>
-              </div>
-              <div className="doc-meta">
-                <div className="eyebrow">Your workspace / Documents</div>
-                <h1 title={current.file_name}>{current.file_name}</h1>
-                <div className="fileline">
-                  <span>{(current.kind || 'pdf').toUpperCase()} document</span>
-                  <span className="sep-dot" />
-                  <span>{current.page_count} pages</span>
-                  <span className="sep-dot" />
-                  <span className="saved">
-                    <i />
-                    Ready to explore
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="doc-badge">
-              <div className="mobile-tabs">
-                <button
-                  type="button"
-                  className={mobilePane === 'document' ? 'active' : ''}
-                  onClick={() => setMobilePane('document')}
-                >
-                  Document
-                </button>
-                <button
-                  type="button"
-                  className={mobilePane === 'chat' ? 'active' : ''}
-                  onClick={() => setMobilePane('chat')}
-                >
-                  Chat
-                </button>
-              </div>
-              <button type="button" className="outline-btn" onClick={newChat}>
-                <MessageSquarePlus size={15} /> New chat
-              </button>
-              <button type="button" className="primary-btn" onClick={() => setCurrent(null)}>
-                <Upload size={16} /> Open a PDF
+                Document
               </button>
               <button
                 type="button"
-                className="outline-btn"
-                onClick={() => setCurrent(null)}
-                aria-label="Close document"
-                style={{ display: 'none' }}
+                className={mobilePane === 'chat' ? 'active' : ''}
+                onClick={() => setMobilePane('chat')}
               >
-                <X size={15} />
+                Chat
               </button>
             </div>
-          </section>
+          </div>
 
           <section
             ref={workspaceRef}
-            className={`workspace mobile-${mobilePane}`}
+            className={`workspace mobile-${mobilePane}${dragging ? ' is-resizing' : ''}`}
             style={{ '--left': `${split}%` }}
           >
             <WorkspaceViewer
@@ -430,16 +439,27 @@ export default function Documents() {
               zoom={zoom}
               onPage={jumpToPage}
               onZoom={zoomBy}
-              showThumbs={showThumbs}
-              onToggleThumbs={() => setShowThumbs((value) => !value)}
             />
 
             <div
               className={`resize${dragging ? ' drag' : ''}`}
               role="separator"
+              aria-orientation="vertical"
               aria-label="Resize document and chat panels"
               onPointerDown={(event) => {
+                if (event.button !== 0 && event.pointerType === 'mouse') return
                 event.preventDefault()
+                // Capture the pointer: without it the seam stops hearing moves
+                // the moment the cursor crosses the PDF iframe, and the drag
+                // never ends -- the cursor comes back over the chat still
+                // resizing the layout. Captured events keep arriving here, and
+                // the frame is made transparent to the pointer below.
+                try {
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                } catch {
+                  /* older browsers: the iframe lock and the window listeners
+                     below still end the drag */
+                }
                 setDragging(true)
               }}
             />
@@ -448,7 +468,8 @@ export default function Documents() {
               document={current}
               chatId={chatId}
               title={chats.find((chat) => chat.id === chatId)?.title}
-              onCreateChat={newChat}
+              onCreateChat={createChat}
+              onNewChat={startNewWorkspace}
               onChatChanged={() => loadChats(current.doc_id)}
               onJumpToPage={jumpToPage}
             />

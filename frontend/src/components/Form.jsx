@@ -1,7 +1,13 @@
 import Header from "../components/header.jsx"
 import Footer from "../components/Footer.jsx"
 
-const Form = ({children}) => {
+/* The page frame: header, page, footer.
+
+   The chat workspaces (/upload and /documents) pass footer={false}: once a
+   conversation starts the page belongs to the document and the answer, and a
+   marketing footer under a chat box is furniture in the way. */
+
+const Form = ({children, footer = true}) => {
 
     return(
         <>
@@ -9,7 +15,7 @@ const Form = ({children}) => {
             <div>
                 {children}
             </div>
-        <Footer/>
+        {footer ? <Footer/> : null}
         </>
     )
 }

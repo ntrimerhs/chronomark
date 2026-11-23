@@ -269,3 +269,16 @@
     letter-spacing: 0.16em;
   }
 }
+
+/* ── Chat workspaces ──
+   Inside /upload and /documents the header keeps only the wordmark: the section
+   links, the search and the CTA all leave the conversation. It also drops to a
+   slim strip, because the workspace below it is a full-height reading surface. */
+.main-header-chat {
+  height: 64px;
+}
+
+.main-header-chat .logo-link {
+  padding: 12px 24px;
+}
+
