@@ -7,6 +7,7 @@ import useAutoScroll from '../hooks/useAutoScroll';
 import { User, Bot, Loader2, ThumbsDown, ThumbsUp, Wand2 } from 'lucide-react';
 import { CircleX } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { protectCurrency } from '../lib/markdownText';
 import '../styles/chatmessages.css';
 
 const INLINE_TIMESTAMP_RE = /^(\d{1,2}):(\d{2})$/;
@@ -210,7 +211,7 @@ function ChatMessages({ messages, isLoading, onSeek, citationLabel, onFollowUp, 
                           rehypePlugins={rehypePlugins}
                           components={markdownComponents}
                         >
-                          {content}
+                          {protectCurrency(content)}
                         </Markdown>
                       ) : (
                         <div className="chat-message-text">{content}</div>

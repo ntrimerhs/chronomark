@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import { API_BASE_URL } from '../../config'
+import { protectCurrency } from '../../lib/markdownText'
 import 'katex/dist/katex.min.css'
 
 /* The chat panel, built to the reference: a head with the assistant identity, a
@@ -280,7 +281,7 @@ export default function WorkspaceChat({
                   rehypePlugins={rehypePlugins}
                   components={markdownComponents}
                 >
-                  {message.content}
+                  {protectCurrency(message.content)}
                 </Markdown>
               </div>
               <div className="answer-tools">
