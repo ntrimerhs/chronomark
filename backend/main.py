@@ -2900,7 +2900,20 @@ def _document_cors_available() -> bool:
     viewer takes a presigned URL and the VPS never touches the bytes. If not,
     the API relays them. The check is retried every ten minutes so granting the
     permission in Cloudflare takes effect without a redeploy.
+
+    R2_DOCUMENT_DIRECT overrides the check, because a token with only object
+    permissions cannot call GetBucketCors and would always fall back to the
+    relay even when the policy is correct:
+      auto   (default) trust the bucket policy when it can be read
+      always skip the check, serve documents straight from R2
+      never  always relay through the API
     """
+    mode = (os.getenv("R2_DOCUMENT_DIRECT") or "auto").strip().lower()
+    if mode == "never":
+        return False
+    if mode == "always":
+        return True
+
     global _DOC_CORS_CACHE
     now = time.time()
     cached = _DOC_CORS_CACHE
