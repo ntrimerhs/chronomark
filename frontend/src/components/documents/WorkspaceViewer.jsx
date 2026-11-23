@@ -17,7 +17,11 @@ export default function WorkspaceViewer({
 }) {
   const total = doc.page_count || 1
   const base = (doc.file_url || '').split('#')[0]
+  // The page number, zoom and thumbnails already live in this panel's head, so
+  // the viewer's own toolbar is redundant. Every major browser honours these
+  // parameters; a browser that ignores them simply shows its toolbar as before.
   const zoomParam = zoom && zoom !== 100 ? `&zoom=${zoom}` : ''
+  const chrome = 'toolbar=0&navpanes=0&statusbar=0&messages=0&view=FitH'
 
   const visible = []
   for (let offset = -2; offset <= 2; offset += 1) {
@@ -109,7 +113,7 @@ export default function WorkspaceViewer({
             key={`${base}-${page}-${zoom}`}
             className="pdf-frame"
             title={`${doc.file_name} page ${page}`}
-            src={`${base}#page=${page}${zoomParam}`}
+            src={`${base}#page=${page}${zoomParam}&${chrome}`}
           />
         </div>
       </div>
