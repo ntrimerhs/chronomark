@@ -33,7 +33,7 @@ function PdfFrame({ fileUrl, page, zoom }, ref) {
         key={`${base}-${page}-${zoom}`}
         className="docs-pdf-frame"
         title={`Document page ${page}`}
-        src={`${base}#page=${page}&zoom=${zoom}`}
+        src={`${base}#page=${page}&zoom=${zoom}&toolbar=0&navpanes=0&view=FitH`}
         onLoad={() => setLoaded(true)}
       />
     </div>
