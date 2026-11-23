@@ -30,6 +30,14 @@ function PdfFrame({ fileUrl, pageHint }, ref) {
     [],
   )
 
+  // The load event is not guaranteed once the browser's own PDF viewer takes
+  // over the frame, and a "Loading pages" label stuck over a rendered page is
+  // worse than no hint at all.
+  useEffect(() => {
+    const guard = window.setTimeout(() => setLoaded(true), 4000)
+    return () => window.clearTimeout(guard)
+  }, [page])
+
   // Changing only the fragment of a loaded frame does not move the viewer in
   // every browser, so the frame is keyed by the page: a new src mounts a fresh
   // view already positioned at that page. PDFs here are small enough that this

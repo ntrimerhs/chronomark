@@ -88,6 +88,15 @@
   min-height: 560px;
 }
 
+/* The shared loaded-state rules pin these cards to a 560px reading height. On
+   this page they follow the workspace instead, so the pages use the viewport. */
+.docs-page .upload-grid-loaded .upload-center-card,
+.docs-page .upload-grid-loaded .docs-chat-panel {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+}
+
 .docs-page .docs-workspace > * {
   height: 100%;
   min-height: 0;
