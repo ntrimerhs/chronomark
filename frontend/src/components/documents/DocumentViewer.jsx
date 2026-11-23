@@ -33,7 +33,10 @@ function PdfFrame({ fileUrl, page, zoom }, ref) {
         key={`${base}-${page}-${zoom}`}
         className="docs-pdf-frame"
         title={`Document page ${page}`}
-        src={`${base}#page=${page}&zoom=${zoom}&toolbar=0&navpanes=0&view=FitH`}
+        // The browser's own viewer stays visible on purpose: hiding its toolbar
+        // also removes the thumbnail rail, which is the fastest way to move
+        // through a 40-page handout.
+        src={`${base}#page=${page}&zoom=${zoom}`}
         onLoad={() => setLoaded(true)}
       />
     </div>
