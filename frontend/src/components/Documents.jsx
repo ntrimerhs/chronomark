@@ -428,9 +428,12 @@ export default function Documents() {
             </div>
           </div>
 
+          {/* The stylesheet's mobile rules key off `mobile-doc` / `mobile-chat`,
+              so the pane name is mapped here -- `mobile-document` matched
+              nothing and both panels stayed display:none on a phone. */}
           <section
             ref={workspaceRef}
-            className={`workspace mobile-${mobilePane}${dragging ? ' is-resizing' : ''}`}
+            className={`workspace mobile-${mobilePane === 'document' ? 'doc' : 'chat'}${dragging ? ' is-resizing' : ''}`}
             style={{ '--left': `${split}%` }}
           >
             <WorkspaceViewer
