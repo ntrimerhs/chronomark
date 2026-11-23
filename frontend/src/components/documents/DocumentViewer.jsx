@@ -35,8 +35,10 @@ function PdfFrame({ fileUrl, page, zoom }, ref) {
         title={`Document page ${page}`}
         // The browser's own viewer stays visible on purpose: hiding its toolbar
         // also removes the thumbnail rail, which is the fastest way to move
-        // through a 40-page handout.
-        src={`${base}#page=${page}&zoom=${zoom}`}
+        // through a 40-page handout. At 100% the zoom parameter is left out
+        // entirely, so the default view is exactly what the browser would do on
+        // its own.
+        src={`${base}#page=${page}${zoom && zoom !== 100 ? `&zoom=${zoom}` : ''}`}
         onLoad={() => setLoaded(true)}
       />
     </div>
