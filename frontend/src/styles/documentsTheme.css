@@ -12,19 +12,60 @@
   --docs-dim: rgba(245, 245, 248, 0.55);
   --docs-pink: #f42fa7;
   --docs-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Header (76) + page padding + the compact reading line. The workspace takes
+     the rest of the viewport, so pages and chat are as tall as the screen
+     allows instead of a fixed 560px box. */
+  --docs-workspace-height: calc(100vh - 176px);
 
   /* The video page turns .upload-shell into a two-column grid (copy left,
      instrument right) and lets the loaded view cover both. A document is a
      single reading surface, so this page stacks: intro, then pages and chat. */
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 22px;
+}
+
+/* While a document is open the explainer collapses to one line, because the
+   reading surface matters more than the marketing copy. */
+.docs-page.is-reading {
+  padding-top: 96px;
+  gap: 16px;
 }
 
 .docs-page .upload-hero {
   grid-area: auto;
   max-width: 760px;
   margin: 0;
+}
+
+.docs-page.is-reading .upload-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  max-width: none;
+}
+
+.docs-page.is-reading .upload-eyebrow {
+  margin: 0;
+  padding-left: 0;
+  font-size: 9px;
+}
+
+.docs-page.is-reading .upload-eyebrow::before {
+  display: none;
+}
+
+.docs-page.is-reading .upload-hero h1 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: rgba(245, 245, 248, 0.62);
+}
+
+.docs-page.is-reading .upload-hero h1 em {
+  font-size: inherit;
 }
 
 .docs-page .upload-grid {
@@ -36,14 +77,54 @@
 .docs-page .upload-grid.upload-grid-loaded {
   grid-area: auto;
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
-  gap: 18px;
+  /* Pages get the space; the chat is a comfortable column, not a sliver. */
+  grid-template-columns: minmax(0, 1.6fr) minmax(400px, 1fr);
+  gap: 22px;
   align-items: stretch;
+}
+
+.docs-page .upload-grid.upload-grid-loaded.docs-workspace {
+  height: var(--docs-workspace-height);
+  min-height: 560px;
+}
+
+.docs-page .docs-workspace > * {
+  height: 100%;
+  min-height: 0;
+}
+
+/* Wide mode: the pages take the whole width and the chat steps aside. */
+.docs-page .docs-workspace.is-focus {
+  grid-template-columns: 1fr;
+}
+
+.docs-page .docs-workspace.is-focus .docs-chat-panel {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .docs-page .upload-grid.upload-grid-loaded {
+    grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
+    gap: 16px;
+  }
 }
 
 @media (max-width: 1080px) {
   .docs-page .upload-grid.upload-grid-loaded {
     grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .docs-page .upload-grid.upload-grid-loaded.docs-workspace {
+    height: auto;
+  }
+
+  .docs-page .upload-center-card-doc {
+    height: min(70vh, 720px);
+  }
+
+  .docs-page .docs-chat-panel {
+    height: min(76vh, 640px);
   }
 }
 
@@ -174,7 +255,7 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  padding: 10px 12px 12px;
+  padding: 14px 16px 16px;
 }
 
 .docs-pdf-frame {
@@ -182,8 +263,10 @@
   width: 100%;
   min-height: 0;
   border: 1px solid var(--docs-line);
-  border-radius: 2px;
-  background: #0a1019;
+  border-radius: 3px;
+  /* The browser paints the pages white; a slightly lifted bezel keeps them from
+     floating on pure black. */
+  background: #10161f;
 }
 
 .docs-viewer-loading {
@@ -272,6 +355,75 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+}
+
+/* ── reading comfort ──
+   The chat is the same component as the video page, but on a reading surface it
+   borrows ChatGPT's calm: no box drawn around every answer, a wider text column,
+   more air between turns, and an input that always sits at the bottom. All of it
+   is scoped to this page. */
+
+.docs-page .docs-chat-panel .chatbot {
+  padding: 18px 20px 18px;
+  gap: 16px;
+}
+
+.docs-page .docs-chat-panel .chatbot-header {
+  padding-bottom: 14px;
+}
+
+.docs-page .docs-chat-panel .chatbot-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.docs-page .docs-chat-panel .chatbot-quick-action {
+  padding: 7px 11px;
+  font-size: 9px;
+}
+
+.docs-page .docs-chat-panel .chat-messages {
+  gap: 22px;
+  padding: 4px 2px 8px;
+}
+
+.docs-page .docs-chat-panel .chat-message {
+  gap: 12px;
+}
+
+/* the answer reads as text on the panel, not in a bordered box */
+.docs-page .docs-chat-panel .markdown-container {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 13.5px;
+  line-height: 1.9;
+}
+
+.docs-page .docs-chat-panel .markdown-container p {
+  margin-bottom: 15px;
+}
+
+.docs-page .docs-chat-panel .chat-message-user .markdown-container {
+  padding: 11px 14px;
+  border: 1px solid rgba(244, 47, 167, 0.24);
+  background: rgba(244, 47, 167, 0.07);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.docs-page .docs-chat-panel .chat-input-wrapper {
+  padding-top: 10px;
+}
+
+.docs-page .docs-chat-panel .chat-input-outer {
+  border-radius: 3px;
+}
+
+.docs-page .docs-chat-panel .chat-textarea {
+  font-size: 13px;
 }
 
 .docs-error {

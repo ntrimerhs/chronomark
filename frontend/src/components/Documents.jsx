@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { FileText, FileUp, Loader2, Presentation, ScanText, X } from 'lucide-react'
+import {
+  FileText,
+  FileUp,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Presentation,
+  ScanText,
+  X,
+} from 'lucide-react'
 import { API_BASE_URL } from '../config'
 import DocumentViewer from './documents/DocumentViewer.jsx'
 import DocumentChat from './documents/DocumentChat.jsx'
@@ -51,6 +60,9 @@ export default function Documents() {
   // A PDF renders natively in a frame, but the extracted text is always there
   // and scrolls to a page instantly, so the reader can switch between the two.
   const [viewerMode, setViewerMode] = useState('pdf')
+  // Wide mode gives the pages the full width and hides the chat, for reading
+  // rather than asking.
+  const [focusMode, setFocusMode] = useState(false)
 
   const viewerRef = useRef(null)
   const inputRef = useRef(null)
@@ -169,17 +181,21 @@ export default function Documents() {
   const KindIcon = kindMeta.icon
 
   return (
-    <main className="upload-shell docs-page">
+    <main className={`upload-shell docs-page${current ? ' is-reading' : ''}`}>
       <header className="upload-hero">
         <span className="upload-eyebrow">02 Documents</span>
         <h1>
           Add a document. <em>Ask it anything.</em>
         </h1>
-        <p className="upload-subtitle">
-          PDF, PowerPoint and Word. Every page is read and indexed, and answers
-          point at the page they came from, the same way the video answers point
-          at a moment.
-        </p>
+        {/* Once a document is open the workspace owns the screen, so the
+            explainer collapses out of the way. */}
+        {!current ? (
+          <p className="upload-subtitle">
+            PDF, PowerPoint and Word. Every page is read and indexed, and answers
+            point at the page they came from, the same way the video answers point
+            at a moment.
+          </p>
+        ) : null}
       </header>
 
       {idle ? (
@@ -264,7 +280,9 @@ export default function Documents() {
       ) : null}
 
       {current ? (
-        <section className="upload-grid upload-grid-loaded docs-workspace">
+        <section
+          className={`upload-grid upload-grid-loaded docs-workspace${focusMode ? ' is-focus' : ''}`}
+        >
           <div className="upload-center-card upload-center-card-doc">
             <header className="upload-loaded-header docs-viewer-head">
               <span className="upload-video-title docs-viewer-name">
@@ -280,6 +298,15 @@ export default function Documents() {
                 >
                   {viewerMode === 'pdf' ? <ScanText size={12} /> : <FileText size={12} />}
                   {viewerMode === 'pdf' ? 'Text' : 'Pages'}
+                </button>
+                <button
+                  type="button"
+                  className="docs-mode-toggle"
+                  onClick={() => setFocusMode((value) => !value)}
+                  title={focusMode ? 'Show the chat again' : 'Read the pages full width'}
+                >
+                  {focusMode ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                  {focusMode ? 'Chat' : 'Wide'}
                 </button>
                 {kindMeta.label} · {current.page_count} pages
                 <button
