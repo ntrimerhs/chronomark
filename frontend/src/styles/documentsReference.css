@@ -744,3 +744,24 @@
 .docs-app .sidebar-document-text strong {
   font-size: 11px;
 }
+
+/* No pink ring on the chat field. Focus is shown by the composer's border
+   brightening slightly, which reads as "you are typing here" without drawing a
+   second box around the text (or around it again after Enter). */
+.docs-app .composer:focus-within {
+  border-color: rgba(245, 245, 248, 0.3);
+  box-shadow: none;
+}
+
+.docs-app .composer textarea,
+.docs-app .composer textarea:focus,
+.docs-app .composer textarea:focus-visible {
+  outline: 0 !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  background: transparent;
+}
+
+.docs-app .composer textarea::selection {
+  background: rgba(244, 47, 167, 0.3);
+}
