@@ -20,7 +20,6 @@ function groupFor(timestamp) {
 export default function WorkspaceSidebar({
   chats,
   activeChatId,
-  document: doc,
   collapsed,
   open,
   onToggle,
@@ -149,26 +148,6 @@ export default function WorkspaceSidebar({
             ))
           )}
         </div>
-
-        {doc ? (
-          <div className="sidebar-bottom">
-            <p className="sidebar-bottom-label sidebar-copy">Current document</p>
-            <div className="sidebar-document">
-              <span className="sidebar-document-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                  <path d="M6 2.5h8l5 5V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2Z" />
-                  <path d="M14 2.5v5h5M8 13h8M8 17h6" />
-                </svg>
-              </span>
-              <span className="sidebar-document-text sidebar-copy">
-                <strong>{doc.file_name}</strong>
-                <small>
-                  {doc.kind?.toUpperCase()} · {doc.page_count} pages
-                </small>
-              </span>
-            </div>
-          </div>
-        ) : null}
       </aside>
     </>
   )

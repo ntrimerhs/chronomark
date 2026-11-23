@@ -63,7 +63,7 @@
 }
 
 .upload-center-card,
-.chat-panel,
+.upload-shell .chat-panel,
 .upload-chat-placeholder {
   position: relative;
   border: 1px solid var(--upload-border);
@@ -575,7 +575,10 @@
   height: 100%;
 }
 
-.chat-panel {
+/* Scoped to the video page: this file is bundled for the whole SPA, and a bare
+   .chat-panel also matched the documents workspace's chat, capping it at 560px
+   and leaving a band of empty panel under the composer. */
+.upload-shell .chat-panel {
   height: 100%;
   min-height: 560px;
   max-height: 560px;
@@ -650,7 +653,7 @@
     margin-top: 22px;
   }
 
-  .chat-panel {
+  .upload-shell .chat-panel {
     min-height: 420px;
     max-height: 420px;
     border-radius: 16px;
@@ -663,7 +666,7 @@
   }
 
   .upload-center-card,
-  .chat-panel {
+  .upload-shell .chat-panel {
     border-radius: 24px;
   }
 

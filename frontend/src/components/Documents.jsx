@@ -33,6 +33,10 @@ function statusLabel(stage) {
       return 'Indexing'
     case 'finalizing':
       return 'Finishing'
+    case 'summarising':
+      // The study summary is generated before the document is announced as
+      // ready, so the summary button never has to wait for it.
+      return 'Preparing the summary'
     default:
       return 'Working'
   }
@@ -378,7 +382,6 @@ export default function Documents() {
         <WorkspaceSidebar
           chats={chats}
           activeChatId={chatId}
-          document={current}
           collapsed={sidebarCollapsed}
           open={sidebarOpen}
           onToggle={() => setSidebarCollapsed((value) => !value)}
