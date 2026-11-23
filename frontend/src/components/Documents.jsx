@@ -83,7 +83,7 @@ export default function Documents() {
   const [mobilePane, setMobilePane] = useState('document')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    readStored('cm.docs.sidebarCollapsed', false),
+    readStored('cm.docs.sidebarCollapsed', true),
   )
   const [split, setSplit] = useState(() => Number(readStored('cm.docs.split', 58)) || 58)
 
@@ -397,7 +397,9 @@ export default function Documents() {
               <KindIcon size={18} />
             </span>
             <div className="docs-file-meta">
-              <span className="docs-eyebrow">02 Documents</span>
+              <span className="docs-breadcrumb">
+                Your workspace <i>/</i> <strong>Documents</strong>
+              </span>
               <h1 title={current.file_name}>{current.file_name}</h1>
               <div className="docs-file-line">
                 <span>{kindMeta.label}</span>
@@ -534,6 +536,12 @@ export default function Documents() {
               mode={viewerMode}
               viewerRef={viewerRef}
             />
+            <footer className="docs-viewer-foot">
+              <span>{current.file_name}</span>
+              <span>
+                {page} / {current.page_count}
+              </span>
+            </footer>
           </section>
 
           <div

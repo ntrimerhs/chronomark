@@ -1058,3 +1058,133 @@
     overflow: hidden;
   }
 }
+
+/* -- workspace refinements -- */
+
+/* breadcrumb replaces the numbered eyebrow above the file name */
+.docs-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.42);
+}
+
+.docs-breadcrumb i {
+  font-style: normal;
+  color: rgba(245, 245, 248, 0.25);
+}
+
+.docs-breadcrumb strong {
+  font-weight: 600;
+  color: rgba(245, 245, 248, 0.82);
+}
+
+/* the page / total line under the pages panel */
+.docs-viewer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  height: 32px;
+  padding: 0 14px;
+  border-top: 1px solid var(--docs-line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.42);
+}
+
+/* citation pill inside an answer */
+.chat-page-citation {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 2px;
+  padding: 2px 8px 2px 6px;
+  border: 1px solid rgba(244, 47, 167, 0.42);
+  border-radius: 999px;
+  background: rgba(244, 47, 167, 0.12);
+  color: #ffc9e6;
+  font-family: 'Inconsolata', ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.chat-page-citation:hover {
+  background: rgba(244, 47, 167, 0.26);
+  border-color: rgba(244, 47, 167, 0.7);
+  color: #fff;
+}
+
+.chat-page-citation svg {
+  color: var(--docs-pink);
+}
+
+/* the small "Chronomark" line above an answer */
+.chat-message-author {
+  margin: 0 0 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.5);
+}
+
+/* answer actions: feedback and "explain differently" */
+.chat-answer-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.chat-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: rgba(245, 245, 248, 0.4);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.chat-action-btn:hover,
+.chat-action-btn.is-on {
+  border-color: rgba(244, 47, 167, 0.4);
+  background: rgba(244, 47, 167, 0.1);
+  color: #ffc9e6;
+}
+
+.chat-action-btn.is-wide {
+  padding-left: 9px;
+}
+
+/* the icon rail keeps the history as dots, so it stays usable collapsed */
+.docs-sidebar.is-collapsed .docs-history-title {
+  display: none;
+}
+
+.docs-sidebar.is-collapsed .docs-history-open {
+  justify-content: center;
+  padding: 0;
+}
+
+.docs-sidebar.is-collapsed .docs-history-delete {
+  display: none;
+}

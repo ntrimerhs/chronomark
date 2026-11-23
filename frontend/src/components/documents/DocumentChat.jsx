@@ -227,7 +227,21 @@ export default function DocumentChat({
           </div>
         ) : null}
 
-        <ChatMessages messages={messages} isLoading={isLoading} onSeek={onJumpToPage} />
+        <ChatMessages
+          messages={messages}
+          isLoading={isLoading}
+          onSeek={onJumpToPage}
+          citationLabel={(pageNumber) =>
+            `${doc?.language === 'Greek' ? 'Σελίδα' : 'Page'} ${pageNumber}`
+          }
+          onFollowUp={(text) => send(text)}
+          actionLabel={(kind) => {
+            const greek = doc?.language === 'Greek'
+            if (kind === 'explain') return greek ? 'Εξήγησέ το αλλιώς' : 'Explain this'
+            if (kind === 'good') return greek ? 'Καλή απάντηση' : 'Good answer'
+            return greek ? 'Κακή απάντηση' : 'Poor answer'
+          }}
+        />
       </div>
 
       {error ? <p className="docs-chat-error">{error}</p> : null}
