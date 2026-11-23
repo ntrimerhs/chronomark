@@ -1,0 +1,173 @@
+/* Landing state for the documents page: the card shown before a document is
+   open. Kept separate from the reference workspace stylesheet, which only covers
+   the workspace itself. */
+
+.docs-landing {
+  --docs-line: rgba(245, 245, 248, 0.12);
+  --docs-ink: #f5f5f8;
+  --docs-dim: rgba(245, 245, 248, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 110px 24px 80px;
+}
+
+.docs-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.42);
+}
+
+.docs-breadcrumb i {
+  font-style: normal;
+  color: rgba(245, 245, 248, 0.25);
+}
+
+.docs-breadcrumb strong {
+  font-weight: 600;
+  color: rgba(245, 245, 248, 0.82);
+}
+
+.docs-landing-head h1 {
+  margin: 14px 0 12px;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+  color: var(--docs-ink);
+}
+
+.docs-landing-head h1 em {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  background-image: linear-gradient(96deg, #f42fa7, #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.docs-landing-head p {
+  margin: 0;
+  max-width: 620px;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--docs-dim);
+}
+
+.docs-landing-card {
+  padding: 16px;
+  border: 1px solid var(--docs-line);
+  border-radius: 16px;
+  background: #101823;
+  transition: border-color 0.18s ease;
+}
+
+.docs-landing-card.is-dragging {
+  border-color: rgba(244, 47, 167, 0.55);
+}
+
+.docs-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 54px 24px;
+  border: 1px dashed rgba(245, 245, 248, 0.18);
+  border-radius: 12px;
+  background: rgba(245, 245, 248, 0.02);
+  color: var(--docs-dim);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.docs-drop:hover {
+  border-color: rgba(244, 47, 167, 0.5);
+  background: rgba(244, 47, 167, 0.05);
+  color: var(--docs-ink);
+}
+
+.docs-drop svg {
+  color: #f42fa7;
+}
+
+.docs-drop strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--docs-ink);
+}
+
+.docs-drop span {
+  max-width: 460px;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.docs-uploading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: var(--docs-dim);
+}
+
+.docs-uploading p {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.docs-uploading svg {
+  color: #f42fa7;
+}
+
+.docs-bar {
+  width: min(100%, 380px);
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(245, 245, 248, 0.1);
+  overflow: hidden;
+}
+
+.docs-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f42fa7, #a855f7);
+  transition: width 0.3s ease;
+}
+
+.docs-uploading small {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.docs-landing-error,
+.docs-workspace-error {
+  margin: 12px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: #ff9dbb;
+}
+
+.docs-spin {
+  animation: docs-spin 1s linear infinite;
+}
+
+@keyframes docs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
