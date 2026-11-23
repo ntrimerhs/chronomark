@@ -455,3 +455,24 @@
     min-height: 0;
   }
 }
+
+/* The prototype's brand block puts a pink focus outline on every textarea, but
+   its own composer already outlines the whole field on :focus-within. Both apply
+   at equal specificity, so the textarea ended up with a second pink rectangle
+   inside the first. The field gets no outline of its own; the composer's
+   focus-within border is the visible focus state, and it is still obvious. */
+.docs-app .composer textarea,
+.docs-app .composer textarea:focus,
+.docs-app .composer textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 0;
+}
+
+/* same reasoning for the page number and the search field, which sit inside an
+   already outlined control */
+.docs-app .pagefield:focus,
+.docs-app .pagefield:focus-visible {
+  outline: none !important;
+  border-color: rgba(244, 47, 167, 0.6);
+}
