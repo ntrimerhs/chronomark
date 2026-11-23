@@ -2994,6 +2994,136 @@ def _save_document(document: dict) -> None:
     tmp.replace(path)
 
 
+# --- pre-analysed study summary ----------------------------------------------
+# The summary is the one question every reader asks, and it is also the most
+# expensive one: the whole handout goes into the model at once. So it is
+# generated once, inside the upload job, right after indexing -- while the
+# progress bar still says the document is being prepared -- and the ask endpoint
+# serves the summary button from it instead of rebuilding the same 90k-character
+# prompt on demand. Anything else is still answered at the moment it is asked.
+#
+# Held in memory and mirrored to a sidecar file beside the document, so a
+# container restart does not throw the work away. Sidecars live in their own
+# directory: the document listing reads every *.json in DOCS_DIR.
+
+_SUMMARY_CACHE: dict[str, dict] = {}
+_SUMMARY_LOCK = threading.Lock()
+SUMMARY_DIR = DOCS_DIR / "summaries"
+
+
+def _summary_path(doc_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", str(doc_id or ""))
+    return SUMMARY_DIR / f"{safe}.json"
+
+
+def _load_cached_summary(doc_id: str) -> dict | None:
+    with _SUMMARY_LOCK:
+        cached = _SUMMARY_CACHE.get(doc_id)
+    if cached:
+        return cached
+    path = _summary_path(doc_id)
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            cached = json.load(handle)
+    except Exception as error:
+        print(f"[Docs] cached summary unreadable: {error}")
+        return None
+    if not isinstance(cached, dict) or not cached.get("answer"):
+        return None
+    with _SUMMARY_LOCK:
+        _SUMMARY_CACHE[doc_id] = cached
+    return cached
+
+
+def _store_cached_summary(doc_id: str, answer: str, truncated: bool) -> None:
+    payload = {"answer": answer, "truncated": bool(truncated), "created_at": time.time()}
+    with _SUMMARY_LOCK:
+        _SUMMARY_CACHE[doc_id] = payload
+    try:
+        SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
+        path = _summary_path(doc_id)
+        tmp = path.with_suffix(".json.tmp")
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False)
+        tmp.replace(path)
+    except Exception as error:
+        print(f"[Docs] could not persist summary: {error}")
+
+
+def _page_of_payload(payload: dict):
+    page = (payload or {}).get("page")
+    if page is None:
+        start = (payload or {}).get("start")
+        page = int(start) if isinstance(start, (int, float)) else None
+    return page
+
+
+def _document_summary_context(chunks):
+    """The whole handout in page order, thinned only when it will not fit."""
+    total_chars = sum(len((r.payload.get("text") or "")) for r in chunks)
+    if total_chars <= 90_000:
+        selected = list(chunks)
+    else:
+        budget = max(20, int(len(chunks) * 90_000 / total_chars))
+        step = len(chunks) / budget
+        selected = [chunks[int(i * step)] for i in range(budget)]
+    ordered = sorted(
+        selected,
+        key=lambda r: (
+            (r.payload or {}).get("page") or 0,
+            (r.payload or {}).get("chunk_index") or 0,
+        ),
+    )
+    lines = []
+    for item in ordered:
+        text = (item.payload.get("text") or "").strip()
+        if not text:
+            continue
+        # Figure chunks already carry their page ("[figure p.7]").
+        lines.append(text if text.startswith("[figure") else f"[p.{_page_of_payload(item.payload)}] {text}")
+    pages = {_page_of_payload(item.payload) for item in ordered}
+    return "\n".join(lines), {page for page in pages if page is not None}, len(selected), total_chars
+
+
+def _warm_document_summary(document: dict) -> None:
+    """Generate the study summary now, so the button answers instantly."""
+    doc_id = document.get("doc_id")
+    if not doc_id:
+        return
+    chunks = _document_context_chunks(doc_id)
+    if not chunks:
+        return
+    context, available_pages, selected, total_chars = _document_summary_context(chunks)
+    if not context.strip():
+        return
+
+    answer_language = _document_language(document) or "English"
+    question = (
+        "δώσε μια περίληψη του εγγράφου με τα βασικά σημεία"
+        if answer_language == "Greek"
+        else "give a summary of the document with the main points"
+    )
+    print(
+        f"[Docs] pre-analysis: {selected}/{len(chunks)} chunks, {total_chars} chars, "
+        f"answering in {answer_language}"
+    )
+    answer, truncated = ask_document(
+        question=question,
+        context=context,
+        history=[],
+        answer_language=answer_language,
+        summary_mode=True,
+        transcript_available=True,
+    )
+    answer, kept, _dropped, _fallback = _enforce_page_citations(
+        answer, available_pages, fallback_page=None
+    )
+    print(f"[Docs] pre-analysis summary ready: {len(answer)} chars, {kept} citation(s)")
+    _store_cached_summary(doc_id, answer, truncated)
+
+
 # --- conversations -----------------------------------------------------------
 
 _CHAT_LOCK = threading.Lock()
@@ -3216,6 +3346,17 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
             "pages": extracted["pages"],
         }
         _save_document(document)
+
+        # The summary is the question every reader asks, so it is answered here,
+        # before the document is announced as ready: the button then comes back
+        # instantly instead of making the reader watch "Reading the pages".
+        _set_job_status(job_id, status="processing", stage="summarising", progress=95)
+        try:
+            _warm_document_summary(document)
+        except Exception as warm_error:
+            # Never fail an upload over the pre-analysis: the summary button
+            # still works, it just has to think at the moment it is pressed.
+            print(f"[Docs] pre-analysis skipped: {warm_error}")
 
         total_time = time.perf_counter() - start_time
         _set_job_status(
@@ -3741,14 +3882,25 @@ async def api_document_ask(req: DocumentQuestion):
     transcript_available = bool(context.strip())
 
     try:
-        answer, truncated = ask_document(
-            question=question,
-            context=context,
-            history=(req.history or [])[-6:],
-            answer_language=answer_language,
-            summary_mode=summary_mode,
-            transcript_available=transcript_available,
-        )
+        if summary_mode:
+            cached_summary = _load_cached_summary(req.doc_id)
+        else:
+            cached_summary = None
+
+        if cached_summary:
+            # Generated during upload, over the same pages: no round-trip.
+            answer = cached_summary["answer"]
+            truncated = bool(cached_summary.get("truncated"))
+            print(f"[Docs] summary served from pre-analysis: {req.doc_id}")
+        else:
+            answer, truncated = ask_document(
+                question=question,
+                context=context,
+                history=(req.history or [])[-6:],
+                answer_language=answer_language,
+                summary_mode=summary_mode,
+                transcript_available=transcript_available,
+            )
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"LLM provider error: {error}")
 
