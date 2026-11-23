@@ -1050,7 +1050,21 @@
 /* ── Full bleed ──────────────────────────────────────────────────────────────
    The panes are the screen, not cards floating on it: no outer padding, no
    rounded corners, no shadow, no border. What separates them is a hairline and
-   the seam you can drag -- the small gaps, and nothing else. */
+   the seam you can drag -- the small gaps, and nothing else.
+
+   The shell is pinned to the viewport instead of sized in viewport units. 100vh
+   and 100dvh both disagree with the real visible height somewhere -- browser
+   chrome, display scaling, a stale cached bundle -- and any disagreement shows
+   up as a band of page under the last row of the layout. `inset: 0` cannot
+   disagree: the shell is exactly the window, and the scrolling happens inside
+   the panels where it belongs. */
+.docs-app {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+}
+
 .docs-app .app-body {
   padding: 0;
   gap: 0;
