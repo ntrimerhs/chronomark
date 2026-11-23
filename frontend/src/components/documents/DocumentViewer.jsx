@@ -1,55 +1,39 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useImperativeHandle, useState } from 'react'
 
 /* The document viewer.
 
-   PDFs are handed to the browser's own PDF viewer in an <iframe>: Chrome, Edge
-   and Firefox all render PDFs natively, including zoom, text selection and
-   search, and they do it without a worker bundle or a CORS policy. A page jump
-   is just the `#page=N` fragment, re-set on the same URL.
+   PDFs are handed to the browser's own viewer in an iframe: Chrome, Edge and
+   Firefox all render them natively, including selection and search, without a
+   worker bundle or a CORS policy. Page and zoom travel in the URL fragment, and
+   the frame is keyed by both, so a citation jump reliably lands on the page
+   instead of relying on the fragment changing inside a loaded document.
 
-   PPTX and DOCX cannot be rendered by a browser at all, so their extracted page
-   text is shown instead, in the same paged frame, so a `p. N` citation still
+   PowerPoint and Word cannot be rendered by a browser at all, so their extracted
+   page text is shown instead, in the same paged frame, so a `p. N` citation still
    lands on the exact slide. */
 
-function PdfFrame({ fileUrl, pageHint }, ref) {
+function PdfFrame({ fileUrl, page, zoom }, ref) {
   const [loaded, setLoaded] = useState(false)
   const base = fileUrl.split('#')[0]
-  const [page, setPage] = useState(pageHint || 1)
+
+  useImperativeHandle(ref, () => ({ scrollToPage() {} }), [])
 
   useEffect(() => {
-    if (pageHint) setPage(pageHint)
-  }, [pageHint])
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      scrollToPage(nextPage) {
-        setPage(Number(nextPage) || 1)
-      },
-    }),
-    [],
-  )
-
-  // The load event is not guaranteed once the browser's own PDF viewer takes
-  // over the frame, and a "Loading pages" label stuck over a rendered page is
-  // worse than no hint at all.
-  useEffect(() => {
+    // The load event is not guaranteed once the built-in viewer takes over the
+    // frame, and a "Loading" label stuck over a rendered page is worse than none.
+    setLoaded(false)
     const guard = window.setTimeout(() => setLoaded(true), 4000)
     return () => window.clearTimeout(guard)
-  }, [page])
+  }, [page, zoom, base])
 
-  // Changing only the fragment of a loaded frame does not move the viewer in
-  // every browser, so the frame is keyed by the page: a new src mounts a fresh
-  // view already positioned at that page. PDFs here are small enough that this
-  // is imperceptible, and it is the only reliable jump.
   return (
     <div className="docs-frame-wrap">
       {!loaded ? <p className="docs-viewer-loading">Loading pages…</p> : null}
       <iframe
-        key={`${base}-${page}`}
+        key={`${base}-${page}-${zoom}`}
         className="docs-pdf-frame"
         title={`Document page ${page}`}
-        src={`${base}#page=${page}`}
+        src={`${base}#page=${page}&zoom=${zoom}`}
         onLoad={() => setLoaded(true)}
       />
     </div>
@@ -65,11 +49,11 @@ function TextViewer({ pages, pageHint }, ref) {
   useImperativeHandle(
     ref,
     () => ({
-      scrollToPage(page) {
-        setHighlight(page)
+      scrollToPage(nextPage) {
+        setHighlight(nextPage)
         const container = scrollRef.current
         if (!container) return
-        const target = container.querySelector(`[data-page="${page}"]`)
+        const target = container.querySelector(`[data-page="${nextPage}"]`)
         if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
       },
     }),
@@ -94,8 +78,6 @@ function TextViewer({ pages, pageHint }, ref) {
           </header>
           {page.text
             .split(/\n{2,}/)
-            // The extractor's heading is already the frame's title; printing it
-            // twice reads like a bug.
             .filter(
               (paragraph) =>
                 paragraph.trim().toLowerCase() !== (page.heading || '').trim().toLowerCase(),
@@ -111,14 +93,20 @@ function TextViewer({ pages, pageHint }, ref) {
 
 const TextViewerWithRef = forwardRef(TextViewer)
 
-export default function DocumentViewer({ document: doc, pageHint, viewerRef, mode = 'pdf' }) {
+export default function DocumentViewer({
+  document: doc,
+  page = 1,
+  zoom = 100,
+  mode = 'pdf',
+  viewerRef,
+}) {
   if (!doc) return null
 
   const wantsPages = mode !== 'text' && doc.kind === 'pdf' && doc.file_url
 
   if (wantsPages) {
-    return <PdfFrameWithRef ref={viewerRef} fileUrl={doc.file_url} pageHint={pageHint} />
+    return <PdfFrameWithRef ref={viewerRef} fileUrl={doc.file_url} page={page} zoom={zoom} />
   }
 
-  return <TextViewerWithRef ref={viewerRef} pages={doc.pages || []} pageHint={pageHint} />
+  return <TextViewerWithRef ref={viewerRef} pages={doc.pages || []} pageHint={page} />
 }

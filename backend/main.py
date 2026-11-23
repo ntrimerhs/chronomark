@@ -2851,6 +2851,13 @@ async def ask(req: Question):
 DOCS_DIR = BASE_DIR / "documents"
 DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Conversation history, per document. One JSON file per document holding every
+# chat and its messages, so reopening a document shows the conversations the
+# student actually had instead of a blank panel. Same shape as the other stores:
+# a dict at the top, replaced atomically, guarded by a lock.
+CHATS_DIR = BASE_DIR / "chats"
+CHATS_DIR.mkdir(parents=True, exist_ok=True)
+
 MAX_DOCUMENT_BYTES = 40 * 1024 * 1024
 
 _DOCUMENT_CONTENT_TYPES = {
@@ -2864,6 +2871,9 @@ class DocumentQuestion(BaseModel):
     question: str
     doc_id: str
     history: list[dict] | None = None
+    # When set, the turn is stored in that conversation so the sidebar can list
+    # and reopen it later.
+    chat_id: str | None = None
 
 
 class DocumentStudyRequest(BaseModel):
@@ -2982,6 +2992,108 @@ def _save_document(document: dict) -> None:
     with open(tmp, "w", encoding="utf-8") as handle:
         json.dump(document, handle, ensure_ascii=False)
     tmp.replace(path)
+
+
+# --- conversations -----------------------------------------------------------
+
+_CHAT_LOCK = threading.Lock()
+
+
+class ChatCreate(BaseModel):
+    title: str | None = None
+
+
+def _chats_path(doc_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", str(doc_id or ""))
+    if not safe:
+        raise HTTPException(status_code=400, detail="invalid doc_id")
+    return CHATS_DIR / f"{safe}.json"
+
+
+def _load_chats(doc_id: str) -> dict:
+    path = _chats_path(doc_id)
+    if not path.exists():
+        return {"chats": []}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        return {"chats": []}
+    if not isinstance(data, dict) or not isinstance(data.get("chats"), list):
+        return {"chats": []}
+    return data
+
+
+def _save_chats(doc_id: str, data: dict) -> None:
+    path = _chats_path(doc_id)
+    tmp = path.with_suffix(".json.tmp")
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, ensure_ascii=False)
+    tmp.replace(path)
+
+
+def _find_chat(data: dict, chat_id: str):
+    for chat in data.get("chats") or []:
+        if chat.get("id") == chat_id:
+            return chat
+    return None
+
+
+def _ensure_chat(doc_id: str, chat_id: str | None, question: str = "") -> dict:
+    """Return the conversation, creating it on first use.
+
+    The title comes from the first question, which is how every chat list in
+    this class of product names a conversation, and it is truncated so the
+    sidebar cannot break.
+    """
+    with _CHAT_LOCK:
+        data = _load_chats(doc_id)
+        chat = _find_chat(data, chat_id) if chat_id else None
+        if chat is not None:
+            return chat
+
+        identifier = chat_id or f"chat_{uuid.uuid4().hex[:10]}"
+        title = (question or "New chat").strip()
+        title = (title[:60] + "…") if len(title) > 60 else (title or "New chat")
+        chat = {
+            "id": identifier,
+            "title": title,
+            "created_at": time.time(),
+            "updated_at": time.time(),
+            "messages": [],
+        }
+        data.setdefault("chats", []).insert(0, chat)
+        _save_chats(doc_id, data)
+        return chat
+
+
+def _append_turn(doc_id: str, chat_id: str | None, question: str, answer: str, pages: list) -> None:
+    if not chat_id:
+        return
+    with _CHAT_LOCK:
+        data = _load_chats(doc_id)
+        chat = _find_chat(data, chat_id)
+        if chat is None:
+            return
+        messages = chat.setdefault("messages", [])
+        # The first question names the conversation, the way a chat app titles a
+        # thread, instead of leaving every entry as "New chat".
+        if not messages and (chat.get("title") or "New chat") in ("New chat", ""):
+            title = (question or "New chat").strip()
+            chat["title"] = (title[:60] + "…") if len(title) > 60 else (title or "New chat")
+        messages.append({"role": "user", "content": question, "at": time.time()})
+        messages.append(
+            {
+                "role": "assistant",
+                "content": answer,
+                "pages": pages,
+                "at": time.time(),
+            }
+        )
+        chat["updated_at"] = time.time()
+        # Keep the list ordered like a chat app: most recent conversation first.
+        data["chats"].sort(key=lambda item: item.get("updated_at") or 0, reverse=True)
+        _save_chats(doc_id, data)
 
 
 def _ocr_page_bytes(data: bytes, mime: str) -> str:
@@ -3434,6 +3546,70 @@ def _document_context_chunks(doc_id: str) -> list:
     return ordered
 
 
+@app.get("/api/document/{doc_id}/chats")
+async def api_document_chats(doc_id: str):
+    """The conversations held about this document, newest first."""
+    _load_document(doc_id)
+    data = _load_chats(doc_id)
+    chats = sorted(
+        data.get("chats") or [], key=lambda item: item.get("updated_at") or 0, reverse=True
+    )
+    return {
+        "chats": [
+            {
+                "id": chat.get("id"),
+                "title": chat.get("title") or "New chat",
+                "updated_at": chat.get("updated_at"),
+                "message_count": len(chat.get("messages") or []),
+            }
+            for chat in chats
+        ]
+    }
+
+
+@app.post("/api/document/{doc_id}/chats")
+async def api_document_chat_create(doc_id: str, req: ChatCreate | None = None):
+    """Start a conversation. The title becomes the first question's text."""
+    _load_document(doc_id)
+    with _CHAT_LOCK:
+        data = _load_chats(doc_id)
+        chat = {
+            "id": f"chat_{uuid.uuid4().hex[:10]}",
+            "title": ((req.title if req else None) or "New chat").strip() or "New chat",
+            "created_at": time.time(),
+            "updated_at": time.time(),
+            "messages": [],
+        }
+        data.setdefault("chats", []).insert(0, chat)
+        _save_chats(doc_id, data)
+    return {"id": chat["id"], "title": chat["title"], "messages": []}
+
+
+@app.get("/api/document/{doc_id}/chats/{chat_id}")
+async def api_document_chat(doc_id: str, chat_id: str):
+    _load_document(doc_id)
+    data = _load_chats(doc_id)
+    chat = _find_chat(data, chat_id)
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {
+        "id": chat.get("id"),
+        "title": chat.get("title") or "New chat",
+        "messages": chat.get("messages") or [],
+    }
+
+
+@app.delete("/api/document/{doc_id}/chats/{chat_id}")
+async def api_document_chat_delete(doc_id: str, chat_id: str):
+    _load_document(doc_id)
+    with _CHAT_LOCK:
+        data = _load_chats(doc_id)
+        before = len(data.get("chats") or [])
+        data["chats"] = [chat for chat in (data.get("chats") or []) if chat.get("id") != chat_id]
+        _save_chats(doc_id, data)
+    return {"deleted": chat_id, "removed": before - len(data["chats"])}
+
+
 @app.post("/api/document/ask")
 async def api_document_ask(req: DocumentQuestion):
     """Ask about a document: retrieve pages, answer, cite `p. N`."""
@@ -3598,9 +3774,16 @@ async def api_document_ask(req: DocumentQuestion):
             }
         )
 
+    # Persist the turn so the conversation reappears when the student comes back.
+    try:
+        _append_turn(req.doc_id, req.chat_id, question, answer, page_rows)
+    except Exception as chat_error:
+        print(f"[Chats] could not store turn: {chat_error}")
+
     return {
         "source": "document",
         "doc_id": req.doc_id,
+        "chat_id": req.chat_id,
         "answer": answer,
         # True when the model ran out of output budget:
         # the chat asks for the rest in a new message instead of showing a cut.

@@ -40,3 +40,4 @@ demo-sorting.pdf
 demo-*.pdf
 .tmp/
 backend/documents/
+backend/chats/

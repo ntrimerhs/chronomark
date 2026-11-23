@@ -33,6 +33,8 @@ services:
       # Extracted page texts for uploaded documents (metadata only; the files
       # themselves live in R2 under documents/).
       - ./backend/documents:/app/documents
+      # Conversation history per document, so chats survive a rebuild.
+      - ./backend/chats:/app/chats
       # Hugging Face model cache (MiniLM, CLIP): downloaded once, reused across
       # rebuilds. ~2 GB -- on a 4 GB VPS keep an eye on disk.
       - ./cookies.txt:/app/cookies.txt
