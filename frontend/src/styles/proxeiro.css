@@ -766,3 +766,13 @@
   object-fit: contain;
   background: #000;
 }
+
+/* An idle uploader shows the dropzone and the import button; the meter appears
+   the moment a file or a YouTube link starts processing. */
+.upload-progress-block {
+  display: none;
+}
+
+.upload-progress-block.is-active {
+  display: block;
+}

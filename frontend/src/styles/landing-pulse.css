@@ -1039,3 +1039,9 @@ html {
     animation: none;
   }
 }
+
+/* Landing on a section must not hide its heading under the floating bar. */
+.lv-hero,
+.lv-section {
+  scroll-margin-top: 104px;
+}

@@ -7,6 +7,7 @@ import axios from 'axios';  ///do in terminal npm install axios
 import { API_BASE_URL } from '../config';
 import {
     CloudUpload,
+    Plus,
     MessageCircle,
     ChevronRight,
     LoaderCircle,
@@ -552,7 +553,7 @@ const Proxeiro = () => {
     }
 
     return(
-        <section className="upload-shell">
+        <section className={`upload-shell${uploadedFileURL ? ' upload-shell-loaded' : ''}`}>
             {!uploadedFileURL && (
                 <div className="upload-hero">
                                         <h1>
@@ -587,6 +588,59 @@ const Proxeiro = () => {
                             </div>
                 </div>
             )}
+
+        {uploadedFileURL ? (
+          <aside className="video-sidebar">
+            <a className="video-sidebar-brand" href="/" title="ChronoMark — home">
+              CHRONOMARK
+            </a>
+
+            <button
+              type="button"
+              className="video-sidebar-action is-new"
+              onClick={() => {
+                setUploadedFileURL(null);
+                setCurrentVideoId(null);
+                setCurrentFileKey(null);
+                setFile(null);
+                setProcessingStage('idle');
+                setBackendProgress(0);
+                setUploadProgress(0);
+                setCurrentTime(0);
+                setDuration(0);
+                setIsPlaying(false);
+              }}
+              title="Start over with another video"
+            >
+              <Plus size={16} />
+              New video
+            </button>
+
+            <button type="button" className="video-sidebar-action" onClick={handleReplaceClick}>
+              <RefreshCw size={15} />
+              Replace file
+            </button>
+
+            <button
+              type="button"
+              className="video-sidebar-action"
+              onClick={() => {
+                setShowYoutubeInput((previous) => !previous);
+                setYoutubeUrl('');
+              }}
+              disabled={isUploading}
+            >
+              <YtIcon />
+              From YouTube
+            </button>
+
+            <div className="video-sidebar-bottom">
+              <span className="video-sidebar-label">Current video</span>
+              <strong title={file?.name || 'Loaded video'}>{file?.name || 'Loaded video'}</strong>
+              <small>{formatTime(duration)} · transcribed</small>
+            </div>
+          </aside>
+        ) : null}
 
             <div className={`upload-grid${uploadedFileURL ? ' upload-grid-loaded' : ''}`}>
                 <div className="upload-center-card">

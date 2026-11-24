@@ -113,7 +113,7 @@ export default function PulseLanding() {
 
       <main className="lv-main" id="platform">
         <div className="lv-shell">
-          <section className="lv-hero">
+          <section className="lv-hero" id="platform">
             <div className="lv-wordmark-wrap">
               <span className="lv-wordmark">CHRONOMARK</span>
             </div>
