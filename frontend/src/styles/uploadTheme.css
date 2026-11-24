@@ -1199,13 +1199,15 @@
    their widths, paddings and gaps are the same numbers -- not a copy that can
    drift. This only makes the borrowed variables available outside .docs-app. */
 .upload-chat-shell-inline.docs-app {
-  --panel: #101823;
-  --ink: #f5f5f8;
-  --muted: rgba(245, 245, 248, 0.55);
-  --surface: #101823;
-  --hairline: rgba(245, 245, 248, 0.12);
-  --pink: #f42fa7;
-  --pink-soft: rgba(244, 47, 167, 0.12);
+  /* the project palette, not the documents' pink: citations, send button and
+     accents in the video chat are violet */
+  --panel: #141420;
+  --ink: #f3f4f8;
+  --muted: #a7acba;
+  --surface: #141420;
+  --hairline: #2a2c3b;
+  --pink: #a8a2ff;
+  --pink-soft: rgba(168, 162, 255, 0.14);
   display: flex;
   height: 100%;
   min-height: 0;
@@ -1234,6 +1236,23 @@
   flex: none !important;
   background: none !important;
   overflow: visible !important;
+}
+
+.video-sidebar-host .sidebar {
+  height: 100%;
+  min-height: 0;
+}
+
+/* The sidebar belongs beside the player, full height, and collapses to its rail. */
+.upload-shell.upload-shell-loaded {
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.video-sidebar-host {
+  flex: 0 0 auto;
+  height: 100%;
+  min-height: 0;
 }
 
 .video-sidebar-host .sidebar {

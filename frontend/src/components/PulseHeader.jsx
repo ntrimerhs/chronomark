@@ -14,7 +14,6 @@ import './../styles/pulseHeader.css'
 const NAV = [
   ['Platform', 'platform', true],
   ['Technology', 'technology', false],
-  ['Research', 'research', false],
   ['Pricing', 'pricing', false],
 ]
 

@@ -29,7 +29,6 @@ const PART_2 = 'One exact moment.'
 const NAV = [
   ['Platform', 'platform', true],
   ['Technology', 'technology', false],
-  ['Research', 'research', false],
   ['Pricing', 'pricing', false],
 ]
 

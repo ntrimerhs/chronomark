@@ -7,6 +7,7 @@ import axios from 'axios';  ///do in terminal npm install axios
 import { API_BASE_URL } from '../config';
 import {
     CloudUpload,
+    PanelLeft,
     Plus,
     MessageCircle,
     ChevronRight,
@@ -78,6 +79,7 @@ const Proxeiro = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [processingStage, setProcessingStage] = useState('idle');
     const [showYoutubeInput, setShowYoutubeInput] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
@@ -673,11 +675,20 @@ const Proxeiro = () => {
 
         {uploadedFileURL ? (
           <div className="docs-app dark video-sidebar-host">
-            <aside className="sidebar">
+            <aside className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
               <div className="sidebar-top">
                 <a href="/" className="sidebar-brand" title="ChronoMark — home">
                   <span className="sidebar-copy sidebar-brand-name">ChronoMark</span>
                 </a>
+                <button
+                  type="button"
+                  className="sidebar-icon"
+                  onClick={() => setSidebarCollapsed((value) => !value)}
+                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                  <PanelLeft size={18} />
+                </button>
               </div>
 
               <div className="sidebar-main-actions">
