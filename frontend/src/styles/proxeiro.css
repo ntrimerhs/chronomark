@@ -1,21 +1,21 @@
 
 .upload-shell {
-  --upload-bg: #090814;
-  --upload-panel: rgba(20, 17, 38, 0.76);
-  --upload-panel-strong: rgba(26, 19, 51, 0.92);
-  --upload-border: rgba(113, 84, 182, 0.34);
-  --upload-border-strong: rgba(255, 82, 165, 0.32);
-  --upload-text: #f6f2ff;
-  --upload-muted: #b0a9c8;
-  --upload-pink: #ff4fa4;
-  --upload-violet: #7c4dff;
+  --upload-bg: #0B0B12;
+  --upload-panel: rgba(20, 20, 32, 0.76);
+  --upload-panel-strong: rgba(20, 20, 32, 0.92);
+  --upload-border: rgba(111, 99, 217, 0.34);
+  --upload-border-strong: rgba(168, 162, 255, 0.32);
+  --upload-text: #D8D6FF;
+  --upload-muted: #A8A2FF;
+  --upload-pink: #A8A2FF;
+  --upload-violet: #A8A2FF;
   min-height: calc(100vh - 140px);
   padding: 44px 32px 56px;
   color: var(--upload-text);
   background:
-    radial-gradient(circle at top left, rgba(124, 77, 255, 0.22), transparent 30%),
-    radial-gradient(circle at top right, rgba(255, 79, 164, 0.18), transparent 28%),
-    linear-gradient(180deg, #0b0a18 0%, #08070f 100%);
+    radial-gradient(circle at top left, rgba(168, 162, 255, 0.22), transparent 30%),
+    radial-gradient(circle at top right, rgba(168, 162, 255, 0.18), transparent 28%),
+    linear-gradient(180deg, #0B0B12 0%, #0B0B12 100%);
 }
 
 .upload-hero {
@@ -26,7 +26,7 @@
 
 .upload-eyebrow {
   margin: 0 0 10px;
-  color: #ff9ecb;
+  color: #D8D6FF;
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 0.72rem;
@@ -71,8 +71,8 @@
   -webkit-backdrop-filter: blur(22px) saturate(150%);
   backdrop-filter: blur(22px) saturate(150%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 28px 60px rgba(0, 0, 0, 0.28);
+    inset 0 1px 0 rgba(243, 244, 248, 0.07),
+    0 28px 60px rgba(11, 11, 18, 0.28);
 }
 
 .upload-center-card {
@@ -101,8 +101,8 @@
 }
 
 .upload-dropzone-button {
-  border: 2px dashed rgba(126, 96, 202, 0.72);
-  background: linear-gradient(180deg, rgba(22, 17, 44, 0.78), rgba(15, 12, 30, 0.92));
+  border: 2px dashed rgba(168, 162, 255, 0.72);
+  background: linear-gradient(180deg, rgba(20, 20, 32, 0.78), rgba(11, 11, 18, 0.92));
   border-radius: 32px;
   min-height: 310px;
   width: 100%;
@@ -118,9 +118,9 @@
 }
 
 .upload-dropzone-button:hover {
-  border-color: rgba(255, 92, 178, 0.9);
+  border-color: rgba(168, 162, 255, 0.9);
   transform: translateY(-2px);
-  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 22px 44px rgba(11, 11, 18, 0.28);
 }
 
 .upload-dropzone-icon {
@@ -130,8 +130,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(50, 38, 89, 0.7);
-  color: #e8e1ff;
+  background: rgba(111, 99, 217, 0.7);
+  color: #D8D6FF;
 }
 
 .upload-dropzone-title {
@@ -159,7 +159,7 @@
 .upload-file-label {
   display: block;
   margin-bottom: 6px;
-  color: #ff9ecb;
+  color: #D8D6FF;
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -167,7 +167,7 @@
 
 .upload-file-meta strong {
   display: block;
-  color: #f8f5ff;
+  color: #D8D6FF;
   font-size: 0.98rem;
   white-space: nowrap;
   overflow: hidden;
@@ -188,8 +188,8 @@
   gap: 10px;
   border-radius: 999px;
   padding: 14px 20px;
-  background: linear-gradient(135deg, #ff3d96, #ff6f91);
-  color: #fff;
+  background: linear-gradient(135deg, #A8A2FF, #A8A2FF);
+  color: #F3F4F8;
   font-weight: 600;
 }
 
@@ -227,20 +227,20 @@
 }
 
 .upload-progress-block progress::-webkit-progress-bar {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(243, 244, 248, 0.08);
 }
 
 .upload-progress-block progress::-webkit-progress-value {
-  background: linear-gradient(90deg, #7c4dff, #ff4fa4);
+  background: linear-gradient(90deg, #A8A2FF, #A8A2FF);
 }
 
 .upload-progress-block progress::-moz-progress-bar {
-  background: linear-gradient(90deg, #7c4dff, #ff4fa4);
+  background: linear-gradient(90deg, #A8A2FF, #A8A2FF);
 }
 
 .upload-error {
   margin: 0;
-  color: #ff9db5;
+  color: #D8D6FF;
 }
 
 /* ── YouTube import ──────────────────────────────── */
@@ -250,10 +250,10 @@
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  border: 1.5px solid rgba(255, 79, 164, 0.45);
+  border: 1.5px solid rgba(168, 162, 255, 0.45);
   border-radius: 999px;
-  background: rgba(255, 79, 164, 0.08);
-  color: #ff9ecb;
+  background: rgba(168, 162, 255, 0.08);
+  color: #D8D6FF;
   font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
@@ -261,8 +261,8 @@
 }
 
 .yt-open-btn:hover:not(:disabled) {
-  background: rgba(255, 79, 164, 0.18);
-  border-color: rgba(255, 79, 164, 0.8);
+  background: rgba(168, 162, 255, 0.18);
+  border-color: rgba(168, 162, 255, 0.8);
   transform: translateY(-1px);
 }
 
@@ -276,13 +276,13 @@
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border: 1.5px solid rgba(255, 79, 164, 0.45);
+  border: 1.5px solid rgba(168, 162, 255, 0.45);
   border-radius: 999px;
-  background: rgba(15, 12, 30, 0.9);
+  background: rgba(11, 11, 18, 0.9);
 }
 
 .yt-inline-icon {
-  color: #ff4e4e;
+  color: #A8A2FF;
   flex-shrink: 0;
 }
 
@@ -291,13 +291,13 @@
   min-width: 0;
   border: none;
   background: transparent;
-  color: #f6f2ff;
+  color: #D8D6FF;
   font-size: 0.93rem;
   outline: none;
 }
 
 .yt-inline-input::placeholder {
-  color: rgba(176, 169, 200, 0.6);
+  color: rgba(168, 162, 255, 0.6);
 }
 
 .yt-inline-submit,
@@ -315,8 +315,8 @@
 }
 
 .yt-inline-submit {
-  background: linear-gradient(135deg, #ff3d96, #ff6f91);
-  color: #fff;
+  background: linear-gradient(135deg, #A8A2FF, #A8A2FF);
+  color: #F3F4F8;
 }
 
 .yt-inline-submit:hover:not(:disabled) {
@@ -329,12 +329,12 @@
 }
 
 .yt-inline-close {
-  background: rgba(255, 255, 255, 0.08);
-  color: #b0a9c8;
+  background: rgba(243, 244, 248, 0.08);
+  color: #A8A2FF;
 }
 
 .yt-inline-close:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(243, 244, 248, 0.14);
   transform: scale(1.08);
 }
 
@@ -367,7 +367,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #8ce1b0;
+  color: #A8A2FF;
   font-size: 0.92rem;
 }
 
@@ -377,8 +377,8 @@
   gap: 8px;
   padding: 10px 16px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: rgba(243, 244, 248, 0.08);
+  color: #F3F4F8;
   font-size: 0.85rem;
 }
 
@@ -389,7 +389,7 @@
   display: flex;
   overflow: hidden;
   border-radius: 24px;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(11, 11, 18, 0.45);
 }
 
 .video-container > *,
@@ -408,8 +408,8 @@
   border-radius: 24px;
   overflow: hidden;
   cursor: pointer;
-  background: #0d0b1e;
-  border: 1px solid rgba(124, 58, 237, 0.2);
+  background: #0B0B12;
+  border: 1px solid rgba(168, 162, 255, 0.2);
 }
 
 .video-stage .video-container {
@@ -447,9 +447,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: rgba(255, 59, 154, 0.85);
-  box-shadow: 0 0 40px rgba(255, 59, 154, 0.5);
+  color: #F3F4F8;
+  background: rgba(168, 162, 255, 0.85);
+  box-shadow: 0 0 40px rgba(168, 162, 255, 0.5);
   backdrop-filter: blur(6px);
 }
 
@@ -460,7 +460,7 @@
   bottom: 0;
   padding: 16px;
   cursor: default;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 100%);
+  background: linear-gradient(to top, rgba(11, 11, 18, 0.85) 0%, transparent 100%);
 }
 
 .video-seek-track {
@@ -469,7 +469,7 @@
   border-radius: 999px;
   margin-bottom: 12px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(243, 244, 248, 0.2);
   touch-action: none;
 }
 
@@ -477,7 +477,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, #7c3aed, #ff3b9a);
+  background: linear-gradient(90deg, #A8A2FF, #A8A2FF);
 }
 
 .video-seek-handle {
@@ -486,8 +486,8 @@
   width: 12px;
   height: 12px;
   border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  background: #F3F4F8;
+  box-shadow: 0 2px 6px rgba(11, 11, 18, 0.4);
   transform: translate(-50%, -50%);
 }
 
@@ -495,7 +495,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #fff;
+  color: #F3F4F8;
 }
 
 .video-controls-left {
@@ -507,7 +507,7 @@
 .video-controls-row button {
   border: none;
   background: transparent;
-  color: #fff;
+  color: #F3F4F8;
   padding: 0;
   cursor: pointer;
   display: flex;
@@ -516,12 +516,12 @@
 }
 
 .video-controls-row button:hover {
-  color: #ff3b9a;
+  color: #A8A2FF;
 }
 
 .video-time {
   font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(243, 244, 248, 0.85);
   font-variant-numeric: tabular-nums;
 }
 
@@ -532,7 +532,7 @@
   appearance: none;
   -webkit-appearance: none;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(243, 244, 248, 0.2);
 }
 
 .video-volume-slider::-webkit-slider-thumb {
@@ -541,8 +541,8 @@
   width: 12px;
   height: 12px;
   border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  background: #F3F4F8;
+  box-shadow: 0 2px 6px rgba(11, 11, 18, 0.4);
 }
 
 .video-volume-slider::-moz-range-thumb {
@@ -550,14 +550,14 @@
   height: 12px;
   border: none;
   border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  background: #F3F4F8;
+  box-shadow: 0 2px 6px rgba(11, 11, 18, 0.4);
 }
 
 .video-volume-slider::-moz-range-track {
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(243, 244, 248, 0.2);
 }
 
 .upload-lower-panel {
@@ -586,9 +586,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border-color: rgba(93, 109, 150, 0.44);
-  background: linear-gradient(180deg, rgba(24, 27, 39, 0.96), rgba(16, 19, 28, 0.98));
-  box-shadow: 0 16px 34px rgba(10, 12, 18, 0.32);
+  border-color: rgba(111, 99, 217, 0.44);
+  background: linear-gradient(180deg, rgba(20, 20, 32, 0.96), rgba(11, 11, 18, 0.98));
+  box-shadow: 0 16px 34px rgba(11, 11, 18, 0.32);
 }
 
 .upload-chat-placeholder {
@@ -605,12 +605,12 @@
   border: none;
   outline: none;
   background: transparent;
-  color: #fff;
+  color: #F3F4F8;
   font-size: 0.95rem;
 }
 
 .upload-chat-placeholder input::placeholder {
-  color: rgba(255, 255, 255, 0.64);
+  color: rgba(243, 244, 248, 0.64);
 }
 
 .upload-chat-placeholder button {
@@ -620,8 +620,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: rgba(243, 244, 248, 0.12);
+  color: #F3F4F8;
 }
 
 .spin {

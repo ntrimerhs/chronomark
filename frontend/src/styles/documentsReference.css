@@ -6,16 +6,16 @@
 /* Brand tokens, from the implementation brief. Scoped to the workspace. */
 .docs-app {
   color-scheme: dark;
-  --plate: #0A121C;
-  --panel: #101823;
-  --ink: #F5F5F8;
-  --muted: rgba(245, 245, 248, 0.55);
-  --hairline: rgba(245, 245, 248, 0.12);
-  --pink: #F42FA7;
-  --pink-soft: rgba(244, 47, 167, 0.12);
-  --violet: #A855F7;
-  --success: #3CDCA0;
-  --danger: #FF9DBB;
+  --plate: #0B0B12;
+  --panel: #0B0B12;
+  --ink: #F3F4F8;
+  --muted: rgba(243, 244, 248, 0.55);
+  --hairline: rgba(243, 244, 248, 0.12);
+  --pink: #A8A2FF;
+  --pink-soft: rgba(168, 162, 255, 0.12);
+  --violet: #A8A2FF;
+  --success: #6F63D9;
+  --danger: #D8D6FF;
   --bg: var(--plate);
   --surface: var(--panel);
   --surface2: var(--panel);
@@ -25,88 +25,88 @@
   --accent-ink: var(--pink);
   --tint: var(--pink-soft);
   --shadow: none;
-  --reader: #080f19;
+  --reader: #0B0B12;
   /* the global ChronoMark header sits above the workspace */
   height: calc(100vh - 76px);
   min-height: 560px;
 }
 
 .docs-app ÃƒÂ¯Ã‚Â»Ã‚Â¿
-    :root {color-scheme:light;--bg:#f6f7fa;--surface:#fff;--surface2:#fafbfe;--line:#e6e9f0;--text:#171b29;--muted:#7b8293;--accent:#6554d9;--accent-ink:#4e3ccc;--tint:#f0edff;--shadow:0 10px 32px rgba(24,33,61,.035);--reader:#eef0f5}
+    :root {color-scheme:light;--bg:#F3F4F8;--surface:#F3F4F8;--surface2:#D8D6FF;--line:#F3F4F8;--text:#141420;--muted:#A7ACBA;--accent:#A8A2FF;--accent-ink:#6F63D9;--tint:#D8D6FF;--shadow:0 10px 32px rgba(27, 27, 43, .035);--reader:#F3F4F8}
 .docs-app * {box-sizing:border-box}
 .docs-app button, .docs-app input, .docs-app textarea {font:inherit}
 .docs-app button {cursor:pointer}
-.docs-app button:focus-visible, .docs-app textarea:focus-visible {outline:3px solid #a99bf5;outline-offset:2px}
+.docs-app button:focus-visible, .docs-app textarea:focus-visible {outline:3px solid #A8A2FF;outline-offset:2px}
 .docs-app svg {display:block}
 .docs-app button {border:0;background:none;color:inherit}
 .docs-app {height:100vh;min-height:570px;display:flex;flex-direction:column;overflow:hidden}
-.docs-app .topbar {height:65px;flex:none;display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--line);padding:0 25px;gap:15px}
+.docs-app .topbar {height:65px;flex:none;display:flex;align-items:center;justify-content:space-between;background:#F3F4F8;border-bottom:1px solid var(--line);padding:0 25px;gap:15px}
 .docs-app .brand-wrap, .docs-app .head-actions, .docs-app .brand, .docs-app .nav, .docs-app .file-intro, .docs-app .doc-badge, .docs-app .panel-head, .docs-app .toolset, .docs-app .chat-heading, .docs-app .chat-info, .docs-app .chat-actions, .docs-app .intro-icon, .docs-app .msg-head, .docs-app .composer-top, .docs-app .composer-bottom, .docs-app .chip-row, .docs-app .fileline {display:flex;align-items:center}
 .docs-app .brand-wrap {gap:44px}
 .docs-app .brand {gap:10px;font-size:14px;letter-spacing:.135em;font-weight:820;white-space:nowrap}
-.docs-app .mark {width:28px;height:28px;border-radius:9px;background:#ebe8ff;color:var(--accent);display:grid;place-items:center}
+.docs-app .mark {width:28px;height:28px;border-radius:9px;background:#D8D6FF;color:var(--accent);display:grid;place-items:center}
 .docs-app .nav {gap:7px}
-.docs-app .nav button {padding:9px 14px;font-size:13px;color:#777f90;font-weight:590;border-radius:9px}
-.docs-app .nav .active {background:#f1effc;color:#5141bd}
+.docs-app .nav button {padding:9px 14px;font-size:13px;color:#A7ACBA;font-weight:590;border-radius:9px}
+.docs-app .nav .active {background:#D8D6FF;color:#6F63D9}
 .docs-app .head-actions {gap:13px}
-.docs-app .top-aux {color:#70778a;padding:8px;font-size:12px;font-weight:600}
-.docs-app .avatar {height:32px;width:32px;border-radius:50%;background:#e7e0d5;color:#65584e;font-weight:700;display:grid;place-items:center;font-size:11px}
+.docs-app .top-aux {color:#A7ACBA;padding:8px;font-size:12px;font-weight:600}
+.docs-app .avatar {height:32px;width:32px;border-radius:50%;background:#F3F4F8;color:#2A2C3B;font-weight:700;display:grid;place-items:center;font-size:11px}
 .docs-app .app-body {padding:17px 22px 21px;display:flex;flex:1;min-height:0;flex-direction:column;gap:15px}
 .docs-app .workspace-info {display:flex;align-items:center;justify-content:space-between;gap:14px;flex:none;min-height:55px}
 .docs-app .file-intro {gap:14px;min-width:0}
-.docs-app .file-icon {width:42px;height:44px;border:1px solid #e5dcfb;background:#f2eeff;color:#6554d9;display:grid;place-items:center;border-radius:12px;flex:none}
+.docs-app .file-icon {width:42px;height:44px;border:1px solid #D8D6FF;background:#D8D6FF;color:#A8A2FF;display:grid;place-items:center;border-radius:12px;flex:none}
 .docs-app .doc-meta {min-width:0}
-.docs-app .eyebrow {font-size:10px;letter-spacing:.13em;color:#9198a8;font-weight:800;text-transform:uppercase}
+.docs-app .eyebrow {font-size:10px;letter-spacing:.13em;color:#A7ACBA;font-weight:800;text-transform:uppercase}
 .docs-app .doc-meta h1 {font-size:17px;font-weight:720;letter-spacing:-.025em;margin:5px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.docs-app .fileline {gap:9px;font-size:11px;color:#8992a2}
-.docs-app .sep-dot {height:3px;width:3px;border-radius:100%;background:#9da3b2}
+.docs-app .fileline {gap:9px;font-size:11px;color:#A7ACBA}
+.docs-app .sep-dot {height:3px;width:3px;border-radius:100%;background:#A7ACBA}
 .docs-app .saved {display:flex;align-items:center;gap:6px}
-.docs-app .saved i {height:6px;width:6px;background:#28ac75;border-radius:50%}
+.docs-app .saved i {height:6px;width:6px;background:#6F63D9;border-radius:50%}
 .docs-app .doc-badge {gap:9px}
-.docs-app .outline-btn {border:1px solid #e4e6ed;background:white;color:#444d62;border-radius:10px;padding:10px 13px;display:inline-flex;gap:8px;align-items:center;font-size:12px;font-weight:640}
-.docs-app .primary-btn {background:var(--accent);color:white;border-radius:10px;padding:11px 15px;display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:670;box-shadow:0 5px 10px #6554d922}
+.docs-app .outline-btn {border:1px solid #F3F4F8;background:#F3F4F8;color:#6F63D9;border-radius:10px;padding:10px 13px;display:inline-flex;gap:8px;align-items:center;font-size:12px;font-weight:640}
+.docs-app .primary-btn {background:var(--accent);color:#F3F4F8;border-radius:10px;padding:11px 15px;display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:670;box-shadow:0 5px 10px #A8A2FF}
 .docs-app .workspace {display:flex;flex:1;min-height:0;gap:0;width:100%;--left:57.7%}
 .docs-app .panel {background:var(--surface);min-width:0;min-height:0;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
 .docs-app .document-panel {width:var(--left);flex:none}
 .docs-app .chat-panel {flex:1}
 .docs-app .resize {width:16px;flex:none;cursor:col-resize;position:relative;display:flex;justify-content:center;align-items:center;touch-action:none}
-.docs-app .resize:before {content:"";height:50px;width:4px;border-radius:10px;background:#d9dce5;transition:background .2s}
-.docs-app .resize:hover:before, .docs-app .resize.drag:before {background:#7868e6}
+.docs-app .resize:before {content:"";height:50px;width:4px;border-radius:10px;background:#F3F4F8;transition:background .2s}
+.docs-app .resize:hover:before, .docs-app .resize.drag:before {background:#A8A2FF}
 .docs-app .panel-head {height:59px;padding:0 17px;flex:none;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line)}
 .docs-app .head-label {font-size:12px;font-weight:740;letter-spacing:.01em;white-space:nowrap}
 .docs-app .toolset {gap:7px}
-.docs-app .icon-btn {display:inline-grid;place-items:center;border-radius:9px;height:31px;min-width:31px;padding:0 5px;color:#7b8497;flex:none}
+.docs-app .icon-btn {display:inline-grid;place-items:center;border-radius:9px;height:31px;min-width:31px;padding:0 5px;color:#A7ACBA;flex:none}
 .docs-app .icon-btn:hover, .docs-app .icon-btn.on {background:var(--tint);color:var(--accent)}
-.docs-app .divider {width:1px;height:21px;background:#e7e9f0;margin:0 4px}
-.docs-app .pagecount {font-size:11px;color:#4b5468;font-weight:710;white-space:nowrap;display:flex;align-items:center;gap:4px}
-.docs-app .pagefield {width:34px;height:26px;outline:none!important;text-align:center;border:1px solid #e1e4ec;background:#fff;border-radius:6px;font-size:11px;font-weight:700;color:#292d3f}
-.docs-app .pagecount em {font-style:normal;color:#999eab;font-weight:500}
-.docs-app .zoom {font-size:11px;white-space:nowrap;color:#626b7d;font-weight:650;width:36px;text-align:center}
+.docs-app .divider {width:1px;height:21px;background:#F3F4F8;margin:0 4px}
+.docs-app .pagecount {font-size:11px;color:#2A2C3B;font-weight:710;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.docs-app .pagefield {width:34px;height:26px;outline:none!important;text-align:center;border:1px solid #F3F4F8;background:#F3F4F8;border-radius:6px;font-size:11px;font-weight:700;color:#1B1B2B}
+.docs-app .pagecount em {font-style:normal;color:#A7ACBA;font-weight:500}
+.docs-app .zoom {font-size:11px;white-space:nowrap;color:#2A2C3B;font-weight:650;width:36px;text-align:center}
 .docs-app .viewer {flex:1;min-height:0;display:flex;background:var(--reader);overflow:hidden}
-.docs-app .thumbs {width:140px;flex:none;background:#f8f9fb;border-right:1px solid var(--line);overflow:auto;padding:15px 15px}
+.docs-app .thumbs {width:140px;flex:none;background:#F3F4F8;border-right:1px solid var(--line);overflow:auto;padding:15px 15px}
 .docs-app .thumbs.hide {display:none}
-.docs-app .thumb {width:100%;display:flex;flex-direction:column;align-items:center;gap:7px;margin-bottom:14px;color:#7b8493;font-size:11px;font-weight:600}
-.docs-app .thumb-paper {width:80px;height:105px;border-radius:3px;border:1px solid #e3e4ea;background:#fff;box-shadow:0 3px 6px #2430470c;padding:12px 9px;display:flex;flex-direction:column;gap:5px}
-.docs-app .tiny-line {height:3px;background:#e5e8f0;border-radius:4px}
+.docs-app .thumb {width:100%;display:flex;flex-direction:column;align-items:center;gap:7px;margin-bottom:14px;color:#A7ACBA;font-size:11px;font-weight:600}
+.docs-app .thumb-paper {width:80px;height:105px;border-radius:3px;border:1px solid #F3F4F8;background:#F3F4F8;box-shadow:0 3px 6px #1B1B2B;padding:12px 9px;display:flex;flex-direction:column;gap:5px}
+.docs-app .tiny-line {height:3px;background:#F3F4F8;border-radius:4px}
 .docs-app .tiny-line.m {width:62%}
 .docs-app .tiny-line.s {width:40%}
-.docs-app .mini-diagram {margin-top:10px;width:100%;height:30px;background:radial-gradient(circle at 18% 30%,#a7a0d9 0 3px,transparent 4px),radial-gradient(circle at 72% 15%,#a7a0d9 0 3px,transparent 4px),radial-gradient(circle at 50% 70%,#a7a0d9 0 3px,transparent 4px),linear-gradient(30deg,transparent 46%,#d8d2f4 47% 49%,transparent 50%)}
-.docs-app .thumb.selected .thumb-paper {border:2px solid var(--accent);box-shadow:0 0 0 3px #6554d916}
+.docs-app .mini-diagram {margin-top:10px;width:100%;height:30px;background:radial-gradient(circle at 18% 30%,#A8A2FF 0 3px,transparent 4px),radial-gradient(circle at 72% 15%,#A8A2FF 0 3px,transparent 4px),radial-gradient(circle at 50% 70%,#A8A2FF 0 3px,transparent 4px),linear-gradient(30deg,transparent 46%,#D8D6FF 47% 49%,transparent 50%)}
+.docs-app .thumb.selected .thumb-paper {border:2px solid var(--accent);box-shadow:0 0 0 3px #A8A2FF}
 .docs-app .thumb.selected {color:var(--accent)}
 .docs-app .page-scroll {flex:1;overflow:auto;padding:24px 20px 50px;display:flex;align-items:flex-start;justify-content:center;scroll-behavior:smooth}
 .docs-app .paper-wrap {width:min(100%,610px);transform-origin:top center;flex:none;transition:transform .15s;position:relative}
-.docs-app .paper {min-height:760px;background:white;box-shadow:0 8px 28px #25314d19;border:1px solid #e5e7ef;padding:49px 58px 44px;font-family:Georgia,"Times New Roman",serif;color:#2d354e}
-.docs-app .paper-top {display:flex;justify-content:space-between;border-bottom:1px solid #d9deec;padding-bottom:10px;margin-bottom:35px;color:#8590a8;font:10px Arial,sans-serif;letter-spacing:.04em}
-.docs-app .paper h2 {font-size:20px;color:#263762;margin:0 0 12px;text-align:center;letter-spacing:-.015em}
-.docs-app .paper .subtitle {text-align:center;font-size:11px;color:#8590a2;font-family:Arial,sans-serif;margin:0 0 36px}
-.docs-app .paper h3 {font-size:15px;color:#304576;margin:29px 0 12px}
+.docs-app .paper {min-height:760px;background:#F3F4F8;box-shadow:0 8px 28px #1B1B2B;border:1px solid #F3F4F8;padding:49px 58px 44px;font-family:Georgia,"Times New Roman",serif;color:#6F63D9}
+.docs-app .paper-top {display:flex;justify-content:space-between;border-bottom:1px solid #F3F4F8;padding-bottom:10px;margin-bottom:35px;color:#A7ACBA;font:10px Arial,sans-serif;letter-spacing:.04em}
+.docs-app .paper h2 {font-size:20px;color:#6F63D9;margin:0 0 12px;text-align:center;letter-spacing:-.015em}
+.docs-app .paper .subtitle {text-align:center;font-size:11px;color:#A7ACBA;font-family:Arial,sans-serif;margin:0 0 36px}
+.docs-app .paper h3 {font-size:15px;color:#6F63D9;margin:29px 0 12px}
 .docs-app .paper p {font-size:13px;line-height:1.85;margin:10px 0}
-.docs-app .definition {background:#f5f7fc;border-left:3px solid #8073db;padding:13px 17px;margin:21px 0;font-size:13px;line-height:1.9}
+.docs-app .definition {background:#D8D6FF;border-left:3px solid #A8A2FF;padding:13px 17px;margin:21px 0;font-size:13px;line-height:1.9}
 .docs-app .graph {max-width:100%;width:385px;height:185px;margin:23px auto 5px}
-.docs-app .figcap {font-size:10px!important;color:#647293;text-align:center;margin:0!important}
+.docs-app .figcap {font-size:10px!important;color:#6F63D9;text-align:center;margin:0!important}
 .docs-app .formula {text-align:center;margin:16px 0 24px!important;font-style:italic;font-size:16px!important}
-.docs-app .paper-bottom {border-top:1px solid #e6e9ef;margin-top:43px;padding-top:12px;display:flex;justify-content:space-between;font-size:10px;color:#8e95a3;font-family:Arial,sans-serif}
-.docs-app .pdf-frame {width:100%;height:100%;border:0;display:none;background:#fff}
+.docs-app .paper-bottom {border-top:1px solid #F3F4F8;margin-top:43px;padding-top:12px;display:flex;justify-content:space-between;font-size:10px;color:#A7ACBA;font-family:Arial,sans-serif}
+.docs-app .pdf-frame {width:100%;height:100%;border:0;display:none;background:#F3F4F8}
 .docs-app .pdf-mode .paper-wrap {display:none}
 .docs-app .pdf-mode .pdf-frame {display:block}
 .docs-app .pdf-mode .page-scroll {padding:0;display:block}
@@ -114,60 +114,60 @@
 .docs-app .chat-heading {gap:9px}
 .docs-app .chat-icon {width:31px;height:31px;background:var(--tint);border-radius:10px;color:var(--accent);display:grid;place-items:center}
 .docs-app .chat-info {flex-direction:column;align-items:flex-start;gap:2px}
-.docs-app .chat-info small {font-size:10px;color:#9298a6;display:flex;align-items:center;gap:6px}
-.docs-app .chat-info small i {height:5px;width:5px;background:#36bd83;border-radius:50%}
+.docs-app .chat-info small {font-size:10px;color:#A7ACBA;display:flex;align-items:center;gap:6px}
+.docs-app .chat-info small i {height:5px;width:5px;background:#6F63D9;border-radius:50%}
 .docs-app .chat-actions {gap:3px}
 .docs-app .chat-scroll {min-height:0;flex:1;overflow:auto;padding:27px 27px 6px;scroll-behavior:smooth}
 .docs-app .ai-welcome {display:flex;gap:11px;margin-bottom:23px;align-items:flex-start}
-.docs-app .welcome-logo {width:32px;height:32px;border:1px solid #e5e1f6;background:#f5f3ff;color:var(--accent);border-radius:10px;display:grid;place-items:center;flex:none}
+.docs-app .welcome-logo {width:32px;height:32px;border:1px solid #D8D6FF;background:#D8D6FF;color:var(--accent);border-radius:10px;display:grid;place-items:center;flex:none}
 .docs-app .ai-welcome h2 {font-size:14px;margin:1px 0 5px;font-weight:730;letter-spacing:-.01em}
-.docs-app .ai-welcome p {margin:0;color:#8991a1;font-size:12px;line-height:1.6}
+.docs-app .ai-welcome p {margin:0;color:#A7ACBA;font-size:12px;line-height:1.6}
 .docs-app .msg {margin-bottom:23px}
 .docs-app .msg.user {display:flex;justify-content:flex-end}
-.docs-app .bubble {max-width:85%;padding:12px 15px;border-radius:15px 15px 4px 15px;background:#f0f1f7;font-size:13px;line-height:1.55;color:#303a4d}
+.docs-app .bubble {max-width:85%;padding:12px 15px;border-radius:15px 15px 4px 15px;background:#F3F4F8;font-size:13px;line-height:1.55;color:#6F63D9}
 .docs-app .msg-head {font-size:12px;font-weight:740;gap:9px;margin:0 0 12px}
-.docs-app .assistant-badge {height:23px;width:23px;border-radius:8px;color:var(--accent);background:#efedff;display:grid;place-items:center}
-.docs-app .answer {font-size:13px;line-height:1.77;color:#455066}
+.docs-app .assistant-badge {height:23px;width:23px;border-radius:8px;color:var(--accent);background:#D8D6FF;display:grid;place-items:center}
+.docs-app .answer {font-size:13px;line-height:1.77;color:#6F63D9}
 .docs-app .answer p {margin:0 0 12px}
-.docs-app .answer strong {color:#212a3a;font-weight:730}
+.docs-app .answer strong {color:#1B1B2B;font-weight:730}
 .docs-app .answer ul {margin:3px 0 12px;padding-left:20px}
 .docs-app .answer li {margin-bottom:6px}
-.docs-app .citation {background:#f2efff;border:1px solid #e5dfff;color:#5d49cf;border-radius:6px;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-family:inherit;font-weight:700;vertical-align:middle;margin:0 2px}
-.docs-app .citation:hover {background:#e4ddff}
+.docs-app .citation {background:#D8D6FF;border:1px solid #D8D6FF;color:#6F63D9;border-radius:6px;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-family:inherit;font-weight:700;vertical-align:middle;margin:0 2px}
+.docs-app .citation:hover {background:#D8D6FF}
 .docs-app .answer-tools {display:flex;gap:3px;margin-top:8px}
 .docs-app .answer-tools .icon-btn {height:29px;min-width:29px}
-.docs-app .composer-wrap {padding:10px 20px 13px;border-top:1px solid #f0f1f5;background:#fff}
+.docs-app .composer-wrap {padding:10px 20px 13px;border-top:1px solid #F3F4F8;background:#F3F4F8}
 .docs-app .suggestions {display:flex;gap:7px;overflow-x:auto;padding:0 0 12px;scrollbar-width:none}
 .docs-app .suggestions::-webkit-scrollbar {display:none}
-.docs-app .prompt-chip {display:flex;align-items:center;white-space:nowrap;gap:6px;font-size:11px;font-weight:670;padding:8px 10px;border-radius:8px;background:#f9f9fc;border:1px solid #e9eaf0;color:#677086}
-.docs-app .prompt-chip:hover {border-color:#c6bcfa;color:var(--accent);background:#f7f5ff}
-.docs-app .composer {border:1px solid #e3e6ee;border-radius:13px;padding:12px 12px 9px;box-shadow:0 4px 18px #191e3a08;background:white}
-.docs-app .composer:focus-within {border-color:#c2b8f5;box-shadow:0 0 0 3px #6554d90d}
+.docs-app .prompt-chip {display:flex;align-items:center;white-space:nowrap;gap:6px;font-size:11px;font-weight:670;padding:8px 10px;border-radius:8px;background:#F3F4F8;border:1px solid #F3F4F8;color:#2A2C3B}
+.docs-app .prompt-chip:hover {border-color:#D8D6FF;color:var(--accent);background:#D8D6FF}
+.docs-app .composer {border:1px solid #F3F4F8;border-radius:13px;padding:12px 12px 9px;box-shadow:0 4px 18px #1B1B2B;background:white}
+.docs-app .composer:focus-within {border-color:#D8D6FF;box-shadow:0 0 0 3px #A8A2FF}
 .docs-app .composer textarea {resize:none;width:100%;height:45px;max-height:120px;border:0;outline:0!important;font-size:13px;line-height:1.5;color:var(--text);background:transparent;display:block}
-.docs-app .composer textarea::placeholder {color:#9ba2af}
+.docs-app .composer textarea::placeholder {color:#A7ACBA}
 .docs-app .composer-bottom {justify-content:space-between;gap:8px}
-.docs-app .composer-hint {font-size:10px;color:#9ca3b0;display:flex;align-items:center;gap:6px}
-.docs-app .send {width:31px;height:31px;border-radius:9px;background:var(--accent);color:white;display:grid;place-items:center}
-.docs-app .send:hover {background:#5240c0}
-.docs-app .disclaimer {font-size:10px;text-align:center;color:#a6adba;margin-top:9px}
+.docs-app .composer-hint {font-size:10px;color:#A7ACBA;display:flex;align-items:center;gap:6px}
+.docs-app .send {width:31px;height:31px;border-radius:9px;background:var(--accent);color:#F3F4F8;display:grid;place-items:center}
+.docs-app .send:hover {background:#6F63D9}
+.docs-app .disclaimer {font-size:10px;text-align:center;color:#A7ACBA;margin-top:9px}
 .docs-app .mobile-tabs {display:none}
-.docs-app .demo-label {font-size:10px;background:#f4f1ff;color:#6e59c9;padding:6px 9px;border-radius:7px;font-weight:740}
-.docs-app .dark {--bg:#111420;--surface:#1a1f2d;--surface2:#1c2331;--line:#30384b;--text:#eef0fa;--muted:#929db4;--accent:#ae9dff;--accent-ink:#cabaff;--tint:#29253e;--reader:#111725;--shadow:none;color-scheme:dark}
-.docs-app .dark .topbar, .docs-app .dark .composer-wrap {background:#1a1f2d}
-.docs-app .dark .nav .active {background:#302948;color:#d6caff}
-.docs-app .dark .nav button, .docs-app .dark .top-aux, .docs-app .dark .chat-info small, .docs-app .dark .fileline, .docs-app .dark .eyebrow {color:#9ba7ba}
-.docs-app .dark .file-icon, .docs-app .dark .chat-icon, .docs-app .dark .welcome-logo, .docs-app .dark .assistant-badge {background:#312b47;border-color:#3c345c}
-.docs-app .dark .outline-btn, .docs-app .dark .pagefield, .docs-app .dark .composer {background:#22283a;border-color:#343d51;color:#e2e5f0}
-.docs-app .dark .thumbs {background:#171c28}
-.docs-app .dark .thumb-paper {background:#f7f7f8}
-.docs-app .dark .bubble, .docs-app .dark .prompt-chip {background:#272f42;color:#e3e8f5;border-color:#303a50}
-.docs-app .dark .answer {color:#b8c3d7}
-.docs-app .dark .answer strong {color:#f0f2f8}
-.docs-app .dark .ai-welcome p {color:#9ba7bc}
-.docs-app .dark .citation {background:#352f51;color:#c3b7ff;border-color:#494060}
-.docs-app .dark .composer textarea {color:#f7f7fc}
-.docs-app .dark .paper {color:#2d354e}
-.docs-app .dark .resize:before {background:#47506a}
+.docs-app .demo-label {font-size:10px;background:#D8D6FF;color:#A8A2FF;padding:6px 9px;border-radius:7px;font-weight:740}
+.docs-app .dark {--bg:#0B0B12;--surface:#141420;--surface2:#141420;--line:#6F63D9;--text:#D8D6FF;--muted:#A8A2FF;--accent:#D8D6FF;--accent-ink:#D8D6FF;--tint:#1B1B2B;--reader:#141420;--shadow:none;color-scheme:dark}
+.docs-app .dark .topbar, .docs-app .dark .composer-wrap {background:#141420}
+.docs-app .dark .nav .active {background:#1B1B2B;color:#D8D6FF}
+.docs-app .dark .nav button, .docs-app .dark .top-aux, .docs-app .dark .chat-info small, .docs-app .dark .fileline, .docs-app .dark .eyebrow {color:#A8A2FF}
+.docs-app .dark .file-icon, .docs-app .dark .chat-icon, .docs-app .dark .welcome-logo, .docs-app .dark .assistant-badge {background:#1B1B2B;border-color:#6F63D9}
+.docs-app .dark .outline-btn, .docs-app .dark .pagefield, .docs-app .dark .composer {background:#1B1B2B;border-color:#6F63D9;color:#F3F4F8}
+.docs-app .dark .thumbs {background:#141420}
+.docs-app .dark .thumb-paper {background:#F3F4F8}
+.docs-app .dark .bubble, .docs-app .dark .prompt-chip {background:#1B1B2B;color:#D8D6FF;border-color:#6F63D9}
+.docs-app .dark .answer {color:#A8A2FF}
+.docs-app .dark .answer strong {color:#D8D6FF}
+.docs-app .dark .ai-welcome p {color:#A8A2FF}
+.docs-app .dark .citation {background:#6F63D9;color:#D8D6FF;border-color:#6F63D9}
+.docs-app .dark .composer textarea {color:#D8D6FF}
+.docs-app .dark .paper {color:#6F63D9}
+.docs-app .dark .resize:before {background:#6F63D9}
 @media(max-width:1180px) {
 .docs-app .workspace {--left:53%}
 .docs-app .topbar {padding:0 18px}
@@ -193,7 +193,7 @@
 .docs-app .document-panel, .docs-app .chat-panel {position:absolute;inset:0;width:100%;height:100%;display:none}
 .docs-app .workspace.mobile-doc .document-panel, .docs-app .workspace.mobile-chat .chat-panel {display:flex}
 .docs-app .resize {display:none}
-.docs-app .mobile-tabs {display:flex;padding:3px;border:1px solid var(--line);border-radius:10px;background:#fff;gap:2px;flex:none}
+.docs-app .mobile-tabs {display:flex;padding:3px;border:1px solid var(--line);border-radius:10px;background:#F3F4F8;gap:2px;flex:none}
 .docs-app .mobile-tabs button {font-size:11px;padding:8px 12px;border-radius:8px;min-width:67px}
 .docs-app .mobile-tabs button.active {background:var(--tint);color:var(--accent);font-weight:700}
 .docs-app .chat-panel .panel-head {padding:0 14px}
@@ -201,7 +201,7 @@
 .docs-app .thumbs {width:95px}
 .docs-app .thumb-paper {width:64px;height:85px}
 .docs-app .chat-scroll {padding:23px 22px 2px}
-.docs-app .dark .mobile-tabs {background:#1a1f2d}
+.docs-app .dark .mobile-tabs {background:#141420}
 }
 @media(max-width:450px) {
 .docs-app .workspace-info .doc-badge .primary-btn {font-size:0;gap:0;width:35px;padding:10px;justify-content:center}
@@ -216,38 +216,38 @@
 .docs-app .paper {padding:37px 24px}
 .docs-app .page-scroll {padding:15px 11px 30px}
 }
-.docs-app * {scrollbar-width:thin;scrollbar-color:rgba(245,245,248,.16) transparent}
+.docs-app * {scrollbar-width:thin;scrollbar-color:rgba(243, 244, 248, .16) transparent}
 .docs-app button:focus-visible, .docs-app input:focus-visible, .docs-app textarea:focus-visible, .docs-app [tabindex]:focus-visible {outline:2px solid var(--pink)!important;outline-offset:2px}
-.docs-app {min-height:530px; background:radial-gradient(ellipse 520px 440px at 95% 97%,rgba(168,85,247,.06),transparent 75%),var(--plate)}
+.docs-app {min-height:530px; background:radial-gradient(ellipse 520px 440px at 95% 97%,rgba(168, 162, 255, .06),transparent 75%),var(--plate)}
 .docs-app .topbar {height:66px;padding:0 27px;background:var(--plate);border-bottom:1px solid var(--hairline)}
 .docs-app .topbar-menu {display:none}
 .docs-app .brand-wrap {gap:22px}
 .docs-app .brand {letter-spacing:.19em;font-size:13px;font-weight:850;color:var(--ink)}
-.docs-app .mark {color:var(--pink);background:var(--pink-soft);border:1px solid rgba(244,47,167,.18);border-radius:8px}
+.docs-app .mark {color:var(--pink);background:var(--pink-soft);border:1px solid rgba(168, 162, 255, .18);border-radius:8px}
 .docs-app .top-divider {height:21px;width:1px;background:var(--hairline)}
 .docs-app .topbar-crumb {font-size:12px;color:var(--muted);white-space:nowrap}
-.docs-app .topbar-crumb span {padding:0 10px;color:rgba(245,245,248,.28)}
-.docs-app .topbar-crumb strong {font-weight:630;color:rgba(245,245,248,.82)}
+.docs-app .topbar-crumb span {padding:0 10px;color:rgba(243, 244, 248, .28)}
+.docs-app .topbar-crumb strong {font-weight:630;color:rgba(243, 244, 248, .82)}
 .docs-app .demo-label {display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:.09em;padding:7px 10px;border:1px solid var(--hairline);border-radius:7px;background:transparent;color:var(--muted)}
 .docs-app .demo-dot {width:6px;height:6px;background:var(--pink);border-radius:50%}
 .docs-app .avatar {background:var(--panel);color:var(--ink);border:1px solid var(--hairline);font-size:11px}
 .docs-app .app-layout {display:flex;flex:1;min-height:0;min-width:0;position:relative}
 .docs-app .app-body {flex:1;min-width:0;padding:24px 25px 24px;gap:19px}
-.docs-app .sidebar {width:260px;min-width:260px;background:#0C1520;border-right:1px solid var(--hairline);display:flex;flex-direction:column;transition:width .23s ease,min-width .23s ease;flex:none;overflow:hidden;min-height:0;position:relative;z-index:6}
+.docs-app .sidebar {width:260px;min-width:260px;background:#0B0B12;border-right:1px solid var(--hairline);display:flex;flex-direction:column;transition:width .23s ease,min-width .23s ease;flex:none;overflow:hidden;min-height:0;position:relative;z-index:6}
 .docs-app .sidebar.collapsed {width:66px;min-width:66px}
 .docs-app .sidebar-top {height:78px;display:flex;align-items:center;justify-content:space-between;padding:0 17px 0 21px;flex:none;gap:6px}
 .docs-app .sidebar-title {font-size:12px;font-weight:760;color:var(--ink);display:flex;align-items:center;gap:10px;white-space:nowrap;overflow:hidden}
 .docs-app .sidebar-title-mark {font-size:18px;color:var(--pink)}
 .docs-app .sidebar-icon {width:33px;height:33px;flex:none;display:grid;place-items:center;border:1px solid transparent;border-radius:9px;color:var(--muted)}
-.docs-app .sidebar-icon:hover, .docs-app .sidebar-action:hover, .docs-app .sidebar-search-close:hover {background:rgba(245,245,248,.06);color:var(--ink)}
+.docs-app .sidebar-icon:hover, .docs-app .sidebar-action:hover, .docs-app .sidebar-search-close:hover {background:rgba(243, 244, 248, .06);color:var(--ink)}
 .docs-app .sidebar-main-actions {display:grid;gap:5px;padding:2px 12px 18px}
-.docs-app .sidebar-action {height:41px;border-radius:9px;padding:0 12px;display:flex;align-items:center;gap:13px;font-size:12.5px;font-weight:570;white-space:nowrap;color:rgba(245,245,248,.78);text-align:left}
+.docs-app .sidebar-action {height:41px;border-radius:9px;padding:0 12px;display:flex;align-items:center;gap:13px;font-size:12.5px;font-weight:570;white-space:nowrap;color:rgba(243, 244, 248, .78);text-align:left}
 .docs-app .sidebar-action-icon {width:20px;display:grid;place-items:center;flex:none}
 .docs-app .sidebar-action.new-action {background:var(--pink-soft);color:var(--ink)}
 .docs-app .sidebar-action.new-action .sidebar-action-icon {color:var(--pink)}
-.docs-app .sidebar-action.new-action:hover {background:rgba(244,47,167,.2)}
+.docs-app .sidebar-action.new-action:hover {background:rgba(168, 162, 255, .2)}
 .docs-app .sidebar-action .action-shortcut {margin-left:auto;font-size:10px;color:var(--muted);font-weight:480}
-.docs-app .search-box {margin:0 12px 13px;display:flex;align-items:center;gap:9px;padding:0 9px;border:1px solid rgba(244,47,167,.5);border-radius:9px;background:var(--panel);height:40px;color:var(--pink)}
+.docs-app .search-box {margin:0 12px 13px;display:flex;align-items:center;gap:9px;padding:0 9px;border:1px solid rgba(168, 162, 255, .5);border-radius:9px;background:var(--panel);height:40px;color:var(--pink)}
 .docs-app .search-box[hidden] {display:none}
 .docs-app .search-box input {background:transparent;color:var(--ink);border:none;outline:none!important;width:100%;min-width:0;font-size:12px}
 .docs-app .search-box input::placeholder {color:var(--muted)}
@@ -256,16 +256,16 @@
 .docs-app .history-group {margin:15px 0 20px}
 .docs-app .history-group-title {padding:2px 12px 11px;font-size:10px;letter-spacing:.1em;font-weight:700;color:var(--muted);text-transform:uppercase;white-space:nowrap}
 .docs-app .history-item {display:flex;align-items:center;gap:2px;min-height:40px;padding:2px 4px 2px 10px;border-radius:9px;position:relative}
-.docs-app .history-item:hover {background:rgba(245,245,248,.045)}
+.docs-app .history-item:hover {background:rgba(243, 244, 248, .045)}
 .docs-app .history-item.active {background:var(--pink-soft)}
-.docs-app .history-open {flex:1;min-width:0;min-height:35px;text-align:left;display:flex;align-items:center;gap:9px;color:rgba(245,245,248,.74);font-size:12.5px;white-space:nowrap}
+.docs-app .history-open {flex:1;min-width:0;min-height:35px;text-align:left;display:flex;align-items:center;gap:9px;color:rgba(243, 244, 248, .74);font-size:12.5px;white-space:nowrap}
 .docs-app .history-open span {overflow:hidden;text-overflow:ellipsis}
 .docs-app .history-open svg {flex:none;color:var(--muted)}
 .docs-app .history-item.active .history-open, .docs-app .history-item.active .history-open svg {color:var(--ink)}
 .docs-app .history-item.active:before {content:"";position:absolute;left:0;top:10px;bottom:10px;border-radius:4px;width:2px;background:var(--pink)}
 .docs-app .history-delete {opacity:0;display:grid;place-items:center;flex:none;height:26px;width:26px;border-radius:7px;color:var(--muted)}
 .docs-app .history-item:hover .history-delete, .docs-app .history-delete:focus-visible {opacity:1}
-.docs-app .history-delete:hover {color:var(--danger);background:rgba(255,157,187,.09)}
+.docs-app .history-delete:hover {color:var(--danger);background:rgba(216, 214, 255, .09)}
 .docs-app .history-empty, .docs-app .history-placeholder {padding:16px 12px;font-size:12px;color:var(--muted);line-height:1.65}
 .docs-app .sidebar-bottom {padding:15px 12px 17px;border-top:1px solid var(--hairline);flex:none}
 .docs-app .sidebar-bottom-label {font-size:10px;letter-spacing:.11em;font-weight:740;color:var(--muted);padding:0 11px 11px;white-space:nowrap}
@@ -285,16 +285,16 @@
 .docs-app .sidebar.collapsed .sidebar-document-icon {width:33px;height:33px}
 .docs-app .sidebar-backdrop {display:none}
 .docs-app .workspace-info {min-height:63px}
-.docs-app .file-icon {background:var(--pink-soft);border:1px solid rgba(244,47,167,.22);color:var(--pink);border-radius:12px;width:45px;height:48px}
+.docs-app .file-icon {background:var(--pink-soft);border:1px solid rgba(168, 162, 255, .22);color:var(--pink);border-radius:12px;width:45px;height:48px}
 .docs-app .eyebrow {color:var(--muted);font-size:10px;letter-spacing:.14em}
 .docs-app .doc-meta h1 {font-size:18px;font-weight:690;color:var(--ink);margin:7px 0 6px}
 .docs-app .fileline {font-size:11px;color:var(--muted)}
-.docs-app .sep-dot {background:rgba(245,245,248,.4)}
+.docs-app .sep-dot {background:rgba(243, 244, 248, .4)}
 .docs-app .saved i {background:var(--success)}
-.docs-app .outline-btn {background:transparent;color:rgba(245,245,248,.78);border:1px solid var(--hairline);padding:11px 13px;border-radius:9px}
-.docs-app .outline-btn:hover {color:var(--ink);border-color:rgba(245,245,248,.3);background:rgba(245,245,248,.035)}
+.docs-app .outline-btn {background:transparent;color:rgba(243, 244, 248, .78);border:1px solid var(--hairline);padding:11px 13px;border-radius:9px}
+.docs-app .outline-btn:hover {color:var(--ink);border-color:rgba(243, 244, 248, .3);background:rgba(243, 244, 248, .035)}
 .docs-app .primary-btn {background:var(--pink);color:var(--plate);box-shadow:none;border-radius:9px;font-weight:740;padding:12px 16px}
-.docs-app .primary-btn:hover {background:#ff4cba}
+.docs-app .primary-btn:hover {background:#A8A2FF}
 .docs-app .panel {background:var(--panel);border:1px solid var(--hairline);border-radius:14px;box-shadow:none}
 .docs-app .workspace {--left:56%;min-width:0}
 .docs-app .panel-head {height:63px;border-bottom:1px solid var(--hairline);padding:0 16px}
@@ -307,14 +307,14 @@
 .docs-app .pagefield {background:var(--plate);border:1px solid var(--hairline);color:var(--ink);width:38px;height:28px}
 .docs-app .zoom {font-size:11.5px;color:var(--muted)}
 .docs-app .resize {width:15px}
-.docs-app .resize:before {background:rgba(245,245,248,.15);width:3px}
+.docs-app .resize:before {background:rgba(243, 244, 248, .15);width:3px}
 .docs-app .resize:hover:before, .docs-app .resize.drag:before {background:var(--pink)}
-.docs-app .viewer {background:#090f19}
-.docs-app .thumbs {background:#0e1721;border-right:1px solid var(--hairline)}
+.docs-app .viewer {background:#0B0B12}
+.docs-app .thumbs {background:#0B0B12;border-right:1px solid var(--hairline)}
 .docs-app .thumb {color:var(--muted)}
 .docs-app .thumb.selected {color:var(--pink)}
 .docs-app .thumb.selected .thumb-paper {border:2px solid var(--pink);box-shadow:0 0 0 3px var(--pink-soft)}
-.docs-app .paper {color:#2d354e}
+.docs-app .paper {color:#6F63D9}
 .docs-app .paper .definition {border-left-color:var(--pink)}
 .docs-app .chat-panel .panel-head {padding:0 21px}
 .docs-app .chat-icon {background:var(--pink-soft);color:var(--pink);border-radius:9px;width:35px;height:35px}
@@ -322,31 +322,31 @@
 .docs-app .chat-info small i {background:var(--success)}
 .docs-app .chat-scroll {padding:28px 26px 10px}
 .docs-app .ai-welcome {margin-bottom:30px}
-.docs-app .welcome-logo {background:var(--pink-soft);border:1px solid rgba(244,47,167,.18);color:var(--pink)}
+.docs-app .welcome-logo {background:var(--pink-soft);border:1px solid rgba(168, 162, 255, .18);color:var(--pink)}
 .docs-app .ai-welcome h2 {font-size:15px;color:var(--ink)}
 .docs-app .ai-welcome p {color:var(--muted);font-size:12.5px;line-height:1.7}
 .docs-app .msg {margin-bottom:26px}
-.docs-app .bubble {background:rgba(245,245,248,.075);border:1px solid rgba(245,245,248,.04);border-radius:15px 15px 5px 15px;color:var(--ink);font-size:13.5px;line-height:1.65;padding:12px 15px}
+.docs-app .bubble {background:rgba(243, 244, 248, .075);border:1px solid rgba(243, 244, 248, .04);border-radius:15px 15px 5px 15px;color:var(--ink);font-size:13.5px;line-height:1.65;padding:12px 15px}
 .docs-app .msg-head {font-size:12.5px;color:var(--ink)}
 .docs-app .assistant-badge {background:var(--pink-soft);color:var(--pink)}
-.docs-app .answer {color:rgba(245,245,248,.81);font-size:13.5px;line-height:1.85}
+.docs-app .answer {color:rgba(243, 244, 248, .81);font-size:13.5px;line-height:1.85}
 .docs-app .answer p {margin-bottom:13px}
 .docs-app .answer strong {color:var(--ink)}
-.docs-app .citation {background:var(--pink-soft);border:1px solid rgba(244,47,167,.21);color:var(--pink);font-size:11px;font-weight:750;border-radius:6px}
-.docs-app .citation:hover {background:rgba(244,47,167,.24)}
+.docs-app .citation {background:var(--pink-soft);border:1px solid rgba(168, 162, 255, .21);color:var(--pink);font-size:11px;font-weight:750;border-radius:6px}
+.docs-app .citation:hover {background:rgba(168, 162, 255, .24)}
 .docs-app .answer em {color:var(--muted)}
 .docs-app .composer-wrap {background:var(--panel);border-top:1px solid var(--hairline);padding:14px 19px 15px}
 .docs-app .suggestions {padding-bottom:12px;gap:7px}
-.docs-app .prompt-chip {background:transparent;color:rgba(245,245,248,.75);border:1px solid var(--hairline);border-radius:8px;font-size:11px;min-height:33px}
-.docs-app .prompt-chip:hover {background:var(--pink-soft);color:var(--pink);border-color:rgba(244,47,167,.4)}
-.docs-app .composer {background:var(--plate);border:1px solid rgba(245,245,248,.18);box-shadow:none;border-radius:12px;padding:13px 13px 10px}
-.docs-app .composer:focus-within {border-color:var(--pink);box-shadow:0 0 0 3px rgba(244,47,167,.09)}
+.docs-app .prompt-chip {background:transparent;color:rgba(243, 244, 248, .75);border:1px solid var(--hairline);border-radius:8px;font-size:11px;min-height:33px}
+.docs-app .prompt-chip:hover {background:var(--pink-soft);color:var(--pink);border-color:rgba(168, 162, 255, .4)}
+.docs-app .composer {background:var(--plate);border:1px solid rgba(243, 244, 248, .18);box-shadow:none;border-radius:12px;padding:13px 13px 10px}
+.docs-app .composer:focus-within {border-color:var(--pink);box-shadow:0 0 0 3px rgba(168, 162, 255, .09)}
 .docs-app .composer textarea {background:transparent;color:var(--ink);font-size:13.5px;line-height:1.65}
 .docs-app .composer textarea::placeholder {color:var(--muted)}
 .docs-app .composer-hint, .docs-app .disclaimer {color:var(--muted)}
 .docs-app .disclaimer {font-size:10px}
 .docs-app .send {color:var(--plate);background:var(--pink);border-radius:9px;height:33px;width:33px}
-.docs-app .send:hover {background:#ff4cba}
+.docs-app .send:hover {background:#A8A2FF}
 .docs-app .mobile-tabs {display:none}
 @media (max-width:1350px) {
 .docs-app .sidebar {width:235px;min-width:235px}
@@ -379,7 +379,7 @@
 .docs-app .brand-wrap {gap:10px}
 .docs-app .brand {font-size:12px}
 .docs-app .demo-label {font-size:9px;padding:5px 7px}
-.docs-app .sidebar {position:absolute;top:0;left:0;bottom:0;width:min(300px,86vw);min-width:0;transform:translateX(-105%);box-shadow:12px 0 42px rgba(0,0,0,.28);transition:transform .23s ease;z-index:14}
+.docs-app .sidebar {position:absolute;top:0;left:0;bottom:0;width:min(300px,86vw);min-width:0;transform:translateX(-105%);box-shadow:12px 0 42px rgba(11, 11, 18, .28);transition:transform .23s ease;z-index:14}
 .docs-app .sidebar.mobile-open {transform:translateX(0)}
 .docs-app .sidebar.collapsed {width:min(300px,86vw);min-width:0}
 .docs-app .sidebar.collapsed .sidebar-copy, .docs-app .sidebar.collapsed .sidebar-history {display:initial!important}
@@ -391,7 +391,7 @@
 .docs-app .sidebar.collapsed .sidebar-bottom {padding:15px 12px 17px}
 .docs-app .sidebar.collapsed .sidebar-document {padding:10px 9px;justify-content:flex-start;border:1px solid var(--hairline)}
 .docs-app .sidebar.collapsed .sidebar-search-close {display:block}
-.docs-app .sidebar-backdrop {position:absolute;inset:0;background:rgba(0,0,0,.65);z-index:13}
+.docs-app .sidebar-backdrop {position:absolute;inset:0;background:rgba(11, 11, 18, .65);z-index:13}
 .docs-app .sidebar-backdrop.visible {display:block}
 .docs-app .app-body {padding:11px;gap:10px}
 .docs-app .workspace-info {min-height:55px}
@@ -481,7 +481,7 @@
 .docs-app .pagefield:focus,
 .docs-app .pagefield:focus-visible {
   outline: none !important;
-  border-color: rgba(244, 47, 167, 0.6);
+  border-color: rgba(168, 162, 255, 0.6);
 }
 
 /* -- chat-first scale --
@@ -756,7 +756,7 @@
    brightening slightly, which reads as "you are typing here" without drawing a
    second box around the text (or around it again after Enter). */
 .docs-app .composer:focus-within {
-  border-color: rgba(245, 245, 248, 0.3);
+  border-color: rgba(243, 244, 248, 0.3);
   box-shadow: none;
 }
 
@@ -770,7 +770,7 @@
 }
 
 .docs-app .composer textarea::selection {
-  background: rgba(244, 47, 167, 0.3);
+  background: rgba(168, 162, 255, 0.3);
 }
 
 /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ One workspace per document ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
@@ -814,7 +814,7 @@
   align-items: center;
   min-width: 0;
   text-decoration: none;
-  color: #F5F5F8;
+  color: #F3F4F8;
 }
 
 .docs-app .sidebar-brand-name {
@@ -865,13 +865,13 @@
 
   .docs-app .workspace-rail .rail-history:hover {
     color: var(--pink);
-    border-color: rgba(244, 47, 167, 0.4);
+    border-color: rgba(168, 162, 255, 0.4);
   }
 }
 
 /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ The answer ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
    Every value below is the video workspace's, copied from chatTheme.css without
-   translation: Inconsolata 13px on 1.8, the answer in #F5F5F8, headings in white
+   translation: Inconsolata 13px on 1.8, the answer in #F3F4F8, headings in white
    with a pink '#', pink markers on lists and links, and the same hairline
    borders. The document chat and the video chat are the same product reading the
    same model, so an answer must not change colour or voice because the source is
@@ -882,7 +882,7 @@
   font-size: 13px;
   line-height: 1.8;
   letter-spacing: 0.01em;
-  color: #F5F5F8;
+  color: #F3F4F8;
 }
 
 .docs-app .answer p {
@@ -890,7 +890,7 @@
   line-height: 1.92;
 }
 
-/* The site's global `p { color: var(--text-muted) }` is a blue-grey (#7093C3),
+/* The site's global `p { color: var(--text-muted) }` is a blue-grey (#A8A2FF),
    and a paragraph inside an answer inherits nothing from .answer: the direct
    rule wins over inheritance, so every answer read blue. Children take the
    answer colour explicitly, exactly as the video chat does. */
@@ -910,7 +910,7 @@
 .docs-app .answer h2,
 .docs-app .answer h3,
 .docs-app .answer h4 {
-  color: #FFFFFF;
+  color: #F3F4F8;
 }
 
 .docs-app .answer p:last-child {
@@ -918,14 +918,14 @@
 }
 
 .docs-app .answer strong {
-  color: #F5F5F8;
+  color: #F3F4F8;
   font-weight: 600;
 }
 
 .docs-app .answer a {
-  color: #F42FA7;
+  color: #A8A2FF;
   text-decoration: none;
-  border-bottom: 1px solid rgba(244, 47, 167, 0.4);
+  border-bottom: 1px solid rgba(168, 162, 255, 0.4);
 }
 
 .docs-app .answer h1,
@@ -933,7 +933,7 @@
 .docs-app .answer h3,
 .docs-app .answer h4 {
   margin: 1.6rem 0 0.8rem;
-  color: #FFFFFF;
+  color: #F3F4F8;
   font-family: inherit;
   font-size: 15px;
   font-weight: 700;
@@ -956,7 +956,7 @@
   content: '#';
   display: inline-block;
   margin-right: 9px;
-  color: #F42FA7;
+  color: #A8A2FF;
   font-weight: 700;
 }
 
@@ -983,20 +983,20 @@
 }
 
 .docs-app .answer li::marker {
-  color: rgba(244, 47, 167, 0.75);
+  color: rgba(168, 162, 255, 0.75);
 }
 
 .docs-app .answer hr {
   margin: 1.5rem 0;
   border: 0;
-  border-top: 1px solid rgba(245, 245, 248, 0.1);
+  border-top: 1px solid rgba(243, 244, 248, 0.1);
 }
 
 .docs-app .answer blockquote {
   margin: 0.5rem 0;
   padding: 2px 0 2px 10px;
-  border-left: 2px solid rgba(168, 85, 247, 0.5);
-  color: rgba(245, 245, 248, 0.6);
+  border-left: 2px solid rgba(168, 162, 255, 0.5);
+  color: rgba(243, 244, 248, 0.6);
 }
 
 .docs-app .answer code {
@@ -1004,17 +1004,17 @@
   font-size: 0.92em;
   padding: 1px 5px;
   border-radius: 2px;
-  border: 1px solid rgba(245, 245, 248, 0.1);
-  background: rgba(245, 245, 248, 0.05);
-  color: rgba(245, 245, 248, 0.9);
+  border: 1px solid rgba(243, 244, 248, 0.1);
+  background: rgba(243, 244, 248, 0.05);
+  color: rgba(243, 244, 248, 0.9);
 }
 
 .docs-app .answer pre {
   margin: 0.6rem 0 1rem;
   padding: 12px 14px;
   border-radius: 2px;
-  border: 1px solid rgba(245, 245, 248, 0.1);
-  background: rgba(8, 13, 25, 0.7);
+  border: 1px solid rgba(243, 244, 248, 0.1);
+  background: rgba(11, 11, 18, 0.7);
   overflow-x: auto;
 }
 
@@ -1037,15 +1037,15 @@
 .docs-app .answer th,
 .docs-app .answer td {
   padding: 7px 10px;
-  border: 1px solid rgba(245, 245, 248, 0.12);
+  border: 1px solid rgba(243, 244, 248, 0.12);
   text-align: left;
   vertical-align: top;
 }
 
 .docs-app .answer th {
-  color: #F5F5F8;
+  color: #F3F4F8;
   font-weight: 600;
-  background: rgba(245, 245, 248, 0.04);
+  background: rgba(243, 244, 248, 0.04);
 }
 /* Ã¢â€â‚¬Ã¢â€â‚¬ Full bleed Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
    The panes are the screen, not cards floating on it: no outer padding, no
@@ -1112,7 +1112,7 @@
 .docs-app .answer .katex-display {
   margin: 1.15em 0;
   padding: 4px 0 4px 10px;
-  border-left: 2px solid rgba(244, 47, 167, 0.4);
+  border-left: 2px solid rgba(168, 162, 255, 0.4);
   overflow-x: auto;
   overflow-y: hidden;
 }

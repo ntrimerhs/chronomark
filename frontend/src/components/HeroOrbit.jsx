@@ -81,13 +81,13 @@ export default function HeroOrbit() {
         <svg className="hx-orbit" viewBox="0 0 700 700" aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id="hxArc" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0" stopColor="#F42FA7" />
-              <stop offset="1" stopColor="#A855F7" />
+              <stop offset="0" stopColor="#A8A2FF" />
+              <stop offset="1" stopColor="#A8A2FF" />
             </linearGradient>
             <linearGradient id="hxRing" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#A855F7" stopOpacity="0.5" />
-              <stop offset="0.5" stopColor="#F42FA7" stopOpacity="0.16" />
-              <stop offset="1" stopColor="#A855F7" stopOpacity="0.5" />
+              <stop offset="0" stopColor="#A8A2FF" stopOpacity="0.5" />
+              <stop offset="0.5" stopColor="#A8A2FF" stopOpacity="0.16" />
+              <stop offset="1" stopColor="#A8A2FF" stopOpacity="0.5" />
             </linearGradient>
             <filter id="hxGlow" x="-80%" y="-80%" width="260%" height="260%">
               <feGaussianBlur stdDeviation="7" result="b" />
@@ -140,9 +140,9 @@ export default function HeroOrbit() {
             <path className="hx-arc" d="M 470 145 A 233 233 0 0 1 560 300" />
             <path className="hx-arc-trail" d="M 402 128 A 233 233 0 0 1 470 145" />
             <g className="hx-marker">
-              <circle cx="470" cy="145" r="26" fill="#F42FA7" opacity="0.2" />
-              <circle cx="470" cy="145" r="11" fill="#F42FA7" filter="url(#hxGlow)" />
-              <circle cx="470" cy="145" r="3.8" fill="#FFF0F8" />
+              <circle cx="470" cy="145" r="26" fill="#A8A2FF" opacity="0.2" />
+              <circle cx="470" cy="145" r="11" fill="#A8A2FF" filter="url(#hxGlow)" />
+              <circle cx="470" cy="145" r="3.8" fill="#D8D6FF" />
             </g>
           </g>
         </svg>
