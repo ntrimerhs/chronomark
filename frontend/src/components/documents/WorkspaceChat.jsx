@@ -302,31 +302,6 @@ export default function WorkspaceChat({
 
   return (
     <article className="panel chat-panel">
-      <div className="panel-head">
-        <div className="chat-heading">
-          <div className="chat-icon">
-            <Sparkles size={15} />
-          </div>
-          <div className="chat-info">
-            <span className="head-label">Ask Chronomark</span>
-            <small>
-              <i />
-              Page-linked responses
-            </small>
-          </div>
-        </div>
-        <div className="chat-actions">
-          <button
-            type="button"
-            className="icon-btn"
-            title="New chat (upload another document)"
-            onClick={onNewChat || onCreateChat}
-          >
-            <MessageSquarePlus size={16} />
-          </button>
-        </div>
-      </div>
-
       <div className="chat-scroll" ref={scrollRef}>
         {empty && !busy ? (
           <div className="ai-welcome">

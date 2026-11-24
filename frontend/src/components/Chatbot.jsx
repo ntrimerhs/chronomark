@@ -171,23 +171,8 @@ function Chatbot({ onSeek, videoId }) {
   return (
     <div className={`chatbot ${isEmpty ? 'chatbot-empty' : 'chatbot-live'}`}>
 
-      <div className="chatbot-header">
-        <div className="chatbot-header-icon">
-          <Bot size={18} />
-        </div>
-        <div>
-          <p className="chatbot-header-title">ChronoMark</p>
-          <div className="chatbot-header-status">
-            <span className="chatbot-header-dot" />
-            <span>Ready to chat</span>
-          </div>
-        </div>
-      </div>
-
-      {!isEmpty && <ChatMessages messages={messages} isLoading={isLoading} onSeek={onSeek} />}
-
-      {showQuickActions && (
-        <div className="chatbot-quick-actions" aria-label="Quick actions">
+      {!isEmpty && (
+      <div className="chatbot-quick-actions" aria-label="Quick actions">
           {QUICK_ACTIONS.map(({ label, prompt }) => (
             <button
               key={label}

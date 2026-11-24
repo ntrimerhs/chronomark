@@ -1,0 +1,265 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+/* The shared bar.
+
+   Palette as on the landing page: on-surface #e3e0f2, variant #c8c4d5, primary
+   #c6bfff, on-primary #291193, container-high #292936, outline-variant #474553.
+
+   `is-inline` keeps the same look but sits in flow at 76px, matching the height the
+   upload and documents screens reserve for a bar. */
+
+.ph {
+  --ph-ink: #e3e0f2;
+  --ph-variant: #c8c4d5;
+  --ph-primary: #c6bfff;
+  --ph-primary-fixed: #e4dfff;
+  --ph-on-primary: #291193;
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 50;
+  padding: 16px 20px 0;
+  pointer-events: none;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+.ph.is-inline {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 76px;
+  padding: 0 20px;
+  background: #0b0b12;
+  border-bottom: 1px solid rgba(42, 44, 59, 0.8);
+}
+
+.ph-inner {
+  max-width: none;
+  margin: 0 auto;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  pointer-events: auto;
+}
+
+.ph-brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  justify-self: start;
+}
+
+.ph-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  text-decoration: none;
+}
+
+.ph-brand-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ph-ink);
+  transition: color 0.2s ease;
+}
+
+.ph-brand:hover .ph-brand-label {
+  color: #fff;
+}
+
+.ph-brand-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ph-primary);
+  box-shadow: 0 0 8px rgba(198, 191, 255, 0.65);
+}
+
+.ph-brand-divider {
+  width: 1px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.ph-search-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ph-search-slot .cell-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(13, 13, 25, 0.6);
+  color: var(--ph-variant);
+  -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.ph-search-slot .cell-search span {
+  display: none;
+}
+
+.ph-search-slot .cell-search:hover {
+  color: var(--ph-ink);
+  border-color: rgba(198, 191, 255, 0.4);
+}
+
+.ph-nav {
+  display: none;
+  justify-self: center;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(13, 13, 25, 0.6);
+  -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.35);
+}
+
+.ph-nav a {
+  padding: 6px 16px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ph-variant);
+  text-decoration: none;
+  transition: color 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+}
+
+.ph-nav a:hover {
+  color: var(--ph-ink);
+  background: rgba(31, 30, 43, 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.ph-nav a.is-current {
+  color: var(--ph-ink);
+  background: rgba(41, 41, 54, 0.8);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 14px rgba(198, 191, 255, 0.15);
+}
+
+.ph-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 8px;
+}
+
+.ph-signin {
+  display: none;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(13, 13, 25, 0.6);
+  color: var(--ph-variant);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: color 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+}
+
+.ph-signin:hover {
+  color: var(--ph-ink);
+  background: rgba(31, 30, 43, 0.7);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.ph-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(198, 191, 255, 0.3);
+  background: var(--ph-primary);
+  color: var(--ph-on-primary);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: 0 0 24px rgba(198, 191, 255, 0.35);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.ph-start:hover {
+  background: var(--ph-primary-fixed);
+  box-shadow: 0 0 32px rgba(198, 191, 255, 0.6);
+}
+
+.ph .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+.ph-start .material-symbols-outlined {
+  font-size: 14px;
+  transition: transform 0.2s ease;
+}
+
+.ph-start:hover .material-symbols-outlined {
+  transform: translateX(2px);
+}
+
+@media (min-width: 640px) {
+  .ph {
+    padding: 16px 32px 0;
+  }
+
+  .ph.is-inline {
+    padding: 0 32px;
+  }
+
+  .ph-signin {
+    display: inline-flex;
+  }
+}
+
+@media (min-width: 768px) {
+  .ph-nav {
+    display: flex;
+  }
+}
+
+@media (max-width: 767px) {
+  .ph-inner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}

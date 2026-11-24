@@ -7,11 +7,11 @@ import Footer from "../components/Footer.jsx"
    conversation starts the page belongs to the document and the answer, and a
    marketing footer under a chat box is furniture in the way. */
 
-const Form = ({children, footer = true}) => {
+const Form = ({children, footer = true, header = true}) => {
 
     return(
         <>
-        <Header/>
+        {header ? <Header/> : null}
             <div>
                 {children}
             </div>

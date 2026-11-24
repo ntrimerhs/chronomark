@@ -244,3 +244,43 @@ docker-compose.yml  api, worker (x2), frontend, WARP egress
 - The queue is filesystem-based on purpose: it survives restarts and needs no
   extra service, but it is single-host. Multi-host would want Redis behind the
   same interface.
+
+
+---
+
+## Current state (measured on the live box)
+
+| Area | Result |
+|---|---|
+| Upload acknowledgement | **847 ms** — the API queues a job file and replies; workers do the reading |
+| Document job (23 pages, 11 figures) | **24s** total, figures read in parallel (**8.0s** for 11) |
+| Five concurrent questions | **5.9s** wall (was 23.4s serialised); healthcheck during the burst 0.005s |
+| Answer streaming | first token at **2.28s**, ~2,600 delta frames for a long answer |
+| Truncated answers | continued automatically; a stream that ends without a `finish_reason` is treated as cut |
+| Edge audio (≤10 min) | 391s video → 7 slices → 113 segments in ~25s, no ffmpeg, no download |
+| Stream route (>10 min) | 12-min clip → transcode ready 29.5s → 2.3 MB MP4 → Groq 6.7s, 59 segments |
+
+Both workspaces now read the same: full-bleed panels, no marketing header, no chat
+panel head, answers as plain text with pink `#` headings. The video player keeps its
+own aspect ratio — letterboxed, with space above and below — rather than being
+stretched.
+
+### Known open items
+
+- A video job can currently run twice for the same upload: the edge route
+  transcribes, a later step raises, and the fallback re-runs the whole pipeline on
+  a local copy. Costs a duplicate Groq call; needs one owner for the status and no
+  silent fallback (see *Roadmap*).
+- `.pptx` / `.docx` are still parsed locally (Document AI covers PDFs and images).
+- Video answers are not streamed yet — only the document chat is.
+
+### Roadmap
+
+1. `pipelines/` package with a single `select_route()` that encodes each route's
+   preconditions, so the four video routes stop being a chain of `except`
+   fallbacks.
+2. The worker imports `pipelines`, never `main`.
+3. One writer for job status (monotonic progress), plus `route_used` and
+   per-stage timings in the job record.
+4. Tests for route selection and transcript merging; `make verify` runs them in
+   seconds.

@@ -442,23 +442,20 @@
 .docs-app *, .docs-app *:before, .docs-app *:after {scroll-behavior:auto!important;transition:none!important}
 }
 
-/* The workspace is the screen.
+/* The workspace fills what the bar leaves.
 
-   It used to subtract the application header's height (76px, 64px on a phone)
-   from the viewport, because the header sat above it. The header is gone from
-   /documents now, so that subtraction left a band of empty page at the bottom
-   where the footer used to be. The workspace takes the whole viewport and the
-   layout inside it is flush: no outer padding, no floating cards. */
+   The shared header takes 76px in flow above this screen, so the workspace is one
+   viewport minus that band, with no outer padding: the layout inside it is flush. */
 .docs-app {
-  height: 100vh;
-  height: 100dvh;
+  height: calc(100vh - 76px);
+  height: calc(100dvh - 76px);
   min-height: 0;
 }
 
 @media (max-width: 820px) {
   .docs-app {
-    height: 100vh;
-    height: 100dvh;
+    height: calc(100vh - 76px);
+    height: calc(100dvh - 76px);
     min-height: 0;
   }
 }
@@ -1060,7 +1057,11 @@
    the panels where it belongs. */
 .docs-app {
   position: fixed;
-  inset: 0;
+  /* pinned to the window, less the band the shared bar takes above it */
+  top: 76px;
+  right: 0;
+  bottom: 0;
+  left: 0;
   height: auto;
   min-height: 0;
 }
