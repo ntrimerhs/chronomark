@@ -871,3 +871,94 @@
     padding: 32px 16px;
   }
 }
+
+/* ── Sections below the hero ────────────────────────────────────────────────
+   Technology lists the stack that does the work; Pricing is an honest
+   placeholder until there is a number to publish. Same plate, same hairlines as
+   the rest of the page. */
+.lv-section {
+  position: relative;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 96px 24px 24px;
+}
+
+.lv-section-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.55);
+}
+
+.lv-section-sub,
+.lv-section-note {
+  margin: 0 0 26px;
+  max-width: 620px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(245, 245, 248, 0.72);
+}
+
+.lv-section-note {
+  margin-top: 22px;
+  margin-bottom: 0;
+  color: rgba(245, 245, 248, 0.5);
+}
+
+.lv-stack {
+  display: grid;
+  gap: 1px;
+  background: rgba(245, 245, 248, 0.08);
+  border: 1px solid rgba(245, 245, 248, 0.08);
+}
+
+.lv-stack-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 4px 18px;
+  padding: 14px 18px;
+  background: #0a1018;
+}
+
+.lv-stack-key {
+  grid-row: span 2;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #f42fa7;
+  padding-top: 3px;
+}
+
+.lv-stack-value {
+  font-size: 14px;
+  color: #f5f5f8;
+}
+
+.lv-stack-note {
+  font-size: 12px;
+  color: rgba(245, 245, 248, 0.5);
+}
+
+.lv-pending {
+  margin: 0;
+  padding: 26px 22px;
+  border: 1px dashed rgba(245, 245, 248, 0.18);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.55);
+}
+
+@media (max-width: 620px) {
+  .lv-stack-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .lv-stack-key {
+    grid-row: auto;
+  }
+}

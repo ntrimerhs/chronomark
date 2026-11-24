@@ -1098,7 +1098,10 @@ def _stream_document_answer(messages, summary_mode, on_delta):
             finish_reason = choice.finish_reason
 
     text = "".join(parts)
-    if finish_reason == "length":
+    # Some providers close the stream without sending a finish_reason at all, so
+    # "no reason" is treated as "possibly cut" rather than "complete": a summary
+    # that silently ended mid-sentence is exactly what this guard exists for.
+    if finish_reason in (None, "length") and text.strip():
         # The stream stopped on the token budget. Ask for the rest and emit it as
         # one more delta, so the reader ends up with a whole answer rather than a
         # sentence cut in half.

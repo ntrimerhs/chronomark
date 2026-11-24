@@ -16,8 +16,8 @@ function App() {
         <Route path='/' element={<PulseLanding />}/>
         {/* The two chat workspaces carry no footer: video and documents both end
             in a conversation, and a footer under it only pushes the composer up. */}
-        <Route path='/upload' element={<Form footer={false} header={false}><PulseHeader inline /><Proxeiro></Proxeiro></Form>}/>
-        <Route path='/documents' element={<Form footer={false} header={false}><PulseHeader inline /><Documents></Documents></Form>}/>
+        <Route path='/upload' element={<Form footer={false} header={false}><Proxeiro></Proxeiro></Form>}/>
+        <Route path='/documents' element={<Form footer={false} header={false}><Documents></Documents></Form>}/>
       </Routes>
     </Router>
   )

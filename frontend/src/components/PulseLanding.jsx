@@ -155,6 +155,55 @@ export default function PulseLanding() {
 
             <div className="lv-chips" />
           </section>
+
+        <section className="lv-section" id="technology">
+          <h2 className="lv-section-title">Technology</h2>
+          <p className="lv-section-sub">
+            Everything expensive happens in an API; this machine only orchestrates. The
+            same stack the repository documents:
+          </p>
+          <div className="lv-stack">
+            <div className="lv-stack-row">
+              <span className="lv-stack-key">OCR</span>
+              <span className="lv-stack-value">Google Document AI</span>
+              <span className="lv-stack-note">page and paragraph structure, $1.50 / 1,000 pages</span>
+            </div>
+            <div className="lv-stack-row">
+              <span className="lv-stack-key">SPEECH</span>
+              <span className="lv-stack-value">Groq whisper-large-v3</span>
+              <span className="lv-stack-note">every second cited, $0.04–0.11 / hour of audio</span>
+            </div>
+            <div className="lv-stack-row">
+              <span className="lv-stack-key">EMBED</span>
+              <span className="lv-stack-value">OpenAI text-embedding-3-small</span>
+              <span className="lv-stack-note">1536 dimensions, $0.02 / 1M tokens</span>
+            </div>
+            <div className="lv-stack-row">
+              <span className="lv-stack-key">ANSWER</span>
+              <span className="lv-stack-value">DeepSeek deepseek-flash</span>
+              <span className="lv-stack-note">grounded answers, streamed token by token</span>
+            </div>
+            <div className="lv-stack-row">
+              <span className="lv-stack-key">INDEX</span>
+              <span className="lv-stack-value">Qdrant</span>
+              <span className="lv-stack-note">one collection per embedding width, old ones kept as backup</span>
+            </div>
+            <div className="lv-stack-row">
+              <span className="lv-stack-key">MEDIA</span>
+              <span className="lv-stack-value">Cloudflare R2 + Stream</span>
+              <span className="lv-stack-note">audio extracted at the edge, nothing downloaded here</span>
+            </div>
+          </div>
+          <p className="lv-section-note">
+            Uploads are queued as files and executed by a fleet of workers, so the API answers
+            in under a second while the reading and transcription happen behind it.
+          </p>
+        </section>
+
+        <section className="lv-section" id="pricing">
+          <h2 className="lv-section-title">Pricing</h2>
+          <p className="lv-pending">Pending — coming soon.</p>
+        </section>
         </div>
       </main>
     </div>
