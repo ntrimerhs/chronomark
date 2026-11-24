@@ -20,6 +20,7 @@ from whisper import (
     transcribe_media_direct,
 )
 import base64
+import asyncio
 import json
 import math
 import uuid
@@ -3814,7 +3815,7 @@ async def api_document_ask(req: DocumentQuestion):
     return await run_in_threadpool(_document_ask_impl, req)
 
 
-def _document_ask_impl(req: DocumentQuestion):
+def _document_ask_impl(req: DocumentQuestion, emit=None):
     """Ask about a document: retrieve pages, answer, cite `p. N`."""
     question = (req.question or "").strip()
     if not question:
@@ -3962,6 +3963,9 @@ def _document_ask_impl(req: DocumentQuestion):
                 answer_language=answer_language,
                 summary_mode=summary_mode,
                 transcript_available=transcript_available,
+                # Streaming: the callback fires per token, so the reader watches
+                # the answer being written instead of waiting for all of it.
+                on_delta=(lambda delta: emit("delta", {"text": delta})) if emit else None,
             )
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"LLM provider error: {error}")
@@ -3994,7 +3998,7 @@ def _document_ask_impl(req: DocumentQuestion):
     except Exception as chat_error:
         print(f"[Chats] could not store turn: {chat_error}")
 
-    return {
+    payload = {
         "source": "document",
         "doc_id": req.doc_id,
         "chat_id": req.chat_id,
@@ -4012,6 +4016,13 @@ def _document_ask_impl(req: DocumentQuestion):
             for r in ordered
         ],
     }
+
+    if emit is not None:
+        # The streamed text has already gone out; this is the canonical answer
+        # after citation enforcement, plus the page rows the client needs.
+        emit("final", payload)
+        return None
+    return payload
 
 
 def _document_figures(chunks: list) -> list:
@@ -4056,6 +4067,47 @@ def _study_context(chunks: list, limit: int) -> str:
         for r in selected
         for text in [((r.payload or {}).get("text") or "").strip()]
         if text
+    )
+
+
+@app.post("/api/document/ask/stream")
+async def api_document_ask_stream(req: DocumentQuestion):
+    """The same answer as /api/document/ask, delivered as it is written.
+
+    The work is blocking and HTTP-bound, so it runs in a thread and hands its
+    tokens to this event loop through a queue: the response starts in
+    milliseconds, and a second reader is not queued behind the first.
+    """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def emit(kind, payload):
+        loop.call_soon_threadsafe(queue.put_nowait, (kind, payload))
+
+    def work():
+        try:
+            _document_ask_impl(req, emit)
+        except HTTPException as error:
+            emit("error", {"message": str(error.detail)})
+        except Exception as error:  # noqa: BLE001 - the client gets the reason
+            print(f"[Docs] stream failed: {error}")
+            emit("error", {"message": str(error)})
+        finally:
+            emit("end", {})
+
+    threading.Thread(target=work, name="document-ask-stream", daemon=True).start()
+
+    async def frames():
+        while True:
+            kind, payload = await queue.get()
+            if kind == "end":
+                break
+            yield f"event: {kind}\ndata: {json.dumps(payload)}\n\n"
+
+    return StreamingResponse(
+        frames(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
 
 

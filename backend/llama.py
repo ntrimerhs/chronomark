@@ -363,8 +363,14 @@ def ask_document(
     answer_language: str = "same as the question",
     summary_mode: bool = False,
     transcript_available: bool = True,
+    on_delta=None,
 ):
-    """Answer a question about pages of a document, citing `p. N`."""
+    """Answer a question about pages of a document, citing `p. N`.
+
+    When ``on_delta`` is given the answer is streamed: the callback receives each
+    token as it arrives and the function still returns the finished text, so the
+    caller can persist exactly what the reader saw.
+    """
     if not _openai_client:
         raise RuntimeError("No LLM backend configured: set DEEPSEEK_API_KEY or OPENAI_API_KEY.")
 
@@ -433,6 +439,9 @@ def ask_document(
         else f"Question:\n{question}"
     )
     messages.append({"role": "user", "content": text})
+
+    if on_delta is not None:
+        return _stream_document_answer(messages, summary_mode, on_delta)
 
     try:
         # The whole answer, even when the provider stops on the token budget:
@@ -1062,3 +1071,48 @@ def ask_llama(
     )
 
     return completion.choices[0].message.content.strip()
+
+
+def _stream_document_answer(messages, summary_mode, on_delta):
+    """Stream the answer; finish it even when the budget cuts it off."""
+    budget = _DOCUMENT_SUMMARY_TOKENS if summary_mode else _DOCUMENT_ANSWER_TOKENS
+    parts = []
+    finish_reason = None
+    stream = _create(
+        model=_OPENAI_MODEL,
+        messages=messages,
+        max_tokens=budget,
+        temperature=_TEMPERATURE,
+        stream=True,
+    )
+    for chunk in stream:
+        choices = getattr(chunk, "choices", None)
+        choice = choices[0] if choices else None
+        if choice is None:
+            continue
+        delta = getattr(choice.delta, "content", None)
+        if delta:
+            parts.append(delta)
+            on_delta(delta)
+        if getattr(choice, "finish_reason", None):
+            finish_reason = choice.finish_reason
+
+    text = "".join(parts)
+    if finish_reason == "length":
+        # The stream stopped on the token budget. Ask for the rest and emit it as
+        # one more delta, so the reader ends up with a whole answer rather than a
+        # sentence cut in half.
+        rest, truncated = complete_with_continuation(
+            messages
+            + [
+                {"role": "assistant", "content": text},
+                {"role": "user", "content": CONTINUE_PROMPT},
+            ],
+            budget,
+        )
+        if rest:
+            on_delta(rest)
+            text += rest
+        return _tidy_document_answer(text), truncated
+
+    return _tidy_document_answer(text), False

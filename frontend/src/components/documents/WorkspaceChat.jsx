@@ -126,17 +126,92 @@ export default function WorkspaceChat({
 
     try {
       const target = await ensureChat()
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/document/ask`,
-        { question, doc_id: doc.doc_id, chat_id: target, history },
-        { timeout: 300000 },
-      )
+
+      // The answer streams. The reader sees the first line in a moment instead of
+      // waiting ~5s for the whole reply, and a long answer keeps filling in; the
+      // final event carries the canonical text after citation enforcement, so the
+      // message is replaced with exactly what was stored.
+      const response = await fetch(`${API_BASE_URL}/api/document/ask/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          doc_id: doc.doc_id,
+          chat_id: target,
+          history,
+        }),
+      })
+      if (!response.ok || !response.body) {
+        throw new Error(`The answer could not be generated (${response.status}).`)
+      }
+
       setMessages((current) => [
         ...current,
-        { role: 'assistant', content: normaliseCitations(data.answer || '') },
+        { role: 'assistant', content: '', streaming: true },
       ])
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let streamed = ''
+      let finalPayload = null
+      let failure = null
+
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        let boundary
+        while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+          const frame = buffer.slice(0, boundary)
+          buffer = buffer.slice(boundary + 2)
+          const eventMatch = /^event:\s*(.+)$/m.exec(frame)
+          const dataMatch = /^data:\s*(.+)$/m.exec(frame)
+          if (!eventMatch || !dataMatch) continue
+
+          let payload = null
+          try {
+            payload = JSON.parse(dataMatch[1])
+          } catch {
+            continue
+          }
+
+          const kind = eventMatch[1].trim()
+          if (kind === 'delta' && payload && payload.text) {
+            streamed += payload.text
+            const snapshot = streamed
+            setMessages((current) => {
+              const next = [...current]
+              next[next.length - 1] = {
+                role: 'assistant',
+                content: snapshot,
+                streaming: true,
+              }
+              return next
+            })
+          } else if (kind === 'final') {
+            finalPayload = payload
+          } else if (kind === 'error') {
+            failure = (payload && payload.message) || 'The answer could not be generated.'
+          }
+        }
+      }
+
+      // A mid-stream failure with no final payload is a failed answer; one that
+      // arrived after the text is just the provider's noise on the way out.
+      if (failure && !finalPayload) throw new Error(failure)
+
+      const answer = normaliseCitations((finalPayload && finalPayload.answer) || streamed || '')
+      setMessages((current) => {
+        const next = [...current]
+        next[next.length - 1] = { role: 'assistant', content: answer, streaming: false }
+        return next
+      })
       onChatChanged?.()
     } catch (requestError) {
+      // Drop the half-written bubble: a failed answer should not look like one.
+      setMessages((current) => current.filter((message) => !message.streaming))
       setError(
         requestError?.response?.data?.detail ||
           requestError?.message ||
@@ -221,6 +296,9 @@ export default function WorkspaceChat({
   }
 
   const empty = messages.length === 0
+  // While a bubble is streaming the spinner row would be a second "thinking"
+  // indicator under the answer that is already being written.
+  const streaming = messages.some((message) => message.streaming)
 
   return (
     <article className="panel chat-panel">
@@ -287,6 +365,7 @@ export default function WorkspaceChat({
                   {protectCurrency(message.content)}
                 </Markdown>
               </div>
+              {message.streaming ? null : (
               <div className="answer-tools">
                 <button
                   type="button"
@@ -309,11 +388,12 @@ export default function WorkspaceChat({
                   <ThumbsDown size={13} />
                 </button>
               </div>
+              )}
             </div>
           ),
         )}
 
-        {busy ? (
+        {busy && !streaming ? (
           <div className="msg">
             <div className="msg-head">
               <span className="assistant-badge">
