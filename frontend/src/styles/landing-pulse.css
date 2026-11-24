@@ -889,7 +889,7 @@
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba(245, 245, 248, 0.55);
+  color: #f42fa7;
 }
 
 .lv-section-sub,
@@ -910,25 +910,38 @@
 .lv-stack {
   display: grid;
   gap: 1px;
-  background: rgba(245, 245, 248, 0.08);
-  border: 1px solid rgba(245, 245, 248, 0.08);
+  /* a solid hairline, not a translucent one: the page's colour orbs were showing
+     through the 1px gaps and tinting every row edge differently */
+  background: rgba(245, 245, 248, 0.09);
+  border: 1px solid rgba(245, 245, 248, 0.09);
+  border-radius: 2px;
+  overflow: hidden;
 }
 
 .lv-stack-row {
   display: grid;
   grid-template-columns: 96px 1fr;
   gap: 4px 18px;
-  padding: 14px 18px;
-  background: #0a1018;
+  padding: 16px 20px;
+  background: #080d16;
+  transition: background 0.18s ease;
+}
+
+.lv-stack-row:hover {
+  background: #0c131f;
 }
 
 .lv-stack-key {
   grid-row: span 2;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 10px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   color: #f42fa7;
   padding-top: 3px;
+}
+
+.lv-stack-row:hover .lv-stack-key {
+  color: #ff54b7;
 }
 
 .lv-stack-value {
@@ -960,5 +973,53 @@
 
   .lv-stack-key {
     grid-row: auto;
+  }
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────────
+   Anchor links glide, and each block of the page lifts into place as it enters
+   the viewport. Both are declarative: no scroll listener, no layout thrash, and
+   the whole thing disappears when the reader asks for less motion. */
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes lv-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@supports (animation-timeline: view()) {
+  .lv-section,
+  .lv-stack,
+  .lv-pending {
+    animation: lv-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 5% entry 55%;
+  }
+
+  .lv-stack-row {
+    animation: lv-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 10% entry 70%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .lv-section,
+  .lv-stack,
+  .lv-stack-row,
+  .lv-pending {
+    animation: none;
   }
 }

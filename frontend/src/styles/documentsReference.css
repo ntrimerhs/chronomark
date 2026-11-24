@@ -1057,8 +1057,8 @@
    the panels where it belongs. */
 .docs-app {
   position: fixed;
-  /* pinned to the window, less the band the shared bar takes above it */
-  top: 76px;
+  /* pinned to the window: no bar sits above it any more */
+  top: 0;
   right: 0;
   bottom: 0;
   left: 0;
