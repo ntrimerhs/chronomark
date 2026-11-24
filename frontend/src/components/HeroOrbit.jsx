@@ -1,190 +1,131 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import './heroOrbit.css'
 
-/* The homepage hero, built to the reference.
+/* The hero, transcribed from the supplied section.
 
-   One composition: a technical grid and three colour washes, a precision dial
-   drawn in SVG, the CHRONOMARK wordmark sitting across it, the tagline and two
-   controls, with small monospaced readouts at the edges.
+   Same structure, same copy, same measurements: the 1024px plate with its grid,
+   the ambient glows, the four corner telemetry readouts, the 340 / 580 / 740px
+   reticle with its rings, notches and satellite marker, and the foreground block
+   pulled back over it with the wordmark, the tagline, the lede, the two actions
+   and the repository line.
 
-   The dial is decorative and sits behind the type with pointer-events off. Its
-   motion is CSS only — a marker travelling the inner orbit, a slower counter-
-   rotating tick ring, a breathing glow — and it stops under reduced motion.
+   Nothing else from earlier work is carried over; the classes are namespaced .hv-
+   so the hero cannot inherit anything, and the section owns its whole plate. */
 
-   Everything is real text and real SVG: nothing here is a screenshot, so the
-   wordmark stays selectable and the circles stay crisp at any size. */
-
-const WORD = 'CHRONOMARK'
-const TICKS = Array.from({ length: 60 }, (_, i) => i * 6)
-const CARDINALS = [0, 90, 180, 270]
-
-/* The bottom-left readout is a real stopwatch: it counts up from the moment
-   the hero mounts, so the page itself feels alive instead of printed. */
-function useElapsedClock() {
-  const [elapsed, setElapsed] = useState(0)
-
-  useEffect(() => {
-    const started = Date.now()
-    const timer = window.setInterval(() => {
-      setElapsed(Math.floor((Date.now() - started) / 1000))
-    }, 1000)
-    return () => window.clearInterval(timer)
-  }, [])
-
-  const hours = String(Math.floor(elapsed / 3600)).padStart(2, '0')
-  const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')
-  const seconds = String(elapsed % 60).padStart(2, '0')
-  return `${hours}:${minutes}:${seconds}`
-}
+const MARKS = ['TIME', 'DATA', 'PRECISION', 'IMPACT']
+const REPOSITORIES = ['MIT OPENCOURSEWARE', 'STANFORD CS ARCHIVES', 'NEURIPS 2024', 'CERN SYMPOSIUMS']
 
 export default function HeroOrbit() {
-  const clock = useElapsedClock()
   return (
-    <div className="hx">
-      {/* the site's own mesh blobs, back on top of the plate */}
-      <div className="hero-mesh" aria-hidden="true">
-        <span className="mesh-blob mesh-blob-1" />
-        <span className="mesh-blob mesh-blob-2" />
-        <span className="mesh-blob mesh-blob-3" />
-        <span className="mesh-blob mesh-blob-4" />
+    <section className="hv" data-purpose="orbital-radar-hero">
+      <div className="hv-ambient" aria-hidden="true">
+        <div className="hv-glow-core" />
+        <div className="hv-glow-wide" />
       </div>
 
-      <div className="hx-wash hx-wash-pink" aria-hidden="true" />
-      <div className="hx-wash hx-wash-violet" aria-hidden="true" />
-      <div className="hx-wash hx-wash-blue" aria-hidden="true" />
-      <div className="hx-grid" aria-hidden="true" />
-      {/* a soft radial glow behind the dial centre: gives the composition
-          depth instead of sitting on flat plate colour */}
-      <div className="hx-core-glow" aria-hidden="true" />
-
-      {/* edge readouts */}
-      <div className="hx-edge hx-edge-tl" aria-hidden="true">
-        <span className="hx-rule" />
-        <p>
-          TIME<br />DATA<br />PRECISION<br />IMPACT
-        </p>
+      <div className="hv-marks" aria-hidden="true">
+        <div className="hv-marks-rule" />
+        {MARKS.map((mark) => (
+          <span key={mark}>{mark}</span>
+        ))}
       </div>
-      <p className="hx-edge hx-edge-tr" aria-hidden="true">
-        <span>01 / ∞</span>
-        <span className="hx-rule hx-rule-short" />
-      </p>
-      <p className="hx-edge hx-edge-bl" aria-hidden="true">
-        <span className="hx-rule hx-rule-short" />
-        <span>T — {clock}</span>
-      </p>
-      <p className="hx-edge hx-edge-br" aria-hidden="true">
-        <span>///</span>
-      </p>
 
-      <div className="hx-stage">
-        <svg className="hx-orbit" viewBox="0 0 700 700" aria-hidden="true" focusable="false">
-          <defs>
-            <linearGradient id="hxArc" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0" stopColor="#A8A2FF" />
-              <stop offset="1" stopColor="#A8A2FF" />
-            </linearGradient>
-            <linearGradient id="hxRing" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#A8A2FF" stopOpacity="0.5" />
-              <stop offset="0.5" stopColor="#A8A2FF" stopOpacity="0.16" />
-              <stop offset="1" stopColor="#A8A2FF" stopOpacity="0.5" />
-            </linearGradient>
-            <filter id="hxGlow" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="7" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
+      <div className="hv-stamp" aria-hidden="true">
+        <span className="hv-stamp-rule" />
+        <span className="hv-faint">T —</span>
+        <span className="hv-pure hv-stamp-value">00:01:43</span>
+      </div>
 
-          {/* crosshairs */}
-          <g className="hx-crosshair">
-            <line x1="350" y1="0" x2="350" y2="700" />
-            <line x1="0" y1="350" x2="700" y2="350" />
-          </g>
+      <div className="hv-index" aria-hidden="true">
+        <span className="hv-accent">01</span>
+        <span className="hv-faint">/</span>
+        <span className="hv-pure">∞</span>
+        <span className="hv-index-rule" />
+      </div>
 
-          {/* outer + inner circles */}
-          <circle className="hx-ring hx-ring-outer" cx="350" cy="350" r="322" />
-          <circle className="hx-ring hx-ring-inner" cx="350" cy="350" r="233" />
+      <div className="hv-latency" aria-hidden="true">
+        <span className="hv-accent">///</span>
+        <span className="hv-latency-text">SYSTEM ACTIVE • LATENCY 4.2ms</span>
+      </div>
 
-          {/* dotted ring */}
-          <circle className="hx-dotted" cx="350" cy="350" r="196" />
+      <div className="hv-reticle" aria-hidden="true">
+        <div className="hv-ring-outer">
+          <div className="hv-notch hv-notch-n" />
+          <div className="hv-notch hv-notch-s" />
+          <div className="hv-notch hv-notch-e" />
+          <div className="hv-notch hv-notch-w" />
+          <div className="hv-slash hv-slash-nw" />
+          <div className="hv-slash hv-slash-ne" />
+          <div className="hv-slash hv-slash-sw" />
+          <div className="hv-slash hv-slash-se" />
+        </div>
 
-          {/* tick ring: rotates slowly, opposite to the marker */}
-          <g className="hx-ticks">
-            {TICKS.map((angle) => {
-              const long = CARDINALS.includes(angle)
-              return (
-                <line
-                  key={angle}
-                  x1="350"
-                  y1={long ? 18 : 26}
-                  x2="350"
-                  y2={long ? 44 : 38}
-                  transform={`rotate(${angle} 350 350)`}
-                  className={long ? 'hx-tick is-long' : 'hx-tick'}
-                />
-              )
-            })}
-          </g>
+        <div className="hv-ring-dashed" />
 
-          {/* centre mark */}
-          <g className="hx-centre">
-            <line x1="336" y1="350" x2="364" y2="350" />
-            <line x1="350" y1="336" x2="350" y2="364" />
-          </g>
+        <div className="hv-ring-inner">
+          <div className="hv-satellite" />
+        </div>
 
-          {/* the travelling arc + marker */}
-          <g className="hx-arc-group">
-            <path className="hx-arc" d="M 470 145 A 233 233 0 0 1 560 300" />
-            <path className="hx-arc-trail" d="M 402 128 A 233 233 0 0 1 470 145" />
-            <g className="hx-marker">
-              <circle cx="470" cy="145" r="26" fill="#A8A2FF" opacity="0.2" />
-              <circle cx="470" cy="145" r="11" fill="#A8A2FF" filter="url(#hxGlow)" />
-              <circle cx="470" cy="145" r="3.8" fill="#D8D6FF" />
-            </g>
-          </g>
-        </svg>
+        <div className="hv-ring-dotted" />
 
-        <h1 className="hx-word" aria-label="ChronoMark">
-          {WORD.split('').map((char, i) => (
-            <span key={`${char}-${i}`} style={{ '--i': i }}>
-              {char}
-            </span>
-          ))}
-        </h1>
+        <div className="hv-crosshair">
+          <div className="hv-crosshair-x" />
+          <div className="hv-crosshair-y" />
+          <div className="hv-crosshair-dot" />
+        </div>
 
-        <p className="hx-tagline">
-          Hours of lecture. One exact <em>moment.</em>
-        </p>
-
-        <div className="hx-actions">
-          <Link className="hx-primary" to="/upload">
-            Explore the demo
-            <span className="hx-arrow" aria-hidden="true">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M4 12 12 4M6 4h6v6"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-          </Link>
-
-          <a className="hx-ghost" href="#features">
-            <span className="hx-play" aria-hidden="true">
-              <svg width="8" height="9" viewBox="0 0 8 9" fill="none">
-                <path d="M1 1.2 7 4.5 1 7.8V1.2Z" fill="currentColor" />
-              </svg>
-            </span>
-            How it works
-          </a>
+        <div className="hv-orbit">
+          <div className="hv-orbit-arc">
+            <div className="hv-marker">
+              <div className="hv-marker-ping" />
+              <div className="hv-marker-dot" />
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      <div className="hv-content">
+        <h1 className="hv-title" data-purpose="hero-title">
+          CHRONOMARK
+        </h1>
+
+        <p className="hv-tagline" data-purpose="hero-tagline">
+          Hours of lecture. One exact <span className="hv-tagline-em">moment.</span>
+        </p>
+
+        <p className="hv-lede">
+          The temporal intelligence engine that indexes 4-hour academic symposiums, audio phonemes,
+          and chalkboard equations down to the exact millisecond.
+        </p>
+
+        <div className="hv-actions" data-purpose="hero-actions">
+          <a className="hv-pill" href="#demo-lab">
+            <span className="hv-pill-label">Explore the demo</span>
+            <span className="hv-pill-arrow">↗</span>
+          </a>
+
+          <button className="hv-ghost" type="button" data-purpose="listen-pinpoint-button">
+            <div className="hv-play">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M5 3l14 9-14 9V3z" />
+              </svg>
+            </div>
+            <span>How it works</span>
+            <div className="hv-wave" aria-hidden="true">
+              <span className="hv-wave-1" />
+              <span className="hv-wave-2" />
+              <span className="hv-wave-3" />
+              <span className="hv-wave-4" />
+            </div>
+          </button>
+        </div>
+
+        <div className="hv-badges">
+          <span>INDEXED REPOSITORIES:</span>
+          {REPOSITORIES.map((repository) => (
+            <span key={repository}>{repository}</span>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }
