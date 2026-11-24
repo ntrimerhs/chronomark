@@ -1,13 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 .main-header {
-  --header-bg: rgba(10, 18, 28, 0.62);
-  --header-bg-hover: rgba(124, 58, 237, 0.14);
-  --header-line: rgba(255, 255, 255, 0.08);
-  --header-text: #FFFFFF;
-  --header-text-dim: rgba(233, 230, 247, 0.55);
-  --header-accent: linear-gradient(135deg, #7c3aed 0%, #c026d3 50%, #ff3b9a 100%);
-  --header-cta-bg: #ff3b9a;
+  --header-bg: rgba(11, 11, 18, 0.62);
+  --header-bg-hover: rgba(168, 162, 255, 0.14);
+  --header-line: rgba(243, 244, 248, 0.08);
+  --header-text: #F3F4F8;
+  --header-text-dim: rgba(216, 214, 255, 0.55);
+  --header-accent: linear-gradient(135deg, #A8A2FF 0%, #6F63D9 50%, #A8A2FF 100%);
+  --header-cta-bg: #A8A2FF;
   --header-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 
   /* sticky (not fixed): this app's real scroll container is the nested
@@ -29,7 +29,7 @@
      The opaque fallback keeps the header readable where blur is unsupported. */
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   backdrop-filter: blur(18px) saturate(140%);
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 -1px 0 rgba(243, 244, 248, 0.04);
   border-bottom: 1px solid var(--header-line);
   font-family: var(--header-mono);
   font-size: 14px;
@@ -37,7 +37,7 @@
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .main-header {
-    background: #0A121C;
+    background: #0B0B12;
   }
 }
 
@@ -57,8 +57,8 @@
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: linear-gradient(135deg, #7c3aed, #ff3b9a);
-  box-shadow: 0 12px 30px rgba(124, 58, 237, 0.22);
+  background: linear-gradient(135deg, #A8A2FF, #A8A2FF);
+  box-shadow: 0 12px 30px rgba(168, 162, 255, 0.22);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
   overflow: hidden;
@@ -67,7 +67,7 @@
 
 .logo-link:hover .logo-icon {
   transform: translateY(-4px) scale(1.05);
-  box-shadow: 0 20px 40px rgba(124, 58, 237, 0.35);
+  box-shadow: 0 20px 40px rgba(168, 162, 255, 0.35);
 }
 
 .logo-icon::before {
@@ -77,7 +77,7 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(243, 244, 248, 0.2), transparent);
   transition: left 0.5s ease;
 }
 
@@ -88,18 +88,18 @@
 .logo-icon-svg {
   width: 20px;
   height: 20px;
-  color: white;
+  color: #F3F4F8;
   position: relative;
   z-index: 1;
 }
 
 .logo-label {
-  color: white;
+  color: #F3F4F8;
   font-family: var(--font-display, var(--header-mono));
   font-weight: 700;
   font-size: 17px;
   letter-spacing: 0.02em;
-  background: linear-gradient(135deg, #ffffff, rgba(255, 255, 255, 0.8));
+  background: linear-gradient(135deg, #F3F4F8, rgba(243, 244, 248, 0.8));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -191,7 +191,7 @@
 .logo-link:hover .logo-mark,
 .logo-link:focus-visible .logo-mark {
   transform: translateY(-2px) scale(1.12);
-  filter: drop-shadow(0 8px 16px rgba(255, 59, 167, 0.35));
+  filter: drop-shadow(0 8px 16px rgba(168, 162, 255, 0.35));
 }
 
 .logo-link:hover .logo-word,
@@ -237,7 +237,7 @@
   font-weight: 500;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #F5F5F8;
+  color: #F3F4F8;
 }
 
 .nav-link {
@@ -250,11 +250,11 @@
   text-transform: uppercase;
   letter-spacing: 0.16em;
   font-size: 10.5px;
-  color: #F42FA7;
+  color: #A8A2FF;
 }
 
 .cta:hover {
-  color: #FF6BC4;
+  color: #A8A2FF;
 }
 
 .cell-search span {
@@ -282,3 +282,17 @@
   padding: 12px 24px;
 }
 
+
+/* The nav call to action stays a text link on the bar, not a filled block: only
+   its type is accented. The cell keeps its hairline and hover tint from the base
+   rule, exactly as before the palette change. */
+.main-header .cta {
+  background: transparent;
+  color: #A8A2FF;
+  font-weight: 500;
+}
+
+.main-header .cta:hover {
+  background: rgba(168, 162, 255, 0.12);
+  color: #D8D6FF;
+}

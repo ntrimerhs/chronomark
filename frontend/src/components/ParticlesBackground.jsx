@@ -14,14 +14,14 @@ export default function ParticlesBackground({ id = 'particles-js', interactive =
     fpsLimit: 60,
     particles: {
       number: { value: 60, density: { enable: true, area: 900 } },
-      color: { value: ['#7c3aed', '#ff3b9a', '#ffffff'] },
+      color: { value: ['#A8A2FF', '#A8A2FF', '#F3F4F8'] },
       shape: { type: 'circle' },
       opacity: { value: { min: 0.15, max: 0.5 } },
       size: { value: { min: 1, max: 3 } },
       links: {
         enable: true,
         distance: 140,
-        color: '#7c3aed',
+        color: '#A8A2FF',
         opacity: 0.25,
         width: 1,
       },
@@ -44,7 +44,7 @@ export default function ParticlesBackground({ id = 'particles-js', interactive =
       },
       modes: {
         grab: { distance: 160, links: { opacity: 0.5 } },
-        bubble: { distance: 180, size: 5, opacity: 1, color: { value: '#ff3b9a' }, duration: 0.4 },
+        bubble: { distance: 180, size: 5, opacity: 1, color: { value: '#A8A2FF' }, duration: 0.4 },
         push: { quantity: 4 },
       },
     },

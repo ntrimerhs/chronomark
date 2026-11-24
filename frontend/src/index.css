@@ -4,22 +4,39 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600&display=swap');
 
 :root {
-  --bg: #0A121C;
-  --bg-deep: #1a1333;
-  --bg-surface: #2d1533;
-  --bg-panel: rgba(255, 255, 255, 0.05);
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #E9E6F7;
-  --text-strong: #FFFFFF;
-  --text-muted: #7093C3;
-  --accent-purple: #BFACFC;
-  --accent-soft: #E9E6F7;
-  --accent-indigo: #301E6B;
-  --accent-pink: #ff3b9a;
-  --accent-pink-2: #ff5ba8;
-  --accent-grey: #3B3649;
-  --surface: #1a1333;
-  --shadow: 0 28px 100px rgba(0, 0, 0, 0.32);
+  /* Palette from the reference's Tailwind config, verbatim. */
+  --canvas: #0B0B12;
+  --surface: #141420;
+  --surface-card: #1B1B2B;
+  --surface-hover: #222336;
+  --line: #2A2C3B;
+  --accent: #6F63D9;
+  --accent-light: #A8A2FF;
+  --accent-ethereal: #D8D6FF;
+  --tech-pure: #F3F4F8;
+  --tech-muted: #A7ACBA;
+  --tech-faint: #4A4D62;
+  --status-emerald: #34D399;
+  --status-rose: #F43F5E;
+  --status-amber: #FBBF24;
+
+  /* The older names point at the same palette, so existing components inherit it
+     without being rewritten. */
+  --bg: var(--canvas);
+  --bg-deep: var(--surface);
+  --bg-surface: var(--surface);
+  --bg-panel: rgba(167, 172, 186, 0.06);
+  --border: var(--line);
+  --text: var(--tech-pure);
+  --text-strong: var(--tech-pure);
+  --text-muted: var(--tech-muted);
+  --accent-purple: var(--accent-light);
+  --accent-soft: var(--accent-ethereal);
+  --accent-indigo: var(--accent);
+  --accent-pink: var(--accent);
+  --accent-pink-2: var(--accent-light);
+  --accent-grey: var(--surface-card);
+  --shadow: 0 28px 100px rgba(11, 11, 18, 0.32);
 
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-display: 'Work Sans', system-ui, sans-serif;
@@ -38,7 +55,7 @@ html, body, #root {
   padding: 0;
   overflow-x: hidden;
   /* matched to the hero plate so no strip shows beside the scroll rail */
-  background: #080D19;
+  background: var(--canvas);
 }
 
 body {
@@ -120,15 +137,15 @@ p {
 }
 
 .btn-primary {
-  background: linear-gradient(90deg, var(--accent-purple) 0%, #b545f0 25%, #e940f0 50%, #f03080 75%, var(--accent-pink) 100%);
+  background: linear-gradient(90deg, var(--accent-purple) 0%, #A8A2FF 25%, #A8A2FF 50%, #A8A2FF 75%, var(--accent-pink) 100%);
   color: var(--text-strong);
-  box-shadow: 0 14px 40px rgba(123, 58, 234, 0.18);
+  box-shadow: 0 14px 40px rgba(168, 162, 255, 0.18);
 }
 
 .btn-secondary {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(243, 244, 248, 0.08);
   color: var(--text-strong);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(243, 244, 248, 0.1);
 }
 
 @media (max-width: 1024px) {
@@ -146,3 +163,10 @@ p {
   }
 }
 
+
+/* Buttons across the site take the accent, not a pastel gradient. */
+.btn-primary {
+  background: linear-gradient(90deg, #6F63D9 0%, #A8A2FF 100%);
+  color: #0B0B12;
+  box-shadow: 0 14px 40px rgba(111, 99, 217, 0.28);
+}

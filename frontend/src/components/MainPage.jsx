@@ -501,12 +501,6 @@ function MainPage() {
       >
         <span className="back-to-top-label">Back to Top</span>
       </button>
-      <div className="page-bar-track" aria-hidden="true">
-        <div ref={stepFillRef} className="page-bar-fill" />
-        <div className="page-stepper-node psn-1" />
-        <div className="page-stepper-node psn-2" />
-        <div className="page-stepper-node psn-3" />
-      </div>
       <main className="main-hero" ref={heroRef} onMouseMove={handleHeroMouseMove}>
         {/* The hero carries its own backdrop (washes + grid) inside HeroOrbit. */}
         <HeroOrbit />

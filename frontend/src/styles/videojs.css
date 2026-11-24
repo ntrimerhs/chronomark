@@ -8,37 +8,37 @@
 
 /* ── Play/pause control styling to match the app's purple/pink theme ── */
 .video-js .vjs-big-play-button {
-  background-color: rgba(124, 58, 237, 0.85);
-  border-color: rgba(255, 59, 154, 0.6);
+  background-color: rgba(168, 162, 255, 0.85);
+  border-color: rgba(168, 162, 255, 0.6);
 }
 
 .video-js:hover .vjs-big-play-button,
 .video-js .vjs-big-play-button:hover,
 .video-js .vjs-big-play-button:focus {
-  background-color: rgba(255, 59, 154, 0.9);
-  border-color: rgba(255, 59, 154, 0.9);
+  background-color: rgba(168, 162, 255, 0.9);
+  border-color: rgba(168, 162, 255, 0.9);
 }
 
 .video-js .vjs-control-bar .vjs-play-control .vjs-icon-placeholder:before {
-  color: #fff;
+  color: #F3F4F8;
   transition: color 150ms ease;
 }
 
 .video-js.vjs-paused .vjs-control-bar .vjs-play-control .vjs-icon-placeholder:before {
-  color: #ff3b9a;
+  color: #A8A2FF;
 }
 
 .video-js .vjs-control-bar .vjs-play-control:hover .vjs-icon-placeholder:before {
-  color: #ff5ba8;
+  color: #A8A2FF;
 }
 
 /* ── Keyframe animations for live glow effect ── */
 @keyframes progressGlow {
   0%, 100% {
-    filter: drop-shadow(0 0 6px rgba(255, 59, 154, 0.5)) drop-shadow(0 0 12px rgba(124, 58, 237, 0.35));
+    filter: drop-shadow(0 0 6px rgba(168, 162, 255, 0.5)) drop-shadow(0 0 12px rgba(168, 162, 255, 0.35));
   }
   50% {
-    filter: drop-shadow(0 0 12px rgba(255, 59, 154, 0.9)) drop-shadow(0 0 24px rgba(124, 58, 237, 0.7)) drop-shadow(0 0 36px rgba(255, 59, 154, 0.4));
+    filter: drop-shadow(0 0 12px rgba(168, 162, 255, 0.9)) drop-shadow(0 0 24px rgba(168, 162, 255, 0.7)) drop-shadow(0 0 36px rgba(168, 162, 255, 0.4));
   }
 }
 
@@ -65,7 +65,7 @@
 
 /* Progress bar background */
 .video-js .vjs-progress-control .vjs-progress-holder {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(255, 59, 154, 0.15));
+  background: linear-gradient(135deg, rgba(168, 162, 255, 0.15), rgba(168, 162, 255, 0.15));
   margin: 0;
   height: 6px;
   border-radius: 3px;
@@ -74,7 +74,7 @@
 
 /* Played portion with a visible glowing rail */
 .video-js .vjs-progress-control .vjs-play-progress {
-  background: linear-gradient(135deg, #7c3aed, #ff3b9a);
+  background: linear-gradient(135deg, #A8A2FF, #A8A2FF);
   animation: progressGlow 2s ease-in-out infinite;
   border-radius: 3px;
   position: relative;
@@ -90,8 +90,8 @@
   height: 14px;
   border-radius: 50%;
   transform: translateY(-50%);
-  background: radial-gradient(circle, #ff8ed8 0%, #ff3b9a 38%, #8b5cf6 100%);
-  box-shadow: 0 0 8px rgba(255, 59, 154, 0.85), 0 0 18px rgba(124, 58, 237, 0.7), 0 0 30px rgba(255, 59, 154, 0.45);
+  background: radial-gradient(circle, #A8A2FF 0%, #A8A2FF 38%, #A8A2FF 100%);
+  box-shadow: 0 0 8px rgba(168, 162, 255, 0.85), 0 0 18px rgba(168, 162, 255, 0.7), 0 0 30px rgba(168, 162, 255, 0.45);
   animation: circlePulse 1.6s ease-in-out infinite;
   pointer-events: none;
   z-index: 4;
@@ -99,7 +99,7 @@
 
 /* Buffered portion styling */
 .video-js .vjs-progress-control .vjs-load-progress {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(255, 59, 154, 0.08));
+  background: linear-gradient(135deg, rgba(168, 162, 255, 0.08), rgba(168, 162, 255, 0.08));
   border-radius: 3px;
 }
 
@@ -116,7 +116,7 @@
   font-size: 0.85em;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: #fff;
+  color: #F3F4F8;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -125,7 +125,7 @@
 }
 
 .vjs-skip-forward:hover .vjs-skip-label {
-  color: #c4b5fd;
+  color: #D8D6FF;
 }
 
 .vjs-skip-forward:active .vjs-skip-label {
@@ -136,4 +136,15 @@
    keep the pointer from looking like a text cursor. */
 .vjs-tech {
   cursor: pointer;
+}
+
+/* Caption styling. video.js writes these colours inline from JavaScript, where
+   they cannot be recoloured without editing the library, so they are overridden
+   here with the palette instead. */
+.video-js .vjs-text-track-cue,
+.video-js .vjs-text-track-cue div,
+.video-js .vjs-text-track-cue span {
+  color: #F3F4F8 !important;
+  background-color: rgba(20, 20, 32, 0.8) !important;
+  text-shadow: none !important;
 }

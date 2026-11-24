@@ -502,10 +502,10 @@ export default function HowItWorks() {
                       >
                         <defs>
                           <linearGradient id="hiwSignalGradient" x1="0" x2="1">
-                            <stop offset="0" stopColor="#5944ae" />
-                            <stop offset="0.57" stopColor="#b15ce7" />
-                            <stop offset="0.8" stopColor="#F42FA7" />
-                            <stop offset="1" stopColor="#A855F7" />
+                            <stop offset="0" stopColor="#6F63D9" />
+                            <stop offset="0.57" stopColor="#A8A2FF" />
+                            <stop offset="0.8" stopColor="#A8A2FF" />
+                            <stop offset="1" stopColor="#A8A2FF" />
                           </linearGradient>
                         </defs>
                         <path

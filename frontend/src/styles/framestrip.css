@@ -15,7 +15,7 @@
   overflow-x: auto;
   padding-bottom: 6px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  scrollbar-color: rgba(243, 244, 248, 0.18) transparent;
 }
 
 .frame-strip-scroll::-webkit-scrollbar {
@@ -24,7 +24,7 @@
 
 .frame-strip-scroll::-webkit-scrollbar-thumb {
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(243, 244, 248, 0.18);
 }
 
 .frame-strip-item {
@@ -32,7 +32,7 @@
   flex: 0 0 auto;
   width: 108px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(243, 244, 248, 0.1);
   border-radius: 9px;
   background: none;
   overflow: hidden;
@@ -41,13 +41,13 @@
 }
 
 .frame-strip-item:hover {
-  border-color: rgba(255, 59, 154, 0.6);
+  border-color: rgba(168, 162, 255, 0.6);
   transform: translateY(-2px);
 }
 
 .frame-strip-item.is-active {
-  border-color: #ff3b9a;
-  box-shadow: 0 0 0 2px rgba(255, 59, 154, 0.25);
+  border-color: #A8A2FF;
+  box-shadow: 0 0 0 2px rgba(168, 162, 255, 0.25);
 }
 
 .frame-strip-item img {
@@ -63,8 +63,8 @@
   bottom: 4px;
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(10, 18, 28, 0.85);
-  color: #f8fafc;
+  background: rgba(11, 11, 18, 0.85);
+  color: #D8D6FF;
   font-family: 'SF Mono', 'Fira Code', 'Roboto Mono', ui-monospace, monospace;
   font-size: 10px;
   font-variant-numeric: tabular-nums;

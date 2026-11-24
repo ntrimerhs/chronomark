@@ -8,7 +8,7 @@
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  background: #3b82f6; /* primary blue */
+  background: #A8A2FF; /* primary blue */
   opacity: 0.6;
   animation: spinner-bounce 1.6s infinite ease-in-out;
 }

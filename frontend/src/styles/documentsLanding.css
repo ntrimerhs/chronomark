@@ -3,9 +3,9 @@
    the workspace itself. */
 
 .docs-landing {
-  --docs-line: rgba(245, 245, 248, 0.12);
-  --docs-ink: #f5f5f8;
-  --docs-dim: rgba(245, 245, 248, 0.55);
+  --docs-line: rgba(243, 244, 248, 0.12);
+  --docs-ink: #F3F4F8;
+  --docs-dim: rgba(243, 244, 248, 0.55);
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -22,17 +22,17 @@
   font-size: 9.5px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(245, 245, 248, 0.42);
+  color: rgba(243, 244, 248, 0.42);
 }
 
 .docs-breadcrumb i {
   font-style: normal;
-  color: rgba(245, 245, 248, 0.25);
+  color: rgba(243, 244, 248, 0.25);
 }
 
 .docs-breadcrumb strong {
   font-weight: 600;
-  color: rgba(245, 245, 248, 0.82);
+  color: rgba(243, 244, 248, 0.82);
 }
 
 .docs-landing-head h1 {
@@ -47,7 +47,7 @@
 .docs-landing-head h1 em {
   font-family: Georgia, 'Times New Roman', serif;
   font-style: italic;
-  background-image: linear-gradient(96deg, #f42fa7, #a855f7);
+  background-image: linear-gradient(96deg, #A8A2FF, #A8A2FF);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -65,12 +65,12 @@
   padding: 16px;
   border: 1px solid var(--docs-line);
   border-radius: 16px;
-  background: #101823;
+  background: #0B0B12;
   transition: border-color 0.18s ease;
 }
 
 .docs-landing-card.is-dragging {
-  border-color: rgba(244, 47, 167, 0.55);
+  border-color: rgba(168, 162, 255, 0.55);
 }
 
 .docs-drop {
@@ -80,9 +80,9 @@
   gap: 10px;
   width: 100%;
   padding: 54px 24px;
-  border: 1px dashed rgba(245, 245, 248, 0.18);
+  border: 1px dashed rgba(243, 244, 248, 0.18);
   border-radius: 12px;
-  background: rgba(245, 245, 248, 0.02);
+  background: rgba(243, 244, 248, 0.02);
   color: var(--docs-dim);
   text-align: center;
   cursor: pointer;
@@ -90,13 +90,13 @@
 }
 
 .docs-drop:hover {
-  border-color: rgba(244, 47, 167, 0.5);
-  background: rgba(244, 47, 167, 0.05);
+  border-color: rgba(168, 162, 255, 0.5);
+  background: rgba(168, 162, 255, 0.05);
   color: var(--docs-ink);
 }
 
 .docs-drop svg {
-  color: #f42fa7;
+  color: #A8A2FF;
 }
 
 .docs-drop strong {
@@ -129,21 +129,21 @@
 }
 
 .docs-uploading svg {
-  color: #f42fa7;
+  color: #A8A2FF;
 }
 
 .docs-bar {
   width: min(100%, 380px);
   height: 3px;
   border-radius: 3px;
-  background: rgba(245, 245, 248, 0.1);
+  background: rgba(243, 244, 248, 0.1);
   overflow: hidden;
 }
 
 .docs-bar span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #f42fa7, #a855f7);
+  background: linear-gradient(90deg, #A8A2FF, #A8A2FF);
   transition: width 0.3s ease;
 }
 
@@ -159,7 +159,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10.5px;
   letter-spacing: 0.08em;
-  color: #ff9dbb;
+  color: #D8D6FF;
 }
 
 .docs-spin {
