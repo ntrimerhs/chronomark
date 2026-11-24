@@ -283,14 +283,16 @@
 }
 
 
-/* The nav call to action is the one accented control in the bar. */
+/* The nav call to action stays a text link on the bar, not a filled block: only
+   its type is accented. The cell keeps its hairline and hover tint from the base
+   rule, exactly as before the palette change. */
 .main-header .cta {
-  background: #6F63D9;
-  color: #F3F4F8;
-  font-weight: 600;
+  background: transparent;
+  color: #A8A2FF;
+  font-weight: 500;
 }
 
 .main-header .cta:hover {
-  background: #A8A2FF;
-  color: #0B0B12;
+  background: rgba(168, 162, 255, 0.12);
+  color: #D8D6FF;
 }
