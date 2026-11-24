@@ -206,41 +206,40 @@
 
 .hero2-ring-outer {
   inset: 0;
-  border: 1px solid rgba(42, 44, 59, 0.7);
+  border: 1px solid rgba(167, 172, 186, 0.28);
   animation: hero2-spin 40s linear infinite;
 }
 
 .hero2-ring-inner {
   width: 56%;
   height: 56%;
-  border: 1px solid rgba(42, 44, 59, 0.9);
+  border: 1px solid rgba(167, 172, 186, 0.3);
   animation: hero2-spin 50s linear infinite reverse;
 }
 
 .hero2-ring-dashed {
   width: 78%;
   height: 78%;
-  border: 1px dashed rgba(168, 162, 255, 0.35);
-  opacity: 0.4;
+  border: 1px dashed rgba(168, 162, 255, 0.42);
 }
 
 .hero2-ring-dotted {
   width: 36%;
   height: 36%;
-  border: 1px dotted rgba(42, 44, 59, 0.6);
+  border: 1px dotted rgba(167, 172, 186, 0.3);
 }
 
 .hero2-arc {
   width: 72%;
   height: 72%;
-  border-bottom: 1px solid rgba(168, 162, 255, 0.4);
-  border-left: 1px solid rgba(168, 162, 255, 0.4);
+  border-bottom: 1px solid rgba(168, 162, 255, 0.55);
+  border-left: 1px solid rgba(168, 162, 255, 0.55);
 }
 
 /* tick notches */
 .hero2-notch {
   position: absolute;
-  background: rgba(168, 162, 255, 0.6);
+  background: rgba(168, 162, 255, 0.85);
 }
 
 .hero2-notch.is-n,
@@ -280,7 +279,7 @@
   position: absolute;
   width: 8px;
   height: 1px;
-  background: var(--h2-line);
+  background: rgba(167, 172, 186, 0.4);
 }
 
 .hero2-slash.is-nw {
@@ -400,10 +399,10 @@
   max-width: 100%;
   padding-left: 24px;
   font-family: 'Space Grotesk', system-ui, sans-serif;
-  font-size: 30px;
+  font-size: 36px;
   font-weight: 300;
-  line-height: 1.1;
-  letter-spacing: 0.25em;
+  line-height: 1.05;
+  letter-spacing: 0.35em;
   text-transform: uppercase;
   color: var(--h2-ink);
   text-shadow: 0 10px 35px rgba(0, 0, 0, 0.8);
@@ -645,8 +644,8 @@
   }
 
   .hero2-title {
-    font-size: 48px;
-    letter-spacing: 0.35em;
+    font-size: 72px;
+    letter-spacing: 0.5em;
     padding-left: 40px;
   }
 
@@ -697,7 +696,7 @@
   }
 
   .hero2-title {
-    font-size: 60px;
+    font-size: 96px;
   }
 
   .hero2-tagline {
@@ -707,7 +706,7 @@
 
 @media (min-width: 1024px) {
   .hero2-title {
-    font-size: 72px;
+    font-size: 128px;
   }
 }
 
