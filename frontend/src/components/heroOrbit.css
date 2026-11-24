@@ -80,7 +80,7 @@
   width: 620px;
   height: 620px;
   border-radius: 50%;
-  border: 1px solid rgba(42, 44, 59, 0.6);
+  border: 1px solid rgba(167, 172, 186, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -90,7 +90,7 @@
   width: 480px;
   height: 480px;
   border-radius: 50%;
-  border: 1px dashed rgba(111, 99, 217, 0.3);
+  border: 1px dashed rgba(111, 99, 217, 0.38);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -100,7 +100,7 @@
   width: 340px;
   height: 340px;
   border-radius: 50%;
-  border: 1px dotted rgba(168, 162, 255, 0.2);
+  border: 1px dotted rgba(168, 162, 255, 0.26);
 }
 
 .hero2-axis {
@@ -504,4 +504,11 @@
   .hero2-secondary {
     transition: none;
   }
+}
+
+/* The site's scroll stepper draws a rail with coloured nodes down the right edge;
+   over the plate it reads as a stray stick and the reference has no rail. */
+.page-bar-track,
+.page-stepper-node {
+  display: none;
 }
