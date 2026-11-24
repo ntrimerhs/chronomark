@@ -29,7 +29,7 @@ const YtIcon = () => (
 //to run fastapi dev main.py
 //npm i video.js
 import VideoJSPlayer from './VideoJSPlayer';
-import ChatBot from './Chatbot.jsx'
+import VideoChat from './VideoChat.jsx'
 
 /* What the pipeline is made of, and a meter that idles until a file arrives. */
 /* The four stops of the track, and where each backend stage lands on it. */
@@ -889,10 +889,8 @@ const Proxeiro = () => {
                 </div>
 
                 {uploadedFileURL ? (
-                    <div className="upload-chat-shell upload-chat-shell-inline">
-                        <div className='chat-panel'>
-                            <ChatBot onSeek={seekTo} videoId={currentVideoId} />
-                        </div>
+                    <div className="upload-chat-shell upload-chat-shell-inline docs-app dark">
+                        <VideoChat onSeek={seekTo} videoId={currentVideoId} />
                     </div>
                 ) : null}
             </div>
