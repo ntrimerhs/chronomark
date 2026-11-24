@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import CommandPalette from './CommandPalette'
-import wordmark from '../icons/chronomark-caps.png'
 import '../styles/landing-pulse.css'
 
 /* The landing page, transcribed from the supplied markup.
@@ -167,7 +166,8 @@ export default function PulseLanding() {
                 window.location.reload()
               }}
             >
-              <img className="lv-brand-logo" src={wordmark} alt="Chronomark" />
+              <span className="lv-brand-label">CHRONOMARK</span>
+              <span className="lv-brand-dot" aria-hidden="true" />
             </a>
             <span className="lv-brand-divider" aria-hidden="true" />
             <div className="lv-search-slot">

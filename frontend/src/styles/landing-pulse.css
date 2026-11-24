@@ -203,17 +203,27 @@
   background: none;
 }
 
-.lv-brand-logo {
-  display: block;
-  height: 22px;
-  width: auto;
-  /* the artwork ships white on transparent; a touch of glow keeps it legible */
-  filter: drop-shadow(0 0 8px rgba(198, 191, 255, 0.25));
-  transition: filter 0.3s ease;
+.lv-brand-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--lv-ink);
+  transition: color 0.2s ease;
 }
 
-.lv-brand:hover .lv-brand-logo {
-  filter: drop-shadow(0 0 12px rgba(198, 191, 255, 0.5));
+.lv-brand:hover .lv-brand-label {
+  color: #fff;
+}
+
+.lv-brand-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lv-primary);
+  box-shadow: 0 0 8px rgba(198, 191, 255, 0.65);
 }
 
 .lv-brand-ping {
