@@ -1120,3 +1120,18 @@
 .docs-app .answer .katex-display > .katex {
   color: inherit;
 }
+/* The shared bar sits above the workspace again and takes 76px in flow, so the
+   workspace gives that band back instead of running under the bar. */
+.docs-app {
+  height: calc(100vh - 76px);
+  height: calc(100dvh - 76px);
+  min-height: 480px;
+}
+
+@media (max-width: 820px) {
+  .docs-app {
+    height: calc(100vh - 76px);
+    height: calc(100dvh - 76px);
+    min-height: 420px;
+  }
+}
