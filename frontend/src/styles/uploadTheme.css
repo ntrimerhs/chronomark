@@ -1291,3 +1291,56 @@
     display: none !important;
   }
 }
+
+/* The workspace is the screen. One definite row track is what makes that true:
+   with an auto row, every percentage height inside it resolved against the
+   picture instead of against the viewport, so the player and the chat both
+   stopped ~300px short of the bottom and the video sat at the top. */
+.upload-shell-loaded .upload-grid-loaded.upload-grid-loaded {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(380px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch !important;
+  align-content: stretch !important;
+  height: 100%;
+  min-height: 0;
+}
+
+/* proxeiro.css pins these two to --loaded-card-height (560px). Inside the
+   workspace they follow the row instead -- that pin was the short chat. */
+.upload-shell-loaded .upload-grid-loaded > .upload-center-card,
+.upload-shell-loaded .upload-grid-loaded > .upload-chat-shell-inline,
+.upload-shell-loaded .upload-grid-loaded .chat-panel {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+.upload-shell-loaded .upload-grid-loaded > .upload-center-card > .upload-loaded-stage {
+  height: 100%;
+  min-height: 0;
+}
+
+/* the picture is centred in the height it now has, not pinned to the top */
+.upload-shell-loaded .upload-grid-loaded .video-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-shell-loaded .upload-grid-loaded .video-container {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+/* Narrow windows still stack: the row layout needs the room. */
+@media (max-width: 1100px) {
+  .upload-shell-loaded .upload-grid-loaded.upload-grid-loaded {
+    display: block;
+    height: auto;
+  }
+}
