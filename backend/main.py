@@ -2059,143 +2059,31 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
     }
 
     def _download_and_process():
-        import subprocess
-        import sys
-
-        # Resolve yt-dlp from the same Python env so it works regardless of
-        # whether the venv Scripts/ folder is on the system PATH.
-        scripts_dir = Path(sys.executable).parent
-        yt_dlp_exe = scripts_dir / "yt-dlp.exe"
-        if not yt_dlp_exe.exists():
-            yt_dlp_exe = scripts_dir / "yt-dlp"          # Linux / macOS
-        if not yt_dlp_exe.exists():
-            _set_job_status(job_id, status="failed", stage="failed", progress=100,
-                            error="yt-dlp not found in the Python environment")
-            return
-
-        # Defined before the try so the finally below can always clean it up.
-        # yt-dlp needs a real file, but only as a relay: the download lands in
-        # the system temp dir, is pushed to R2, and is deleted -- the VPS never
-        # keeps the video (processing streams it from R2).
-        file_stem = f"yt_{uuid.uuid4().hex[:12]}"
-        out_path = Path(tempfile.gettempdir()) / f"chronomark-{file_stem}.mp4"
+        import youtube_ingest
 
         try:
-            _set_job_status(job_id, stage="downloading", progress=5)
+            _set_job_status(job_id, stage="reading_metadata", progress=4)
+            imported = youtube_ingest.import_to_r2(
+                url,
+                on_status=lambda stage=None, progress=None, error=None, **_:
+                    _set_job_status(job_id, stage=stage, progress=progress, error=error),
+            )
 
-            # YouTube is rotating client/format availability frequently.
-            # Hard-coding a narrow stream selector (like "bv*[height<=480]+ba")
-            # makes the downloader brittle and triggers the 403s you are seeing.
-            # Prefer generic best formats first, then fall back to a more general
-            # combined-video/audio selector, instead of forcing a single client.
-            # Highest resolution first. "best" on its own is a single combined
-            # stream, and YouTube caps those at 360p or 720p -- that is why an
-            # imported lecture arrived as 640x360 with unreadable code. Anything
-            # above 720p exists only as separate video and audio streams that
-            # yt-dlp merges with ffmpeg.
-
-            # YouTube flags datacenter IPs and then answers EVERY client with
-            # "Sign in to confirm you're not a bot"; cookies alone do not
-            # clear it. When you set YT_DLP_PROXY in backend/.env (e.g.
-            # http://user:pass@host:port), ONLY yt-dlp traffic is routed
-            # through that proxy -- transcription, LLM calls and everything
-            # else keep using the VPS network.
-            proxy_args = []
-            proxy = os.environ.get("YT_DLP_PROXY", "").strip()
-            if proxy:
-                proxy_args += ["--proxy", proxy]
-
-            format_attempts = [
-                (
-                    "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/"
-                    "bestvideo[height<=1080]+bestaudio/"
-                    "best[height<=1080]/best"
-                ),
-                "bestvideo+bestaudio/best",
-                "best[ext=mp4]/best",
-            ]
-
-            result = None
-            for idx, fmt in enumerate(format_attempts):
-                _set_job_status(job_id, stage="downloading", progress=5 + (idx * 3),
-                                error=f"Trying format {idx + 1}/{len(format_attempts)}")
-
-                print(f"[YouTube] Attempting format={fmt}")
-
-                result = subprocess.run(
-                    [
-                        str(yt_dlp_exe),
-                        "--cookies",
-                        "/app/cookies.txt",
-                        "--no-playlist",
-                        "--no-warnings",
-                        # No --extractor-args here on purpose: forcing
-                        # player_client=android,web,ios caps selection at the
-                        # 360p progressive stream. The default client set (tv,
-                        # web embedded, ...) exposes the 1080p DASH streams,
-                        # and the Deno runtime + yt-dlp-ejs solve the n
-                        # challenge that unlocks them.
-                        *proxy_args,
-                        "-f", fmt,
-                        "--merge-output-format", "mp4",
-                        "--retries", "10",
-                        "--fragment-retries", "10",
-                        "--socket-timeout", "30",
-                        "--concurrent-fragments", "4",
-                        "-o", str(out_path),
-                        url,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                )
-
-                if result.returncode == 0 and out_path.exists():
-                    file_size_mb = out_path.stat().st_size / 1024 / 1024
-                    print(f"[YouTube] Downloaded successfully ({fmt}): {file_size_mb:.1f} MB")
-                    break
-                else:
-                    stderr_snippet = (result.stderr or "")[-150:] if result.stderr else "Unknown"
-                    print(f"[YouTube] {fmt} failed: {stderr_snippet}")
-
-            if result is None or result.returncode != 0:
-                stderr = (result.stderr or "").strip() if result else "Unknown error"
-                _set_job_status(job_id, status="failed", stage="failed", progress=100,
-                                error=f"Download failed (all formats): {stderr[-200:]}")
-                return
-
-            if not out_path.exists() or out_path.stat().st_size == 0:
-                _set_job_status(job_id, status="failed", stage="failed", progress=100,
-                                error="Download succeeded but output file is missing or empty")
-                return
-
-            # Push the download to R2 and drop the local copy before analysis;
-            # the pipeline reads the video back from R2 like every other video.
-            _set_job_status(job_id, stage="uploading_to_r2", progress=14)
-            with open(out_path, "rb") as handle:
-                uploaded = r2_service.upload_stream(handle, f"{file_stem}.mp4", "video/mp4")
-            out_path.unlink(missing_ok=True)
-            print(f"[YouTube] stored in R2: {uploaded['file_key']} ({uploaded['size'] / 1024 / 1024:.1f} MB)")
-
+            # The pipeline keys everything (audio WAV, frames, Qdrant points) by
+            # video_id, and reads the video back from R2 -- never from disk.
+            video_id = f"yt_{uuid.uuid4().hex[:12]}"
+            display_name = f"{(imported.get('title') or video_id)[:120]}.mp4"
+            print(f"[YouTube] {imported.get('reason')}: {imported['file_key']}")
             _set_job_status(job_id, stage="processing_audio_and_frames", progress=15)
             _process_r2_video_job(
                 job_id,
-                uploaded["file_key"],
-                f"{file_stem}.mp4",
-                file_stem,
+                imported["file_key"],
+                display_name,
+                video_id,
                 start_time,
             )
-        except subprocess.TimeoutExpired:
-            _set_job_status(job_id, status="failed", stage="failed", progress=100,
-                            error="Download timed out (tried 720p → 480p → any MP4)")
         except Exception as exc:
             _set_job_status(job_id, status="failed", stage="failed", progress=100, error=str(exc))
-        finally:
-            # Whatever happened, the temp copy must not survive on the VPS.
-            try:
-                out_path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
     background_tasks.add_task(_download_and_process)
 
