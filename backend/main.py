@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi.staticfiles import StaticFiles
 from video_processing import extract_audio
 from video_processing import extract_frames, extract_frame_at, normalize_video
+import cloudflare_media
 import cloudflare_stream
 from whisper import (
     can_transcribe_directly,
@@ -1150,6 +1151,49 @@ _STREAM_TRANSCODE = (os.getenv("STREAM_TRANSCODE", "0") or "0").strip().lower() 
     "0", "false", "no", "off",
 )
 
+# The edge route: Cloudflare turns the R2 object into audio-only slices that Groq
+# fetches, so neither the download nor ffmpeg happens here. Bounded by the edge's
+# own limits (<=100 MB, <=10 min per source).
+_MEDIA_TRANSFORM = (os.getenv("MEDIA_TRANSFORM_ENABLED", "0") or "0").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+
+
+def _media_transform_transcript(file_key, video_path, job_id=None):
+    """Audio via Cloudflare's edge, or None when this route does not apply."""
+    if not (file_key and cloudflare_media.configured()):
+        return None
+
+    duration = _probe_duration_seconds(video_path)
+    if not duration:
+        print("[Media] could not read the duration; using the local path")
+        return None
+    if duration > cloudflare_media.MAX_SECONDS:
+        print(
+            f"[Media] {duration:.0f}s exceeds the edge limit of "
+            f"{cloudflare_media.MAX_SECONDS}s; using the local path"
+        )
+        return None
+
+    if job_id:
+        _set_job_status(job_id, stage="extracting_audio", progress=25)
+
+    def progress(done, total):
+        if job_id and total:
+            _set_job_status(
+                job_id,
+                stage="transcribing_audio",
+                progress=25 + int(50 * done / total),
+            )
+
+    try:
+        return cloudflare_media.transcribe_media(
+            file_key, duration, on_progress=progress
+        )
+    except Exception as error:
+        print(f"[Media] edge route failed ({error}); using the local path")
+        return None
+
 
 def _compact_transcript_for_json(transcript):
     """Persist only timestamped text segments instead of raw chunk metadata."""
@@ -1297,7 +1341,7 @@ def _set_job_status(job_id, status=None, stage=None, progress=None, error=None, 
     JOBS[job_id] = job
 
 
-def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: str | None = None):
+def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: str | None = None, file_key: str | None = None):
     """Extract audio, transcribe it, and create/store text embeddings.
 
     Runs with detailed progress tracking. When job_id is given, pushes
@@ -1332,8 +1376,13 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
     # hands URLs to Groq. Only for remote media (Cloudflare has to fetch it) and
     # only when the token actually reaches Stream; otherwise None and the local
     # path below runs as before.
+    # Edge audio first: it costs no CPU here and beats both other remote routes.
+    media_transcript = None
+    if not media_direct and _MEDIA_TRANSFORM:
+        media_transcript = _media_transform_transcript(file_key, video_path, job_id)
+
     stream_transcript = None
-    if not media_direct and _STREAM_TRANSCODE:
+    if not media_direct and stream_transcript is None and media_transcript is None and _STREAM_TRANSCODE:
         source = str(video_path)
         if source.lower().startswith(("http://", "https://")):
             if job_id:
@@ -1342,7 +1391,7 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
 
     try:
         t_audio = time.perf_counter()
-        if not media_direct and stream_transcript is None:
+        if not media_direct and stream_transcript is None and media_transcript is None:
             extract_audio(video_path, output_audio)
         print(f"✓ Audio extraction complete for {vid}  [{time.perf_counter()-t_audio:.1f}s]")
     except RuntimeError as e:
@@ -1379,7 +1428,10 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
                         progress=30 + int(45 * completed / total),
                     )
 
-            if stream_transcript is not None:
+            if media_transcript is not None:
+                transcript = media_transcript
+                print(f"[Media] transcription served by the Cloudflare edge for {vid}")
+            elif stream_transcript is not None:
                 transcript = stream_transcript
                 print(f"[Stream] transcription served from Cloudflare for {vid}")
             elif media_direct:
@@ -2481,7 +2533,7 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
             visual_future = pool.submit(_visual_only_task, source_url)
             try:
                 transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
-                    source_url, output_audio, job_id=job_id, video_id=video_id
+                    source_url, output_audio, job_id=job_id, video_id=video_id, file_key=file_key
                 )
             except RuntimeError as stream_error:
                 # ffmpeg could not read the URL (codec/container/network).
@@ -2521,7 +2573,7 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
                         else None
                     )
                     transcript_for_json, embeddings, transcript_error = _run_audio_pipeline(
-                        local_copy, output_audio, job_id=job_id, video_id=video_id
+                        local_copy, output_audio, job_id=job_id, video_id=video_id, file_key=file_key
                     )
                     if visual_future is not None:
                         try:
