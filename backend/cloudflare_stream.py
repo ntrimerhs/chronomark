@@ -20,6 +20,7 @@ None and the caller keeps its ffmpeg route.
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import requests
 
@@ -144,12 +145,58 @@ def download_url(uid: str) -> str:
         timeout=30,
     )
     time.sleep(3)
-    response = requests.get(f"{STREAM_BASE}/{uid}/downloads", headers=_headers(), timeout=30)
-    result = _result(response, "stream downloads (after enable)") or {}
-    default = (result.get("default") or {}).get("url")
-    if not default:
-        raise RuntimeError("stream has no downloadable MP4 for this video")
-    return default
+    # Enabling downloads makes Stream generate the MP4 in the background: the
+    # API hands out a URL before the file exists, and fetching it too early
+    # answers 404. Poll until the file actually serves a byte.
+    deadline = time.time() + 300
+    while time.time() < deadline:
+        response = requests.get(f"{STREAM_BASE}/{uid}/downloads", headers=_headers(), timeout=30)
+        result = _result(response, "stream downloads (after enable)") or {}
+        default = (result.get("default") or {}).get("url")
+        if default:
+            resolved = _resolve_redirects(default)
+            if _serves_bytes(resolved):
+                return resolved
+        time.sleep(5)
+
+    raise RuntimeError("stream never produced a downloadable MP4 for this video")
+
+
+def _serves_bytes(url: str) -> bool:
+    """True when the URL answers a range request, i.e. the MP4 really exists."""
+    try:
+        response = requests.get(url, headers={"Range": "bytes=0-1023"}, stream=True, timeout=30)
+        ok = response.status_code in (200, 206)
+        response.close()
+        return ok
+    except Exception:
+        return False
+
+
+def _resolve_redirects(url: str) -> str:
+    """Cloudflare's download URL answers 302; Groq does not follow redirects.
+
+    The Location target is the signed CDN URL, so it is resolved here and the
+    final address is what gets handed over.
+    """
+    try:
+        response = requests.get(url, allow_redirects=True, stream=True, timeout=30)
+        final = response.url or url
+        response.close()
+        if final and final != url:
+            return final
+    except Exception as error:
+        print(f"[Stream] could not resolve the download redirect: {error}")
+    return url
+
+
+def delete_video(uid: str) -> None:
+    """Drop the video from Stream once it is transcribed: storage is billed."""
+    try:
+        requests.delete(f"{STREAM_BASE}/{uid}", headers=_headers(), timeout=30)
+        print(f"[Stream] deleted {uid} from the account")
+    except Exception as error:
+        print(f"[Stream] could not delete {uid}: {error}")
 
 
 def clip(uid: str, start_seconds: int, duration_seconds: int, name: str) -> str:
@@ -210,12 +257,60 @@ def _offset(segments: list, seconds: float) -> list:
     return shifted
 
 
+def fetch_mp4(uid: str, destination_dir) -> Path:
+    """Download the transcoded MP4 to this machine.
+
+    Slower than handing a URL over, but Stream's download URL redirects to a
+    short-lived signed address that Groq will not follow, and the transcoded file
+    is a fraction of the original upload -- small enough to transcribe directly.
+    """
+    url = download_url(uid)
+    destination = Path(destination_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    target = destination / f"{uid}.mp4"
+
+    with requests.get(url, stream=True, timeout=600) as response:
+        response.raise_for_status()
+        with open(target, "wb") as handle:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    handle.write(chunk)
+
+    size = target.stat().st_size
+    print(f"[Stream] downloaded {uid}: {size / 1024 / 1024:.1f} MB")
+    return target
+
+
+def transcode_to_file(source_url: str, destination_dir, name: str = "chronomark") -> Path | None:
+    """Copy the media into Stream, wait for it, and bring the MP4 back down."""
+    if not available():
+        return None
+
+    uid = None
+    try:
+        video = copy_from_url(source_url, name=name)
+        uid = video.get("uid")
+        if not uid:
+            raise RuntimeError("stream copy returned no uid")
+        video = wait_ready(uid)
+        duration = float((video.get("duration") or 0) or 0)
+        print(f"[Stream] {uid}: {duration:.0f}s media, fetching the transcoded copy")
+        return fetch_mp4(uid, destination_dir)
+    except Exception as error:
+        print(f"[Stream] fell back to the local path: {error}")
+        return None
+    finally:
+        if uid:
+            delete_video(uid)
+
+
 def transcribe_large_media(source_url: str, name: str = "chronomark", language: str | None = None) -> dict | None:
     """Full pipeline: R2 URL -> Stream -> Groq. None when Stream is unusable."""
     if not available():
         return None
 
     started = time.perf_counter()
+    uid = None
     try:
         video = copy_from_url(source_url, name=name)
         uid = video.get("uid")
@@ -263,3 +358,8 @@ def transcribe_large_media(source_url: str, name: str = "chronomark", language: 
     except Exception as error:
         print(f"[Stream] fell back to the local path: {error}")
         return None
+    finally:
+        # Stream storage is billed by the minute: a transcribed video is dead
+        # weight, so it is removed as soon as the transcript exists.
+        if uid:
+            delete_video(uid)

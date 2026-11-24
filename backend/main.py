@@ -13,6 +13,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from fastapi.staticfiles import StaticFiles
 from video_processing import extract_audio
+from video_processing import _probe_duration_seconds
 from video_processing import extract_frames, extract_frame_at, normalize_video
 import cloudflare_media
 import cloudflare_stream
@@ -1392,7 +1393,20 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
         if source.lower().startswith(("http://", "https://")):
             if job_id:
                 _set_job_status(job_id, stage="transcoding_remote", progress=25)
-            stream_transcript = cloudflare_stream.transcribe_large_media(source, name=vid)
+            # Stream normalises the container and produces a much smaller H.264
+            # copy. If it lands under the direct limit, no ffmpeg runs at all;
+            # otherwise the existing decode runs on this copy, not the original.
+            streamed = cloudflare_stream.transcode_to_file(
+                source, Path(output_audio).parent, name=vid
+            )
+            if streamed is not None:
+                if can_transcribe_directly(streamed):
+                    media_direct = True
+                    audio_source = str(streamed)
+                    print(f"[Stream] {streamed.name} is small enough for a direct Groq call")
+                else:
+                    video_path = str(streamed)
+                    print(f"[Stream] decoding the transcoded copy instead of the original")
 
     try:
         t_audio = time.perf_counter()
