@@ -52,8 +52,20 @@ ever being downloaded.
 | Route | When | Local CPU |
 |---|---|---|
 | **Groq direct** | local file ≤ `GROQ_DIRECT_MAX_MB` (24) | none |
-| **Cloudflare Stream** | remote/R2 media, `STREAM_TRANSCODE=1`, token has Stream access | none — Stream transcodes, Groq fetches the MP4 URL |
-| **ffmpeg + chunking** | everything else | audio extract + chunk split |
+| **Cloudflare edge audio** | R2 object, `MEDIA_TRANSFORM_ENABLED=1`, source ≤ 10 min and ≤ 100 MB | none — the edge returns M4A slices, Groq fetches them |
+| **Cloudflare Stream** | remote media, `STREAM_TRANSCODE=1`, token has `Stream: Edit` | none — Stream transcodes, Groq fetches the MP4 URL |
+| **ffmpeg + chunking** | everything else (long videos without a Stream token) | audio extract + chunk split |
+
+The edge route uses Media Transformations on the zone:
+
+```
+https://<zone>/cdn-cgi/media/mode=audio,time=<offset>s,duration=60s,format=m4a/https://<r2-public-domain>/<key>
+```
+
+One request yields at most 60 seconds, so a video becomes one slice per minute,
+transcribed in parallel (`MEDIA_TRANSFORM_WORKERS`) and stitched back with their
+time offsets. Measured: a 135-second clip → 3 slices → 21 segments in **5.6s**,
+with the last segment correctly at 130.7s and no ffmpeg involved.
 
 Frame extraction and CLIP embeddings are gated by `FRAME_EMBEDDINGS` (off by
 default): the most expensive thing the box used to do, and the answers are
@@ -122,7 +134,17 @@ missed:
 | `DOCUMENT_AI_PROJECT`, `DOCUMENT_AI_LOCATION`, `DOCUMENT_AI_PROCESSOR_ID` | processor coordinates |
 | `DOCUMENT_AI_CONCURRENCY` | pieces in flight (default 3) |
 
-**Cloudflare Stream (optional)** — the audio/video route needs an API token with
+**Cloudflare edge audio (optional)** — audio extraction at the edge needs an R2
+public domain on the same zone (no API token at all):
+
+| Variable | Purpose |
+|---|---|
+| `MEDIA_TRANSFORM_ENABLED` | `1` turns the route on |
+| `MEDIA_TRANSFORM_ZONE` | zone with Transformations enabled, e.g. `0digital.xyz` |
+| `MEDIA_PUBLIC_ORIGIN` | public R2 domain, e.g. `https://media.0digital.xyz` |
+| `MEDIA_TRANSFORM_SLICE`, `_WORKERS`, `_MAX_SECONDS` | 60s / 4 / 600 defaults |
+
+**Cloudflare Stream (optional)** — the whole-video route needs an API token with
 *Stream: Edit*, not the R2 S3 keys:
 
 | Variable | Purpose |
@@ -199,7 +221,8 @@ backend/            FastAPI app, workers and the pipelines
   bert.py           embeddings (OpenAI or local MiniLM)
   llama.py          prompts, streaming, answer continuation
   whisper.py        ASR via Groq (direct media or extracted audio)
-  cloudflare_stream.py  optional transcode route
+  cloudflare_media.py  optional edge audio route (audio-only M4A slices)
+  cloudflare_stream.py  optional transcode route (whole video, long inputs)
   qdrant_store.py   collections and search
 frontend/           React 19 + Vite SPA (landing, video workspace, document workspace)
 docker-compose.yml  api, worker (x2), frontend, WARP egress
@@ -210,8 +233,9 @@ docker-compose.yml  api, worker (x2), frontend, WARP egress
 ## Known limitations
 
 - **`.pptx` and `.docx` are parsed locally** — Document AI covers PDFs and images.
-- **Long videos need ffmpeg** unless the Cloudflare Stream route is enabled; it
-  requires a Stream token and downloads enabled on the account.
+- **Long videos still need ffmpeg** unless the Stream route is enabled: the edge
+  audio route is capped at 10 minutes / 100 MB by Cloudflare, and the Stream route
+  needs a token with `Stream: Edit` plus downloads enabled on the account.
 - **Video answers are not streamed yet** — only the document chat is (SSE).
 - **Document AI** costs real money past the free 1,000 pages/month, and the online
   endpoint takes at most 15 pages per request (hence the 14-page split).
