@@ -226,6 +226,10 @@ export default function IngestLanding({
 
                 <div className="ing-steps">
                   <span className="ing-steps-line" />
+                  <span
+                    className="ing-steps-fill"
+                    style={{ width: `calc((100% - 24px) * ${percent / 100})` }}
+                  />
                   {STEPS.map((step, index) => (
                     <div
                       key={step}
