@@ -1,14 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
 
-/* The documents empty state, rebuilt as a reading desk.
+/* The documents empty state, in the shape of the ingestion screen.
 
-   Left: what the surface takes and what it gives back, set as a short spec table
-   rather than a row of chips. Right: the desk itself, a dashed well with a small
-   fan of paper behind it, so the thing you drop has somewhere to land.
+   One column: the headline, then the capsule you drop into — brackets, dashed
+   surface, the lit icon capsule, the file-type pill. No table, no ring: the grid
+   is smaller and stronger so the surface reads as graph paper rather than a wash.
 
-   Palette is the site's: base #0B0B13, surface #12121E, hairline #28273E, brand
-   #6F63D9, tints #B8B3FC and #D8D6FF, ink #E2E2F0, muted #A9AEBF. Space Mono is
-   used for measurements only. */
+   Palette: base #0B0B13, surface #12121E, hairline #28273E, brand #6F63D9, tints
+   #B8B3FC / #D8D6FF, ink #E2E2F0, muted #A9AEBF. */
 
 .dl {
   --dl-base: #0b0b13;
@@ -34,46 +33,35 @@
   overflow: hidden;
 }
 
-/* the grid the rest of the site lays down, plus one ring and one glow */
-.dl::before,
+/* graph paper: small cells, bright enough to be read as structure */
+.dl::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at center, rgba(111, 99, 217, 0.22) 1px, transparent 1.4px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 22px 22px, 22px 22px, 22px 22px;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 45%, #000 35%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 45%, #000 35%, transparent 100%);
+}
+
+/* one soft wash, no ring */
 .dl::after {
   content: '';
   position: absolute;
-  pointer-events: none;
+  top: 8%;
+  left: 50%;
+  width: 780px;
+  height: 620px;
+  transform: translateX(-50%);
   z-index: -1;
-}
-
-.dl::before {
-  inset: 0;
-  background-image:
-    radial-gradient(circle at center, rgba(111, 99, 217, 0.09) 1px, transparent 1px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.016) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
-  background-size: 40px 40px, 120px 120px, 120px 120px;
-}
-
-.dl::after {
-  top: 50%;
-  left: 60%;
-  width: 1080px;
-  height: 1080px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background-image:
-    radial-gradient(circle, transparent 33.3%, rgba(111, 99, 217, 0.16) 33.5%, transparent 33.9%),
-    radial-gradient(circle, transparent 33.3%, transparent 33.3%),
-    radial-gradient(circle, rgba(90, 76, 199, 0.16) 0%, transparent 62%);
-  filter: blur(0.2px);
-  animation: dl-drift 60s ease-in-out infinite alternate;
-}
-
-@keyframes dl-drift {
-  from {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  to {
-    transform: translate(-52%, -48%) rotate(14deg);
-  }
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(90, 76, 199, 0.16), transparent 100%);
+  filter: blur(20px);
 }
 
 /* ── the sheet ── */
@@ -81,33 +69,22 @@
 .dl-sheet {
   position: relative;
   width: 100%;
-  max-width: 1180px;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 40px;
-  align-items: center;
+  max-width: 780px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
-
-/* ── left: the terms ── */
 
 .dl-head {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-}
-
-.dl-where {
-  margin-top: 26px;
-  font-family: 'Space Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #7b8091;
+  align-items: center;
+  text-align: center;
 }
 
 .dl-title {
   margin: 0;
-  font-size: clamp(38px, 4.4vw, 58px);
+  font-size: clamp(36px, 4.2vw, 54px);
   font-weight: 500;
   line-height: 1.04;
   letter-spacing: -0.035em;
@@ -116,107 +93,98 @@
 }
 
 .dl-answer {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   font-family: 'Instrument Serif', Georgia, serif;
   font-style: italic;
-  font-size: clamp(34px, 4vw, 54px);
+  font-size: clamp(32px, 3.8vw, 50px);
   line-height: 1.06;
-  letter-spacing: -0.01em;
   color: var(--dl-tint-soft);
 }
 
 .dl-copy {
-  margin: 22px 0 0;
-  max-width: 44ch;
+  margin: 18px auto 0;
+  max-width: 52ch;
   font-size: 15px;
   line-height: 1.72;
   color: var(--dl-muted);
 }
 
-.dl-spec {
-  margin: 34px 0 0;
-  width: 100%;
-  max-width: 30rem;
-  display: grid;
-  gap: 0;
-  border-top: 1px solid var(--dl-line);
-}
-
-.dl-spec > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 11px 0;
-  border-bottom: 1px solid rgba(40, 39, 62, 0.7);
-}
-
-.dl-spec dt {
-  font-size: 12px;
-  letter-spacing: 0.01em;
-  color: #8b90a2;
-}
-
-.dl-spec dd {
-  margin: 0;
-  font-family: 'Space Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--dl-tint);
-  text-align: right;
-}
-
-/* ── right: the desk ── */
+/* ── the capsule ── */
 
 .dl-desk {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  min-height: 440px;
-  padding: 22px;
-  border-radius: 18px;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(111, 99, 217, 0.1), transparent 70%),
-    rgba(18, 18, 30, 0.82);
-  border: 1px solid rgba(111, 99, 217, 0.18);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(111, 99, 217, 0.22);
+  background: rgba(18, 18, 30, 0.78);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.55);
   transition: border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .dl-desk.is-dragging {
   border-color: rgba(216, 214, 255, 0.55);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(111, 99, 217, 0.28);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.55), 0 0 44px rgba(111, 99, 217, 0.3);
 }
 
-/* the fan of paper behind the well */
+.dl-bracket {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 2px solid #8c82f2;
+  pointer-events: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
 
+.dl-bracket.is-tl {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+}
 
+.dl-bracket.is-tr {
+  top: -1px;
+  right: -1px;
+  border-left: 0;
+  border-bottom: 0;
+}
 
+.dl-bracket.is-bl {
+  bottom: -1px;
+  left: -1px;
+  border-right: 0;
+  border-top: 0;
+}
 
+.dl-bracket.is-br {
+  bottom: -1px;
+  right: -1px;
+  border-left: 0;
+  border-top: 0;
+}
 
+.dl-desk:hover .dl-bracket,
+.dl-desk.is-dragging .dl-bracket {
+  border-color: var(--dl-tint-soft);
+  box-shadow: 0 0 10px rgba(168, 162, 255, 0.4);
+}
 
-
-
-
-/* the well you actually drop into */
 .dl-drop {
   position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
-  flex: 1;
-  width: 100%;
-  min-height: 300px;
-  padding: 56px 28px;
+  padding: 46px 26px;
   border-radius: 12px;
-  border: 1px dashed rgba(184, 179, 252, 0.32);
-  background: rgba(11, 11, 19, 0.55);
+  border: 2px dashed rgba(111, 99, 217, 0.3);
+  background: rgba(13, 13, 24, 0.42);
   color: var(--dl-muted);
   font-family: inherit;
   text-align: center;
@@ -226,64 +194,112 @@
 
 .dl-drop:hover,
 .dl-desk.is-dragging .dl-drop {
-  border-color: rgba(216, 214, 255, 0.6);
-  background: rgba(23, 23, 39, 0.6);
+  border-color: rgba(148, 136, 248, 0.6);
+  background: rgba(23, 23, 39, 0.45);
 }
 
-.dl-drop-icon {
+.dl-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.dl-icon-glow {
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  background: rgba(111, 99, 217, 0.22);
+  filter: blur(13px);
+  transition: background 0.3s ease;
+}
+
+.dl-drop:hover .dl-icon-glow {
+  background: rgba(111, 99, 217, 0.42);
+}
+
+.dl-icon {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 4px;
-  border-radius: 11px;
-  border: 1px solid rgba(184, 179, 252, 0.35);
-  background: rgba(111, 99, 217, 0.16);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 136, 248, 0.4);
+  background: var(--dl-surface);
   color: var(--dl-tint);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s ease;
 }
 
-.dl-drop:hover .dl-drop-icon {
-  transform: translateY(-2px);
-  background: rgba(111, 99, 217, 0.3);
-}
-
-.dl-drop-title {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.dl-drop:hover .dl-icon {
+  transform: scale(1.08);
   color: #fff;
 }
 
+.dl-drop-icon {
+  display: none;
+}
+
+.dl-drop-title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  transition: color 0.25s ease;
+}
+
+.dl-drop:hover .dl-drop-title {
+  color: var(--dl-tint-soft);
+}
+
 .dl-drop-copy {
-  max-width: 34ch;
+  max-width: 46ch;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.62;
   color: var(--dl-muted);
 }
 
-.dl-drop:focus-visible,
-.dl-desk:focus-visible {
+.dl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--dl-line);
+  background: rgba(18, 18, 30, 0.9);
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--dl-muted);
+}
+
+.dl-pill svg {
+  width: 14px;
+  height: 14px;
+  color: #9488f8;
+}
+
+.dl-drop:focus-visible {
   outline: 2px solid var(--dl-tint);
-  outline-offset: 3px;
+  outline-offset: 4px;
 }
 
 /* working state */
 
 .dl-working {
-  position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 14px;
   width: 100%;
-  min-height: 100%;
-  justify-content: center;
-  padding: 56px 28px;
+  padding: 74px 26px;
   border-radius: 12px;
-  border: 1px solid rgba(184, 179, 252, 0.24);
-  background: rgba(11, 11, 19, 0.6);
+  border: 1px dashed rgba(184, 179, 252, 0.28);
+  background: rgba(13, 13, 24, 0.5);
 }
 
 .dl-working-stage {
@@ -302,7 +318,7 @@
 }
 
 .dl-track {
-  width: min(100%, 320px);
+  width: min(100%, 340px);
   height: 3px;
   border-radius: 3px;
   background: rgba(40, 39, 62, 0.95);
@@ -325,30 +341,6 @@
   color: var(--dl-tint);
 }
 
-/* the two facts worth repeating at the point of action */
-.dl-foot {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 4px 0;
-  font-family: 'Space Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #7b8091;
-}
-
-@media (max-width: 560px) {
-  .dl-foot {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-}
-
 .dl-error {
   margin: 0;
   font-size: 13px;
@@ -365,44 +357,35 @@
   }
 }
 
-/* ── the sheet measures itself ── */
-
-@media (min-width: 940px) {
-  .dl-sheet {
-    grid-template-columns: 5fr 6fr;
-    gap: 64px;
-  }
-
-  .dl-title {
-    font-size: clamp(40px, 3.4vw, 56px);
-  }
-}
-
-@media (max-width: 939px) {
+@media (max-width: 640px) {
   .dl {
-    padding: 40px 20px;
+    padding: 36px 18px;
+    align-items: flex-start;
   }
 
   .dl-sheet {
-    gap: 28px;
-  }
-
-  .dl-answer {
-    margin-top: 2px;
+    gap: 22px;
   }
 
   .dl-desk {
-    min-height: 320px;
+    padding: 14px;
   }
 
-  .dl-drop,
+  .dl-drop {
+    padding: 36px 18px;
+  }
+
   .dl-working {
-    min-height: 260px;
+    padding: 52px 18px;
+  }
+
+  /* a 22px field is noise at this width */
+  .dl::before {
+    background-size: 34px 34px, 34px 34px, 34px 34px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dl::after,
   .docs-spin {
     animation: none !important;
   }
