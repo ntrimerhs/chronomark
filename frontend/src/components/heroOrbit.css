@@ -15,7 +15,8 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  min-height: 100svh;
+  /* header is 82px on desktop, 69px on phones: the hero fills what is left */
+  min-height: calc(100svh - 82px);
   display: flex;
   background:
     radial-gradient(ellipse 52% 48% at 67% 52%, #104e9b 0%, #0a2b64 32%, transparent 77%),
@@ -481,4 +482,15 @@
   .pulse-primary {
     transition: none;
   }
+}
+
+/* The page shell wraps the hero in a flex box with its own padding and a purple
+   backdrop tuned to the previous theme. The Electric Pulse plate is full-bleed and
+   carries its own background, so when it is present the wrapper steps aside. */
+.main-hero:has(.pulse-hero) {
+  display: block;
+  padding: 0;
+  min-height: 0;
+  background: transparent;
+  overflow: visible;
 }
