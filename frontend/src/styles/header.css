@@ -217,3 +217,14 @@
     transition: none;
   }
 }
+
+/* Slim variant: the upload page keeps a strip with the brand and the call to
+   action only, so the instrument gets the height. The chat workspace drops the
+   header entirely (see header.jsx). */
+.pulse-header.is-slim .pulse-nav {
+  height: 64px;
+}
+
+.pulse-header.is-slim .pulse-shell {
+  padding: 0 24px;
+}
