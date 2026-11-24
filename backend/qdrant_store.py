@@ -2,6 +2,8 @@
 
 # from qdrant_client import QdrantClient, models
 
+import bert
+
 # # Embedded local mode: stores data on disk, no server/URL needed.
 # client = QdrantClient(path="./qdrant_data")
 
@@ -10,7 +12,7 @@
 
 # # client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
-# TEXT_COLLECTION = "video_text_segments"
+# TEXT_COLLECTION = os.getenv("TEXT_COLLECTION") or f"video_text_segments_{bert.embedding_dimension()}"
 # FRAME_COLLECTION = "video_frames"
 
 import os
@@ -37,7 +39,7 @@ else:
     client = QdrantClient(path="./qdrant_data")
     print("[Qdrant] embedded local: ./qdrant_data (single process only)")
 
-TEXT_COLLECTION = "video_text_segments"
+TEXT_COLLECTION = os.getenv("TEXT_COLLECTION") or f"video_text_segments_{bert.embedding_dimension()}"
 FRAME_COLLECTION = "video_frames"
 
 
@@ -65,7 +67,10 @@ def ensure_collections():
         client.create_collection(
             collection_name=TEXT_COLLECTION,
             vectors_config=models.VectorParams(
-                size=384,
+                # Width follows the embedding backend: OpenAI writes 1536, the
+                # local MiniLM 384. The collection name carries the same number,
+                # so the two never end up mixed in one index.
+                size=bert.embedding_dimension(),
                 distance=models.Distance.COSINE,
             ),
         )
