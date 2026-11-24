@@ -1,6 +1,7 @@
 import '../styles/proxeiro.css'
 import '../styles/uploadTheme.css'
 import '../styles/uploadChronometric.css'
+import IngestLanding from './IngestLanding.jsx'
 import React,{useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import axios from 'axios';  ///do in terminal npm install axios
 import { API_BASE_URL } from '../config';
@@ -515,6 +516,36 @@ const Proxeiro = () => {
         player.currentTime(seconds);
         player.play();
     }, []);
+
+    const progress = Math.max(uploadProgress, backendProgress);
+
+    if (!uploadedFileURL) {
+        return (
+            <IngestLanding
+                file={file}
+                progress={progress}
+                stage={processingStage}
+                isUploading={isUploading}
+                error={uploadError}
+                youtubeUrl={youtubeUrl}
+                youtubeOpen={showYoutubeInput}
+                onFileSelected={(nextFile) => {
+                    if (!nextFile) return;
+                    setFile(nextFile);
+                    setUploadError('');
+                    setUploadProgres(0);
+                    setBackendProgress(0);
+                }}
+                onSubmit={() => uploadVideo(file)}
+                onSubmitYoutube={submitYoutubeUrl}
+                onYoutubeUrl={setYoutubeUrl}
+                onToggleYoutube={() => {
+                    setShowYoutubeInput((prev) => !prev);
+                    setYoutubeUrl('');
+                }}
+            />
+        );
+    }
 
     return(
         <section className="upload-shell">
