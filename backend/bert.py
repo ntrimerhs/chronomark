@@ -163,7 +163,7 @@ def _voyage_request(batch: list[str], input_type: str) -> list[list[float]]:
     }
 
     last_error = None
-    for attempt in range(5):
+    for attempt in range(6):
         try:
             _VOYAGE_LAST_CALL = time.time()
             response = requests.post(
@@ -174,7 +174,14 @@ def _voyage_request(batch: list[str], input_type: str) -> list[list[float]]:
                 # vectors here instead (MRL keeps the leading dimensions valid).
                 body.pop("output_dimension", None)
                 raise RuntimeError("retry without output_dimension")
-            if response.status_code == 429 or response.status_code >= 500:
+            if response.status_code == 429:
+                # Both limits on a free account are per minute, so retrying
+                # inside the same minute only burns another request: wait for
+                # the window to roll over.
+                print(f"[Embed] voyage rate limited, waiting 60s ({attempt + 1}/6)")
+                time.sleep(60)
+                continue
+            if response.status_code >= 500:
                 raise RuntimeError(f"{response.status_code}: {response.text[:200]}")
             response.raise_for_status()
             rows = response.json().get("data") or []
