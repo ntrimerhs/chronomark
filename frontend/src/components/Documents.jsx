@@ -316,62 +316,92 @@ export default function Documents() {
 
   if (!current) {
     return (
-      <div className="docs-landing">
-        <header className="docs-landing-head">
-          <span className="docs-breadcrumb">
-            Your workspace <i>/</i> <strong>Documents</strong>
-          </span>
-          <h1>
-            Add a document. <em>Ask it anything.</em>
-          </h1>
-          <p>
-            PDF, PowerPoint and Word. Every page is read and indexed, figures are read too, and
-            each answer points at the page it came from.
-          </p>
-        </header>
+      <div className="dl">
+        <div className="dl-sheet">
+          <header className="dl-head">
+            <h1 className="dl-title">Add a document.</h1>
+            <p className="dl-answer">Ask it anything.</p>
 
-        <section
-          className={`docs-landing-card${dragOver ? ' is-dragging' : ''}`}
-          onDragOver={(event) => {
-            event.preventDefault()
-            setDragOver(true)
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(event) => {
-            event.preventDefault()
-            setDragOver(false)
-            handleFile(event.dataTransfer.files?.[0])
-          }}
-        >
-          {uploading ? (
-            <div className="docs-uploading">
-              <Loader2 size={26} className="docs-spin" />
-              <p>{statusLabel(stage)}</p>
-              <div className="docs-bar">
-                <span style={{ width: `${progress}%` }} />
+            <p className="dl-copy">
+              PDF, PowerPoint and Word. Every page is read and indexed, figures are read too, and
+              each answer points at the page it came from.
+            </p>
+
+            <dl className="dl-spec">
+              <div>
+                <dt>Formats</dt>
+                <dd>PDF · PPTX · DOCX</dd>
               </div>
-              <small>{progress}%</small>
-            </div>
-          ) : (
-            <button type="button" className="docs-drop" onClick={() => inputRef.current?.click()}>
-              <FileUp size={30} strokeWidth={1.4} />
-              <strong>Drop a document or click</strong>
-              <span>
-                PDF, PowerPoint or Word, up to 40 MB. Scanned pages are read with OCR, and slide
-                speaker notes are indexed too.
-              </span>
-            </button>
-          )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept={ACCEPT}
-            hidden
-            onChange={(event) => handleFile(event.target.files?.[0])}
-          />
-        </section>
+              <div>
+                <dt>Ceiling</dt>
+                <dd>40 MB</dd>
+              </div>
+              <div>
+                <dt>Scans</dt>
+                <dd>Read with OCR</dd>
+              </div>
+              <div>
+                <dt>Answers</dt>
+                <dd>Anchored to a page</dd>
+              </div>
+            </dl>
 
-        {error ? <p className="docs-landing-error">{error}</p> : null}
+            <span className="dl-where">Workspace · Documents</span>
+          </header>
+
+          <section
+            className={`dl-desk${dragOver ? ' is-dragging' : ''}${uploading ? ' is-working' : ''}`}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setDragOver(true)
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(event) => {
+              event.preventDefault()
+              setDragOver(false)
+              handleFile(event.dataTransfer.files?.[0])
+            }}
+          >
+            <div className="dl-stack" aria-hidden="true">
+              <span className="dl-leaf" />
+              <span className="dl-leaf" />
+              <span className="dl-leaf" />
+            </div>
+
+            {uploading ? (
+              <div className="dl-working">
+                <span className="dl-working-stage">
+                  <Loader2 size={16} className="docs-spin" />
+                  {statusLabel(stage)}
+                </span>
+                <div className="dl-track">
+                  <span style={{ width: `${progress}%` }} />
+                </div>
+                <span className="dl-working-value">{progress}%</span>
+              </div>
+            ) : (
+              <button type="button" className="dl-drop" onClick={() => inputRef.current?.click()}>
+                <span className="dl-drop-icon">
+                  <FileUp size={22} strokeWidth={1.6} />
+                </span>
+                <span className="dl-drop-title">Drop a document or click</span>
+                <span className="dl-drop-copy">
+                  Scanned pages are read with OCR, and slide speaker notes are indexed too.
+                </span>
+              </button>
+            )}
+
+            <input
+              ref={inputRef}
+              type="file"
+              accept={ACCEPT}
+              hidden
+              onChange={(event) => handleFile(event.target.files?.[0])}
+            />
+          </section>
+
+          {error ? <p className="dl-error">{error}</p> : null}
+        </div>
       </div>
     )
   }

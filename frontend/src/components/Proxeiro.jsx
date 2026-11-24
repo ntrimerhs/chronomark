@@ -103,7 +103,11 @@ const Proxeiro = () => {
     const pollUploadStatus = async (jobId) => {
         const statusUrl = `${API_BASE_URL}/upload-status/${jobId}`;
 
-        for (let attempt = 0; attempt < 600; attempt += 1) {
+        // An 86-minute lecture takes longer than twelve minutes to transcribe, and
+        // the old ceiling made the UI report a failure on a job that was still
+        // running. The loop now waits up to three hours; the job store is the
+        // authority on whether anything actually went wrong.
+        for (let attempt = 0; attempt < 9000; attempt += 1) {
             const { data } = await axios.get(statusUrl);
             const status = data?.status;
             const stage = data?.stage || 'processing';
