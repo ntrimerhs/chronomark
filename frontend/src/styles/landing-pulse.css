@@ -179,30 +179,25 @@
   justify-self: start;
 }
 
+/* the mark sits straight on the plate: no pill, no border, no backdrop */
 .lv-brand {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 16px;
-  border-radius: 9999px;
-  background: rgba(13, 13, 25, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  -webkit-backdrop-filter: blur(40px);
-  backdrop-filter: blur(40px);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   text-decoration: none;
-  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .lv-brand:hover {
-  background: rgba(31, 30, 43, 0.7);
-  border-color: rgba(198, 191, 255, 0.4);
-  box-shadow: 0 0 20px rgba(198, 191, 255, 0.2);
+  background: none;
 }
 
 .lv-brand-logo {
   display: block;
-  height: 20px;
+  height: 22px;
   width: auto;
   /* the artwork ships white on transparent; a touch of glow keeps it legible */
   filter: drop-shadow(0 0 8px rgba(198, 191, 255, 0.25));
