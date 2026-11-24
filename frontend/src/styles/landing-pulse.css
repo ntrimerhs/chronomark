@@ -165,15 +165,17 @@
 .lv-header-inner {
   max-width: 1280px;
   margin: 0 auto;
-  display: flex;
+  display: grid;
+  /* brand flush left, navigation centred, the three actions flush right */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   pointer-events: auto;
 }
 
 .lv-brand-wrap {
   display: flex;
   align-items: center;
+  justify-self: start;
 }
 
 .lv-brand {
@@ -239,6 +241,7 @@
 
 .lv-nav {
   display: none;
+  justify-self: center;
   align-items: center;
   gap: 4px;
   padding: 6px;
@@ -278,6 +281,8 @@
 .lv-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
   gap: 8px;
 }
 
@@ -953,6 +958,13 @@
   .lv-main {
     padding-left: 48px;
     padding-right: 48px;
+  }
+}
+
+@media (max-width: 767px) {
+  /* navigation is hidden here, so the bar becomes a two column pairing */
+  .lv-header-inner {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 }
 
