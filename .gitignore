@@ -41,3 +41,6 @@ demo-*.pdf
 .tmp/
 backend/documents/
 backend/chats/
+
+# Google Document AI service account: never baked into the image, never committed.
+backend/secrets/

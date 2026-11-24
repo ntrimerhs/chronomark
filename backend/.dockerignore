@@ -13,3 +13,4 @@ qdrant_data/
 *.wav
 *.jsonl
 metrics.json
+secrets/
