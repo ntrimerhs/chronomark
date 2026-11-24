@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import CommandPalette from './CommandPalette'
+import PulseHeader from './PulseHeader'
 import '../styles/landing-pulse.css'
 
 /* The landing page, transcribed from the supplied markup.
@@ -40,28 +40,6 @@ const CARDS = [
     icon: 'smart_display',
     title: 'Video Analysis',
     subtitle: 'Audio phonemes & frames',
-    badge: 'Confidence 99.4%',
-    badgeIcon: 'timelapse',
-    queries: [
-      {
-        text: '“When does the lecturer write the Schrödinger equation on the board?”',
-        meta: '[01:42:15] • Chalkboard vision match',
-        tone: 'primary',
-      },
-      {
-        text: '“Jump to when speaker mentions backpropagation convergence rates”',
-        meta: '[00:28:44] • Audio phoneme sync',
-        tone: 'secondary',
-      },
-      {
-        text: '“Find timestamps where students ask about gradient vanishing”',
-        meta: '[02:11:09] • Multi-speaker voice tag',
-        tone: 'primary',
-      },
-    ],
-    footLeft: '60 fps Frame Index',
-    footDot: 'primary',
-    footRight: 'Temporal lock: ±0.04s',
   },
   {
     id: 'document',
@@ -69,28 +47,6 @@ const CARDS = [
     icon: 'description',
     title: 'Document Analysis',
     subtitle: 'PDFs, slides & equations',
-    badge: 'Multi-Doc OCR',
-    badgeIcon: 'menu_book',
-    queries: [
-      {
-        text: '“Extract theorem 3.2 proof and compare with slide 14 derivation”',
-        meta: 'LaTeX AST • Cross-document link',
-        tone: 'primary',
-      },
-      {
-        text: '“Locate all formula instances for cross-entropy loss in chapters 4-6”',
-        meta: 'Symbolic parsing • 14 occurrences',
-        tone: 'secondary',
-      },
-      {
-        text: '“Find where paper critiques transformer quadratic attention”',
-        meta: 'Section 4.1 • Semantic contrast',
-        tone: 'primary',
-      },
-    ],
-    footLeft: 'MathPix + Vector Tree',
-    footDot: 'cyan',
-    footRight: 'Lossless AST',
   },
 ]
 
@@ -153,40 +109,7 @@ export default function PulseLanding() {
         <div className="lv-veil" />
       </div>
 
-      <header className="lv-header">
-        <div className="lv-header-inner">
-          <div className="lv-brand-wrap">
-            <a className="lv-brand" href="#top">
-              <span className="lv-brand-label">CHRONOMARK</span>
-              <span className="lv-brand-ping">
-                <span className="lv-brand-ping-wave" />
-                <span className="lv-brand-ping-dot" />
-              </span>
-            </a>
-          </div>
-
-          <nav className="lv-nav" aria-label="Sections">
-            {NAV.map(([label, path, current]) => (
-              <a key={path} href={`#${path}`} className={current ? 'is-current' : undefined}>
-                {label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="lv-actions">
-            <a className="lv-signin" href="#platform">
-              Sign in
-            </a>
-            <a className="lv-start" href="/upload">
-              <span>Get Started</span>
-              <span className="material-symbols-outlined">arrow_forward</span>
-            </a>
-            <div className="lv-search-slot">
-              <CommandPalette />
-            </div>
-          </div>
-        </div>
-      </header>
+      <PulseHeader reloadOnBrand />
 
       <main className="lv-main" id="platform">
         <div className="lv-shell">
@@ -226,34 +149,6 @@ export default function PulseLanding() {
                     </div>
                   </a>
 
-                  <div className={`lv-popover is-${card.id}`}>
-                    <div className="lv-popover-panel">
-                      <div className="lv-popover-head">
-                        <span className="lv-popover-title">
-                          <span className="material-symbols-outlined">{card.badgeIcon}</span>
-                          Sample Queries
-                        </span>
-                        <span className="lv-popover-badge">{card.badge}</span>
-                      </div>
-
-                      <div className="lv-popover-list">
-                        {card.queries.map((query) => (
-                          <div key={query.text} className="lv-popover-item">
-                            <p>{query.text}</p>
-                            <span className={`lv-popover-meta is-${query.tone}`}>{query.meta}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="lv-popover-foot">
-                        <span className="lv-popover-foot-left">
-                          <span className={`lv-foot-dot is-${card.footDot}`} />
-                          {card.footLeft}
-                        </span>
-                        <span>{card.footRight}</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>

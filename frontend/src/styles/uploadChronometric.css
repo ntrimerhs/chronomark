@@ -1,0 +1,440 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+/* Chronometric ingestion skin for the upload screen.
+
+   Re-skins the existing upload markup (the dropzone, the selected-file row, the
+   Start Analysis action and the four-node pipeline stepper) with the reference's
+   palette and type: base #0B0B13, card #12121E, elevated #171727, dim #0D0D18,
+   border #28273E, brand #6F63D9 with 200/300/400 tints, Plus Jakarta Sans for the
+   interface, Space Mono for the readouts.
+
+   Appended after the base sheet on purpose: the layout rules for the loaded video
+   workspace stay untouched, this only dresses the landing state. */
+
+.upload-shell {
+  --u-base: #0b0b13;
+  --u-card: #12121e;
+  --u-elevated: #171727;
+  --u-dim: #0d0d18;
+  --u-border: #28273e;
+  --u-brand: #6f63d9;
+  --u-200: #d8d6ff;
+  --u-300: #b8b3fc;
+  --u-400: #9488f8;
+  --u-ink: #e2e2f0;
+  --u-slate: #94a3b8;
+  --u-slate-dim: #64748b;
+
+  position: relative;
+  background-color: var(--u-base);
+  color: var(--u-ink);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  isolation: isolate;
+}
+
+/* the coordinate grid the reference lays under everything */
+.upload-shell::before {
+  background-image:
+    radial-gradient(circle at center, rgba(111, 99, 217, 0.08) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 40px 40px, 120px 120px, 120px 120px;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* the astrolabe: concentric rings behind the workspace, slowly turning */
+.upload-shell::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 58%;
+  width: 1400px;
+  height: 1400px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.42;
+  background-image:
+    radial-gradient(circle, transparent 63.9%, rgba(111, 99, 217, 0.12) 64%, transparent 64.4%),
+    radial-gradient(circle, transparent 74.9%, rgba(111, 99, 217, 0.18) 75%, transparent 75.4%),
+    radial-gradient(circle, transparent 58.4%, rgba(111, 99, 217, 0.12) 58.5%, transparent 58.9%),
+    radial-gradient(circle, transparent 42.7%, rgba(184, 179, 252, 0.2) 42.8%, transparent 43.2%),
+    radial-gradient(circle, transparent 27%, rgba(111, 99, 217, 0.25) 27.1%, transparent 27.5%),
+    radial-gradient(circle, transparent 13.5%, rgba(111, 99, 217, 0.12) 13.6%, transparent 14%);
+  animation: u-spin 120s linear infinite;
+}
+
+@keyframes u-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* ── left column ── */
+
+.upload-hero h1 {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 400;
+  font-size: clamp(36px, 4.4vw, 60px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.upload-hero h1 em {
+  display: inline-block;
+  margin-top: 8px;
+  font-style: normal;
+  font-weight: 700;
+  font-size: clamp(28px, 3.2vw, 44px);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  vertical-align: bottom;
+  background-image: linear-gradient(to right, var(--u-200), var(--u-300), #c7d2fe);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 0 25px rgba(111, 99, 217, 0.3));
+  border-right: 3px solid var(--u-300);
+  animation: u-typing 5.6s steps(16, end) infinite, u-caret 0.85s step-start infinite;
+}
+
+@keyframes u-typing {
+  0%,
+  8% {
+    max-width: 0;
+  }
+  46%,
+  84% {
+    max-width: 16ch;
+  }
+  96%,
+  100% {
+    max-width: 0;
+  }
+}
+
+@keyframes u-caret {
+  0%,
+  100% {
+    border-color: var(--u-300);
+  }
+  50% {
+    border-color: transparent;
+  }
+}
+
+.upload-subtitle {
+  margin: 0;
+  max-width: 28rem;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--u-slate);
+}
+
+.upload-spec {
+  border-top: 1px solid rgba(40, 39, 62, 0.9);
+  padding-top: 18px;
+}
+
+.upload-spec-row {
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--u-slate-dim);
+}
+
+.upload-spec-row strong {
+  color: var(--u-300);
+  font-weight: 700;
+}
+
+.upload-meter span {
+  background: linear-gradient(to top, rgba(111, 99, 217, 0.35), var(--u-300));
+}
+
+.upload-spec-note {
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--u-slate-dim);
+}
+
+/* ── right column: the ingestion capsule ── */
+
+.upload-center-card {
+  position: relative;
+  background: rgba(18, 18, 30, 0.75);
+  border: 1px solid rgba(111, 99, 217, 0.2);
+  border-radius: 16px;
+  padding: clamp(18px, 2vw, 36px);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* the luminous corner brackets of the HUD */
+.upload-center-card::before,
+.upload-center-card::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #8c82f2;
+  pointer-events: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.upload-center-card::before {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.upload-center-card::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.upload-center-card:hover::before,
+.upload-center-card:hover::after {
+  border-color: var(--u-200);
+  box-shadow: 0 0 10px rgba(168, 162, 255, 0.4);
+}
+
+/* the dashed drop surface */
+.upload-dropzone,
+.upload-dropzone-button {
+  border: 2px dashed rgba(111, 99, 217, 0.3);
+  border-radius: 12px;
+  background: rgba(13, 13, 24, 0.4);
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.upload-dropzone:hover,
+.upload-dropzone-button:hover {
+  border-color: rgba(148, 136, 248, 0.6);
+  background: rgba(23, 23, 39, 0.4);
+}
+
+.upload-dropzone-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 136, 248, 0.4);
+  background: var(--u-card);
+  color: var(--u-300);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  transition: transform 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.upload-dropzone-icon::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: rgba(111, 99, 217, 0.2);
+  filter: blur(12px);
+  z-index: -1;
+}
+
+.upload-dropzone-button:hover .upload-dropzone-icon {
+  transform: scale(1.08);
+  color: #fff;
+}
+
+.upload-dropzone-icon svg {
+  width: 30px;
+  height: 30px;
+  stroke-width: 1.8;
+}
+
+.upload-dropzone-title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0;
+}
+
+.upload-dropzone-copy {
+  max-width: 28rem;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--u-slate);
+}
+
+/* YouTube ingest */
+.yt-open-btn,
+.upload-secondary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--u-border);
+  background: var(--u-card);
+  color: #cbd5e1;
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.yt-open-btn:hover,
+.upload-secondary-action:hover {
+  background: var(--u-elevated);
+  border-color: rgba(111, 99, 217, 0.4);
+  color: #fff;
+}
+
+/* selected file row */
+.upload-file-meta,
+.upload-file-label {
+  font-family: 'Space Mono', ui-monospace, monospace;
+}
+
+.upload-file-meta span,
+.upload-file-meta strong {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.upload-file-meta span {
+  color: var(--u-slate-dim);
+}
+
+.upload-file-label {
+  font-size: 12px;
+  color: var(--u-slate);
+}
+
+/* the start action */
+.upload-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(111, 99, 217, 0.45);
+  background: linear-gradient(to right, var(--u-brand), #8075e6);
+  color: #fff;
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  box-shadow: 0 0 25px rgba(111, 99, 217, 0.35);
+  transition: box-shadow 0.3s ease, filter 0.3s ease;
+}
+
+.upload-submit:hover:not(:disabled) {
+  box-shadow: 0 0 35px rgba(111, 99, 217, 0.6);
+  filter: brightness(1.08);
+}
+
+.upload-submit:disabled {
+  background: var(--u-dim);
+  border-color: rgba(40, 39, 62, 0.5);
+  color: var(--u-slate-dim);
+  box-shadow: none;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* pipeline stepper */
+.upload-track {
+  background: rgba(40, 39, 62, 0.8);
+}
+
+.upload-stop-dot {
+  border-color: rgba(100, 116, 139, 0.9);
+  background: var(--u-dim);
+}
+
+.upload-stop-dot.is-active,
+.upload-stop-dot[data-active='true'] {
+  border-color: var(--u-400);
+  box-shadow: 0 0 12px #6f63d9;
+}
+
+.upload-stop-label {
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--u-slate-dim);
+}
+
+/* locked chat teaser */
+.upload-chat-placeholder {
+  border: 1px solid rgba(40, 39, 62, 0.7);
+  border-radius: 12px;
+  background: rgba(18, 18, 30, 0.6);
+  color: var(--u-slate);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12.5px;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.upload-chat-placeholder:hover {
+  background: rgba(18, 18, 30, 0.9);
+  border-color: rgba(111, 99, 217, 0.35);
+}
+
+/* progress readouts */
+.upload-progress-labels,
+.upload-progress-value {
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--u-slate);
+}
+
+.upload-progress-value {
+  color: var(--u-300);
+  font-weight: 700;
+}
+
+.upload-progress-block .upload-track span,
+.upload-progress-block [class*='fill'] {
+  background: linear-gradient(to right, var(--u-brand), var(--u-300));
+}
+
+.upload-error {
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: #fda4af;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-hero h1 em,
+  .upload-shell::after {
+    animation: none !important;
+  }
+
+  .upload-hero h1 em {
+    max-width: none;
+    border-right: 0;
+  }
+}
