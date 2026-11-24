@@ -9,11 +9,15 @@ import './../styles/authDialog.css'
 /* The bar from the landing page, shared.
 
    The mark on the left with its search underneath the same hairline, the section
-   pills in the middle, Sign in / Sign up and Get Started on the right.
+   pills in the middle, Sign in and the filled Sign up action on the right.
 
    Two modes: `fixed` floats over the plate (the landing page), `inline` takes a
    76px band in normal flow, which is exactly the height the upload and documents
    screens already reserve, so their viewport maths still add up.
+
+   The filled action is the sign-up: it is the only thing a visitor who has just
+   read the page needs. Once there is a session the same slot opens the
+   workspaces instead, because signing up twice is not a thing.
 
    The account controls are the real ones: the dialog signs in against Supabase
    and the chip is that session, so the header and the workspaces cannot disagree
@@ -82,14 +86,9 @@ export default function PulseHeader({ inline = false, reloadOnBrand = false }) {
 
           <div className="ph-actions">
             {enabled && !session && (
-              <>
-                <button type="button" className="ph-signin" onClick={() => setDialog('signin')}>
-                  Sign in
-                </button>
-                <a className="ph-signup" href="/register">
-                  Sign up
-                </a>
-              </>
+              <button type="button" className="ph-signin" onClick={() => setDialog('signin')}>
+                Sign in
+              </button>
             )}
 
             {session && (
@@ -124,7 +123,7 @@ export default function PulseHeader({ inline = false, reloadOnBrand = false }) {
             )}
 
             <a className="ph-start" href={session ? '/upload' : '/register'}>
-              <span>Get Started</span>
+              <span>{session ? 'Workspaces' : 'Sign up'}</span>
               <span className="material-symbols-outlined">arrow_forward</span>
             </a>
           </div>
