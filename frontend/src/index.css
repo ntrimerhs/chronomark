@@ -4,21 +4,38 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600&display=swap');
 
 :root {
-  --bg: #0B0B12;
-  --bg-deep: #141420;
-  --bg-surface: #141420;
-  --bg-panel: rgba(167, 172, 186, 0.06);
-  --border: #2A2C3B;
-  --text: #F3F4F8;
-  --text-strong: #F3F4F8;
-  --text-muted: #A7ACBA;
-  --accent-purple: #A8A2FF;
-  --accent-soft: #D8D6FF;
-  --accent-indigo: #6F63D9;
-  --accent-pink: #6F63D9;
-  --accent-pink-2: #A8A2FF;
-  --accent-grey: #1B1B2B;
+  /* Palette from the reference's Tailwind config, verbatim. */
+  --canvas: #0B0B12;
   --surface: #141420;
+  --surface-card: #1B1B2B;
+  --surface-hover: #222336;
+  --line: #2A2C3B;
+  --accent: #6F63D9;
+  --accent-light: #A8A2FF;
+  --accent-ethereal: #D8D6FF;
+  --tech-pure: #F3F4F8;
+  --tech-muted: #A7ACBA;
+  --tech-faint: #4A4D62;
+  --status-emerald: #34D399;
+  --status-rose: #F43F5E;
+  --status-amber: #FBBF24;
+
+  /* The older names point at the same palette, so existing components inherit it
+     without being rewritten. */
+  --bg: var(--canvas);
+  --bg-deep: var(--surface);
+  --bg-surface: var(--surface);
+  --bg-panel: rgba(167, 172, 186, 0.06);
+  --border: var(--line);
+  --text: var(--tech-pure);
+  --text-strong: var(--tech-pure);
+  --text-muted: var(--tech-muted);
+  --accent-purple: var(--accent-light);
+  --accent-soft: var(--accent-ethereal);
+  --accent-indigo: var(--accent);
+  --accent-pink: var(--accent);
+  --accent-pink-2: var(--accent-light);
+  --accent-grey: var(--surface-card);
   --shadow: 0 28px 100px rgba(11, 11, 18, 0.32);
 
   --font-sans: 'Inter', system-ui, sans-serif;
@@ -38,7 +55,7 @@ html, body, #root {
   padding: 0;
   overflow-x: hidden;
   /* matched to the hero plate so no strip shows beside the scroll rail */
-  background: #0B0B12;
+  background: var(--canvas);
 }
 
 body {
