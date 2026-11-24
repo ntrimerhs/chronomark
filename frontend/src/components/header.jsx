@@ -1,103 +1,59 @@
-import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { Menu, X } from 'lucide-react'
-import CommandPalette from './CommandPalette'
-import '../styles/header.css'
+import '../styles/header.css';
+import { ArrowUpRight } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import CommandPalette from './CommandPalette';
 
-/* The navigation, to the Electric Pulse reference: a lime star mark beside the
-   wordmark, three section links, the acid-lime call to action and a hamburger
-   that opens the same links as a panel on small screens.
+/* The navigation, to the hero reference: the mark stays the supplied artwork,
+   the name is set as spaced uppercase type beside it, and the sections are
+   divided by hairlines rather than boxes.
 
-   Two routes keep their own treatment, because a conversation is not a place to
-   sell from: the chat workspace drops the header entirely (it carries its own
-   wordmark in the sidebar), and the upload page keeps a slim strip with the brand
-   and nothing else. The command palette stays mounted everywhere else: it is the
-   site's search, not decoration. */
+   The chat workspaces drop it entirely. Discover, search and the hero CTA all
+   lead back into marketing pages, and a conversation is not a place to sell
+   from: /documents keeps its own wordmark in the sidebar as the way home, and
+   /upload keeps a slim strip with the wordmark and nothing else. */
 
 const NAV_LINKS = [
-  { href: '/#features', label: 'Features' },
-  { href: '/upload', label: 'Solutions' },
-  { href: '/documents', label: 'Resources' },
-]
+  { href: '/#features', label: '01 Discover' },
+];
 
-const HEADERLESS_ROUTES = ['/documents']
-const SLIM_ROUTES = ['/upload']
+// No header at all: the workspace is the whole screen.
+const HEADERLESS_ROUTES = ['/documents'];
+// Only the wordmark, for a page that still needs a way home.
+const SLIM_ROUTES = ['/upload'];
 
 export default function Header() {
-  const [open, setOpen] = useState(false)
-  const { pathname } = useLocation()
+  const { pathname } = useLocation();
 
   if (HEADERLESS_ROUTES.some((route) => pathname.startsWith(route))) {
-    return null
+    return null;
   }
 
-  const slim = SLIM_ROUTES.some((route) => pathname.startsWith(route))
+  const slim = SLIM_ROUTES.some((route) => pathname.startsWith(route));
 
   return (
-    <header className={`pulse-header${slim ? ' is-slim' : ''}`}>
-      <div className="pulse-shell pulse-nav">
-        <a className="pulse-brand" href="/" aria-label="Chronomark home">
-          <svg className="pulse-star" viewBox="0 0 32 32" aria-hidden="true">
-            <path d="M16 0c1.6 9 4.2 13 16 16-11.8 3-14.4 7-16 16C14.4 23 11.8 19 0 16 11.8 13 14.4 9 16 0Z" />
-          </svg>
-          <span>
-            Chronomark <b>AI</b>
-          </span>
-        </a>
-
-        {slim ? null : (
-          <nav className="pulse-links" aria-label="Primary">
-            {NAV_LINKS.map((link) => (
-              <a key={link.href} href={link.href}>
-                {link.label}
-              </a>
-            ))}
-          </nav>
-        )}
-
-        <div className="pulse-nav-actions">
-          {slim ? null : (
-            <span className="pulse-search">
-              <CommandPalette />
-            </span>
-          )}
-
-          <a href="/upload" className="pulse-cta">
-            Try Now
-            <span aria-hidden="true">↗</span>
-          </a>
-
-          {slim ? null : (
-            <button
-              type="button"
-              className="pulse-burger"
-              onClick={() => setOpen((value) => !value)}
-              aria-label={open ? 'Close menu' : 'Open menu'}
-              aria-expanded={open}
-              aria-controls="pulse-mobile-menu"
-            >
-              {open ? <X size={19} /> : <Menu size={19} />}
-            </button>
-          )}
-        </div>
-      </div>
+    <header className={`main-header${slim ? ' main-header-chat' : ''}`}>
+      <a href="/" className="logo-link">
+        <span className="logo-name">ChronoMark</span>
+      </a>
 
       {slim ? null : (
-        <nav
-          id="pulse-mobile-menu"
-          className={`pulse-mobile${open ? ' is-open' : ''}`}
-          aria-label="Mobile navigation"
-        >
+        <>
           {NAV_LINKS.map((link) => (
-            <a key={link.href} href={link.href} onClick={() => setOpen(false)}>
+            <a key={link.href} href={link.href} className="cell nav-link">
               {link.label}
             </a>
           ))}
-          <a href="/upload" onClick={() => setOpen(false)}>
-            Try Now ↗
+
+          <div className="spacer" />
+
+          <CommandPalette />
+
+          <a href="/upload" className="cta">
+            try now
+            <ArrowUpRight />
           </a>
-        </nav>
+        </>
       )}
     </header>
-  )
+  );
 }

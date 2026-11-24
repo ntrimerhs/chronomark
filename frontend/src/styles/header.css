@@ -1,230 +1,284 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-/* Header — Electric Pulse.
+.main-header {
+  --header-bg: rgba(10, 18, 28, 0.62);
+  --header-bg-hover: rgba(124, 58, 237, 0.14);
+  --header-line: rgba(255, 255, 255, 0.08);
+  --header-text: #FFFFFF;
+  --header-text-dim: rgba(233, 230, 247, 0.55);
+  --header-accent: linear-gradient(135deg, #7c3aed 0%, #c026d3 50%, #ff3b9a 100%);
+  --header-cta-bg: #ff3b9a;
+  --header-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 
-   Lime star mark beside the wordmark, three section links, the acid-lime call to
-   action, and a hamburger panel under 650px. Everything is scoped to
-   .pulse-header so no other surface on the site is touched.
-
-   The site's scroll container is #root, not the document, so the header is
-   sticky inside that flow rather than fixed to the viewport. */
-
-.pulse-header {
-  --pulse-bg: #050816;
-  --pulse-blue: #3b82f6;
-  --pulse-ice: #7dd3fc;
-  --pulse-lime: #c7f464;
-  --pulse-white: #f8fafc;
+  /* sticky (not fixed): this app's real scroll container is the nested
+     #root div, not the document. A fixed header is sized against the true
+     browser viewport, which is wider than #root's own scrollbar-gutter'd
+     content box -- so it visually overlapped #root's scrollbar. Sticky
+     keeps the header in #root's normal flow (same width as everything
+     else), and since it's the very first element it's already pinned at
+     the top from scroll position zero, so it still never "follows" the page. */
   position: sticky;
   top: 0;
-  z-index: 40;
-  border-bottom: 1px solid rgba(125, 211, 252, 0.13);
-  background: rgba(5, 8, 22, 0.73);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  font-family: 'DM Sans', system-ui, sans-serif;
-  color: var(--pulse-white);
-}
-
-.pulse-shell {
-  max-width: 1220px;
-  margin: 0 auto;
-  padding: 0 34px;
-}
-
-.pulse-nav {
-  height: 82px;
+  z-index: 100;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 32px;
+  height: 116px;
+  width: 100%;
+  background: var(--header-bg);
+  /* glass: the page content scrolls underneath and refracts through it.
+     The opaque fallback keeps the header readable where blur is unsupported. */
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--header-line);
+  font-family: var(--header-mono);
+  font-size: 14px;
 }
 
-.pulse-brand {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  white-space: nowrap;
-  letter-spacing: -0.6px;
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  font-weight: 600;
-  font-size: 22px;
-  color: var(--pulse-white);
-  text-decoration: none;
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .main-header {
+    background: #0A121C;
+  }
 }
 
-.pulse-brand b {
-  color: var(--pulse-ice);
-  font-weight: 600;
-}
-
-.pulse-star {
-  width: 27px;
-  height: 27px;
-  fill: var(--pulse-lime);
-  filter: drop-shadow(0 0 10px rgba(199, 244, 100, 0.48));
-}
-
-.pulse-links {
-  display: flex;
-  gap: 38px;
-  margin-left: auto;
-  align-items: center;
-}
-
-.pulse-links a {
-  color: #b5c5dc;
-  font-size: 13px;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.pulse-links a:hover {
-  color: var(--pulse-white);
-}
-
-.pulse-nav-actions {
+.logo-link {
   display: flex;
   align-items: center;
   gap: 14px;
-}
-
-/* The command palette keeps its own button; only its box is neutralised so it
-   sits in the new bar without a second border. */
-.pulse-search .cell-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 11px;
-  border: 1px solid rgba(125, 211, 252, 0.18);
-  border-radius: 10px;
-  background: rgba(125, 211, 252, 0.04);
-  color: #b5c5dc;
-  font-family: 'DM Sans', system-ui, sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
-}
-
-.pulse-search .cell-search:hover {
-  color: var(--pulse-white);
-  border-color: rgba(125, 211, 252, 0.4);
-}
-
-.pulse-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid rgba(199, 244, 100, 0.5);
-  background: var(--pulse-lime);
-  color: #07100d;
-  font-weight: 700;
-  padding: 13px 20px;
-  border-radius: 999px;
-  font-size: 13px;
-  white-space: nowrap;
+  padding: 18px 36px;
   text-decoration: none;
-  box-shadow: 0 0 28px rgba(199, 244, 100, 0.16);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.pulse-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 38px rgba(199, 244, 100, 0.33);
-}
-
-.pulse-burger {
-  display: none;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.03);
-  padding: 10px;
-  border-radius: 12px;
-  color: var(--pulse-white);
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.pulse-mobile {
-  display: none;
+.logo-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #7c3aed, #ff3b9a);
+  box-shadow: 0 12px 30px rgba(124, 58, 237, 0.22);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+  flex: none;
 }
 
-.pulse-mobile.is-open {
+.logo-link:hover .logo-icon {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 20px 40px rgba(124, 58, 237, 0.35);
+}
+
+.logo-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.logo-link:hover .logo-icon::before {
+  left: 100%;
+}
+
+.logo-icon-svg {
+  width: 20px;
+  height: 20px;
+  color: white;
+  position: relative;
+  z-index: 1;
+}
+
+.logo-label {
+  color: white;
+  font-family: var(--font-display, var(--header-mono));
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  background: linear-gradient(135deg, #ffffff, rgba(255, 255, 255, 0.8));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: all 0.3s ease;
+}
+
+.logo-link:hover .logo-label {
+  letter-spacing: 0.04em;
+}
+
+.cell {
   display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 16px 22px 24px;
-  background: #09142e;
-  border-bottom: 1px solid #25496e;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 30px;
+  border-left: 1px solid var(--header-line);
+  color: var(--header-text-dim);
+  text-decoration: none;
+  background: none;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
-.pulse-mobile a {
-  color: #d5e4f4;
+.cell:hover,
+.cell:focus-visible {
+  background: var(--header-bg-hover);
+  color: var(--header-text);
+  outline: none;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.cta {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 10px;
+  padding: 18px 38px;
+  background: transparent;
+  border-left: 1px solid var(--header-line);
+  color: var(--header-text);
+  font-weight: 400;
   font-size: 14px;
   text-decoration: none;
+  transition: background 0.15s, color 0.15s;
 }
 
-@media (max-width: 900px) {
-  .pulse-nav {
-    height: 74px;
-  }
-
-  .pulse-links {
-    gap: 17px;
-  }
+.cta:hover {
+  background: var(--header-bg-hover);
+  color: var(--header-text);
 }
 
-@media (max-width: 650px) {
-  .pulse-shell {
-    padding: 0 22px;
-  }
+.cta:focus-visible {
+  outline: 2px solid var(--header-text);
+  outline-offset: -4px;
+}
 
-  .pulse-nav {
-    height: 69px;
-    gap: 9px;
-  }
+.cta svg {
+  transition: transform 0.15s;
+}
 
-  .pulse-brand {
-    font-size: 17px;
-    gap: 7px;
-  }
+.cta:hover svg {
+  transform: translate(2px, -2px);
+}
 
-  .pulse-star {
-    width: 23px;
-    height: 23px;
-  }
+.main-header svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
 
-  .pulse-links,
-  .pulse-search {
-    display: none;
-  }
+/* ── Logo pop ──
+   A short overshoot: the mark lifts and grows a little, the wordmark follows by
+   a hair so the pair reads as one object. 180ms with an ease-out-quart curve, so
+   it settles rather than wobbles. */
+.logo-mark,
+.logo-word {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), filter 0.18s ease;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
 
-  .pulse-cta {
-    font-size: 11px;
-    padding: 11px 13px;
-    margin-left: auto;
-  }
+.logo-link:hover .logo-mark,
+.logo-link:focus-visible .logo-mark {
+  transform: translateY(-2px) scale(1.12);
+  filter: drop-shadow(0 8px 16px rgba(255, 59, 167, 0.35));
+}
 
-  .pulse-burger {
-    display: grid;
-    place-items: center;
-  }
+.logo-link:hover .logo-word,
+.logo-link:focus-visible .logo-word {
+  transform: translateX(1px) scale(1.03);
+}
+
+.logo-link:active .logo-mark {
+  transform: translateY(-1px) scale(1.04);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-cta,
-  .pulse-links a {
+  .logo-mark,
+  .logo-word {
     transition: none;
+  }
+
+  .logo-link:hover .logo-mark,
+  .logo-link:focus-visible .logo-mark,
+  .logo-link:hover .logo-word,
+  .logo-link:focus-visible .logo-word,
+  .logo-link:active .logo-mark {
+    transform: none;
   }
 }
 
-/* Slim variant: the upload page keeps a strip with the brand and the call to
-   action only, so the instrument gets the height. The chat workspace drops the
-   header entirely (see header.jsx). */
-.pulse-header.is-slim .pulse-nav {
+@media (max-width: 720px) {
+  .nav-link {
+    display: none;
+  }
+
+  .cell-search span {
+    display: none;
+  }
+}
+
+/* ── Reference pass: spaced uppercase identity ──
+   The supplied wordmark PNG is replaced by live text so it can carry the wide
+   tracking the reference uses, and so it stays selectable. */
+.logo-name {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #F5F5F8;
+}
+
+.nav-link {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 10.5px;
+}
+
+.cta {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 10.5px;
+  color: #F42FA7;
+}
+
+.cta:hover {
+  color: #FF6BC4;
+}
+
+.cell-search span {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 10.5px;
+}
+
+@media (max-width: 760px) {
+  .logo-name {
+    font-size: 13px;
+    letter-spacing: 0.16em;
+  }
+}
+
+/* ── Chat workspaces ──
+   Inside /upload and /documents the header keeps only the wordmark: the section
+   links, the search and the CTA all leave the conversation. It also drops to a
+   slim strip, because the workspace below it is a full-height reading surface. */
+.main-header-chat {
   height: 64px;
 }
 
-.pulse-header.is-slim .pulse-shell {
-  padding: 0 24px;
+.main-header-chat .logo-link {
+  padding: 12px 24px;
 }
+

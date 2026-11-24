@@ -1,502 +1,452 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+/* The hero.
 
-/* Hero — Electric Pulse.
+   Composition: three colour washes and a fine grid for depth, a dial drawn in
+   SVG, the wordmark across it, then the tagline and controls. The dial is behind
+   the type at every size, and nothing in it takes pointer events. */
 
-   Deep-blue radial plate with a masked grid and a faint ring off the bottom-left
-   corner, copy on the left, the dial on the right. Every class is scoped to
-   .pulse-hero so no other surface inherits this layout. */
-
-.pulse-hero {
-  --pulse-bg: #050816;
-  --pulse-blue: #3b82f6;
-  --pulse-ice: #7dd3fc;
-  --pulse-lime: #c7f464;
-  --pulse-white: #f8fafc;
+.hx {
+  --font-sans: 'Satoshi', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  /* header is 82px on desktop, 69px on phones: the hero fills what is left */
-  min-height: calc(100svh - 82px);
-  display: flex;
-  background:
-    radial-gradient(ellipse 52% 48% at 67% 52%, #104e9b 0%, #0a2b64 32%, transparent 77%),
-    radial-gradient(ellipse 45% 40% at 28% 72%, #092b5a 0%, transparent 75%),
-    #050816;
-  font-family: 'DM Sans', system-ui, sans-serif;
-  color: var(--pulse-white);
-}
-
-/* grid, faded at both ends so the plate has a horizon */
-.pulse-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgba(125, 211, 252, 0.025) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(125, 211, 252, 0.025) 1px, transparent 1px);
-  background-size: 80px 80px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 15%, #000 55%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 15%, #000 55%, transparent 100%);
-}
-
-/* the ring cropped off the bottom-left corner */
-.pulse-hero::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  pointer-events: none;
-  width: 650px;
-  height: 650px;
-  left: -350px;
-  bottom: -450px;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  border-radius: 50%;
-  box-shadow: 0 0 90px rgba(59, 130, 246, 0.17);
-}
-
-.pulse-hero-shell {
-  max-width: 1220px;
   width: 100%;
-  margin: 0 auto;
-  padding: 0 34px;
-}
-
-.pulse-hero-grid {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  align-items: center;
-  gap: 22px;
-  padding-top: 90px;
-  padding-bottom: 92px;
-}
-
-/* ── copy ── */
-
-.pulse-eyebrow {
+  /* Fixed, not min: the hero is exactly the viewport under the header, so the
+     composition is centred instead of being pushed down by whatever follows. */
+  height: calc(100vh - 76px);
   display: flex;
   align-items: center;
-  gap: 11px;
-  color: var(--pulse-ice);
-  text-transform: uppercase;
-  letter-spacing: 2.6px;
+  justify-content: center;
+  overflow: hidden;
+  /* Opaque plate: the page gradient behind it steps colour mid-viewport, which
+     showed through when this was transparent. The mesh blobs now sit on top. */
+  background: #0A121C;
+  isolation: isolate;
+}
+
+/* ── Edge readouts ── */
+
+.hx-edge {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
-  font-weight: 700;
+  line-height: 2.1;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 248, 0.42);
+  pointer-events: none;
 }
 
-.pulse-line {
+.hx-edge-tl {
+  top: 96px;
+  left: 5.2%;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hx-edge-tr {
+  top: 96px;
+  right: 5.2%;
+  align-items: center;
+}
+
+.hx-edge-bl {
+  bottom: 60px;
+  left: 5.2%;
+  align-items: center;
+}
+
+.hx-edge-br {
+  bottom: 60px;
+  right: 5.2%;
+}
+
+.hx-rule {
+  display: block;
+  width: 34px;
   height: 1px;
-  width: 36px;
-  background: var(--pulse-lime);
+  background: rgba(245, 245, 248, 0.3);
 }
 
-.pulse-hero h1 {
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  font-size: clamp(56px, 6.4vw, 94px);
+.hx-rule-short {
+  width: 22px;
+}
+
+/* ── The stage ── */
+
+.hx-stage {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 1120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 24px;
+}
+
+.hx-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(94vw, 700px);
+  height: auto;
+  transform: translate(-50%, -54%);
+  z-index: -1;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 58%, transparent 96%);
+  mask-image: linear-gradient(180deg, #000 58%, transparent 96%);
+  opacity: 0;
+  animation: hx-orbit-in 1200ms cubic-bezier(0.22, 1, 0.36, 1) 120ms forwards;
+}
+
+@keyframes hx-orbit-in {
+  from { opacity: 0; transform: translate(-50%, -54%) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, -54%) scale(1); }
+}
+
+/* Radial glow behind the dial centre. Sits between the washes and the dial. */
+.hx-core-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(70vw, 640px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -55%);
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(168, 85, 247, 0.16) 0%,
+    rgba(244, 47, 167, 0.07) 38%,
+    transparent 68%
+  );
+  filter: blur(30px);
+  pointer-events: none;
+  opacity: 0;
+  animation: hx-fade 1400ms ease 400ms forwards;
+}
+
+.hx-ring {
+  fill: none;
+  stroke: rgba(245, 245, 248, 0.32);
+  stroke-width: 1;
+}
+
+.hx-ring-inner {
+  stroke: url(#hxRing);
+  stroke-width: 1.4;
+}
+
+.hx-dotted {
+  fill: none;
+  stroke: rgba(245, 245, 248, 0.5);
+  stroke-width: 1.6;
+  stroke-dasharray: 1 13;
+  stroke-linecap: round;
+}
+
+.hx-crosshair line {
+  stroke: rgba(245, 245, 248, 0.09);
+  stroke-width: 1;
+  stroke-dasharray: 3 9;
+}
+
+.hx-tick {
+  stroke: rgba(245, 245, 248, 0.55);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.hx-tick.is-long {
+  stroke: rgba(244, 47, 167, 0.85);
+  stroke-width: 2;
+}
+
+.hx-centre line {
+  stroke: rgba(245, 245, 248, 0.6);
+  stroke-width: 1.2;
+}
+
+/* Motion A: the arc and its marker travel the inner orbit. */
+.hx-arc-group {
+  transform-origin: 350px 350px;
+  animation: hx-spin 14s linear infinite;
+}
+
+@keyframes hx-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Motion B: the tick ring turns the other way, much more slowly. */
+.hx-ticks {
+  transform-origin: 350px 350px;
+  animation: hx-spin-back 54s linear infinite;
+}
+
+@keyframes hx-spin-back {
+  to { transform: rotate(-360deg); }
+}
+
+.hx-arc {
+  fill: none;
+  stroke: url(#hxArc);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.hx-arc-trail {
+  fill: none;
+  stroke: url(#hxArc);
+  stroke-width: 9;
+  stroke-linecap: round;
+  opacity: 0.38;
+  filter: blur(5px);
+}
+
+/* Motion C: the marker breathes. */
+.hx-marker {
+  transform-origin: 470px 145px;
+  animation: hx-breathe 3.6s ease-in-out infinite;
+}
+
+@keyframes hx-breathe {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* ── Wordmark ── */
+
+.hx-word {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: nowrap;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(36px, 7.1vw, 104px);
+  font-weight: 500;
+  line-height: 0.94;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em; /* balances the trailing letter-space so it reads centred */
+  color: #F5F5F8;
+  white-space: nowrap;
+}
+
+.hx-word span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(18px);
+  animation: hx-letter 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(160ms + var(--i) * 45ms);
+}
+
+@keyframes hx-letter {
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Tagline ── */
+
+.hx-tagline {
+  margin: 26px 0 0;
+  font-size: clamp(18px, 2.1vw, 30px);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-align: center;
+  color: #F5F5F8;
+  opacity: 0;
+  animation: hx-fade 900ms ease 900ms forwards;
+}
+
+@keyframes hx-fade {
+  to { opacity: 1; }
+}
+
+.hx-tagline em {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
   font-weight: 600;
-  letter-spacing: -5.5px;
-  line-height: 1.04;
-  margin: 28px 0;
-  max-width: 760px;
-  color: var(--pulse-white);
-}
-
-.pulse-hero h1 .pulse-lime {
-  color: var(--pulse-lime);
-  text-shadow: 0 0 50px rgba(199, 244, 100, 0.2);
-}
-
-.pulse-hero h1 .pulse-outline {
-  -webkit-text-stroke: 1px #b5d7fa;
+  font-size: 1.08em;
+  letter-spacing: 0.02em;
+  background-image: linear-gradient(96deg, #FF4FC3 0%, #F42FA7 35%, #C25BF5 70%, #A855F7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: transparent;
+  text-shadow: 0 0 34px rgba(244, 47, 167, 0.35);
+  padding-right: 0.06em; /* keep the italic tail from clipping against the clip */
 }
 
-.pulse-sub {
-  max-width: 460px;
-  color: #b8c8dc;
-  font-size: 16px;
-  line-height: 1.8;
-  margin: 0 0 34px;
-}
+/* ── Controls ── */
 
-.pulse-actions {
+.hx-actions {
   display: flex;
   align-items: center;
-  gap: 22px;
-  flex-wrap: wrap;
+  gap: 26px;
+  margin-top: 34px;
+  opacity: 0;
+  animation: hx-fade 900ms ease 1050ms forwards;
 }
 
-.pulse-primary {
-  border: 0;
-  border-radius: 999px;
-  background: var(--pulse-lime);
-  color: #09101a;
-  padding: 17px 23px;
-  font-weight: 700;
-  font-size: 14px;
+.hx-primary {
   display: inline-flex;
   align-items: center;
-  gap: 24px;
+  gap: 13px;
+  padding: 7px 7px 7px 24px;
+  min-height: 54px;
+  border-radius: 999px;
+  background: #F5F5F8;
+  color: #0A0E1A;
+  font-size: 14.5px;
+  font-weight: 560;
   text-decoration: none;
-  box-shadow: 0 0 33px rgba(199, 244, 100, 0.17);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.pulse-primary:hover {
+.hx-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 38px rgba(199, 244, 100, 0.33);
+  box-shadow: 0 18px 40px -22px rgba(244, 47, 167, 0.55);
 }
 
-.pulse-secondary {
+.hx-arrow {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #F42FA7;
+  color: #0A0E1A;
+  flex: none;
+  transition: transform 0.2s ease;
+}
+
+.hx-primary:hover .hx-arrow {
+  transform: translate(2px, -2px);
+}
+
+.hx-ghost {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  color: #d9e8fc;
+  gap: 11px;
   font-size: 14px;
+  letter-spacing: 0.02em;
+  color: rgba(245, 245, 248, 0.86);
   text-decoration: none;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
 }
 
-.pulse-play {
-  border: 1px solid rgba(128, 186, 255, 0.4);
-  height: 38px;
-  width: 38px;
+.hx-ghost:hover {
+  color: #F5F5F8;
+  text-shadow: 0 0 18px rgba(244, 47, 167, 0.45);
+}
+
+.hx-play {
   display: grid;
   place-items: center;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  color: var(--pulse-ice);
-  font-size: 10px;
+  border: 1px solid rgba(245, 245, 248, 0.32);
+  flex: none;
 }
 
-.pulse-micro {
-  margin-top: 57px;
-  display: flex;
-  gap: 24px;
-  align-items: center;
-  color: #7591b2;
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
+.hx-primary:focus-visible,
+.hx-ghost:focus-visible {
+  outline: 2px solid #F42FA7;
+  outline-offset: 3px;
 }
 
-.pulse-dot {
-  height: 4px;
-  width: 4px;
-  border-radius: 50%;
-  background: var(--pulse-lime);
-}
+/* ── Responsive ── */
 
-/* ── the dial ── */
+@media (max-width: 1100px) {
+  .hx-orbit {
+    width: min(96vw, 560px);
+    transform: translate(-50%, -56%);
+  }
 
-.pulse-visual {
-  min-width: 0;
-  position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1 / 1;
-  transform: translateX(5%);
-}
+  .hx-word {
+    font-size: clamp(30px, 7.4vw, 72px);
+    letter-spacing: 0.16em;
+  }
 
-.pulse-aura {
-  position: absolute;
-  inset: -7%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(20, 120, 236, 0.24) 0%, rgba(20, 100, 213, 0.08) 35%, transparent 67%);
-  filter: blur(22px);
-}
-
-.pulse-dial {
-  width: 100%;
-  max-width: 590px;
-  overflow: visible;
-  filter: drop-shadow(0 0 35px rgba(9, 121, 252, 0.17));
-}
-
-.pulse-dial-label {
-  font: 600 11px 'Space Grotesk', system-ui, sans-serif;
-  letter-spacing: 3px;
-}
-
-.pulse-dial-time {
-  font: 500 45px 'Space Grotesk', system-ui, sans-serif;
-  letter-spacing: -1px;
-}
-
-.pulse-dial-top {
-  font: 400 10px ui-monospace, monospace;
-  letter-spacing: 2px;
-}
-
-.pulse-spin {
-  transform-origin: 300px 300px;
-  animation: pulse-spin 95s linear infinite;
-}
-
-.pulse-spin-reverse {
-  transform-origin: 300px 300px;
-  animation: pulse-spin 135s linear infinite reverse;
-}
-
-.pulse-wave {
-  animation: pulse-breath 2s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.pulse-point {
-  animation: pulse-point 2.7s ease-in-out infinite;
-  transform-origin: center;
-}
-
-.pulse-tooltip {
-  position: absolute;
-  left: 10%;
-  bottom: 12%;
-  border: 1px solid rgba(59, 130, 246, 0.42);
-  background: rgba(6, 21, 43, 0.88);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  padding: 14px 17px;
-  border-radius: 14px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.53);
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  animation: pulse-float 5s ease-in-out infinite;
-  max-width: 230px;
-}
-
-.pulse-tooltip-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: rgba(199, 244, 100, 0.09);
-  color: var(--pulse-lime);
-}
-
-.pulse-tooltip strong {
-  font-size: 12px;
-  display: block;
-  color: var(--pulse-white);
-}
-
-.pulse-tooltip span {
-  font-size: 11px;
-  color: #9caec8;
-}
-
-.pulse-corner {
-  position: absolute;
-  right: 0;
-  top: 12%;
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  color: #72a8df;
-  font-size: 10px;
-  letter-spacing: 2px;
-}
-
-.pulse-footerlabel {
-  position: absolute;
-  left: 34px;
-  bottom: 23px;
-  font-size: 10px;
-  color: #647a95;
-  letter-spacing: 1.8px;
-  text-transform: uppercase;
-}
-
-@keyframes pulse-spin {
-  to {
-    transform: rotate(360deg);
+  .hx-tagline {
+    letter-spacing: 0.1em;
   }
 }
 
-@keyframes pulse-point {
-  50% {
-    opacity: 0.4;
-    scale: 1.35;
-  }
-}
-
-@keyframes pulse-breath {
-  50% {
-    transform: scaleY(0.76);
-  }
-}
-
-@keyframes pulse-float {
-  50% {
-    transform: translateY(-9px);
-  }
-}
-
-/* ── responsive ── */
-
-@media (max-width: 900px) {
-  .pulse-hero-grid {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 0;
-    padding-top: 65px;
-    padding-bottom: 90px;
-    text-align: center;
+@media (max-width: 760px) {
+  .hx {
+    min-height: calc(100vh - 64px);
   }
 
-  .pulse-copy {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  .hx-orbit {
+    width: min(104vw, 380px);
+    transform: translate(-50%, -58%);
   }
 
-  .pulse-eyebrow {
-    justify-content: center;
+  .hx-stage {
+    padding: 0 20px;
   }
 
-  .pulse-hero h1 {
-    font-size: clamp(53px, 8vw, 78px);
-    letter-spacing: -3.8px;
-    max-width: 760px;
+  .hx-word {
+    font-size: clamp(26px, 8.6vw, 44px);
+    letter-spacing: 0.12em;
+    text-indent: 0.12em;
   }
 
-  .pulse-sub {
-    max-width: 600px;
-  }
-
-  .pulse-visual {
-    width: min(100%, 570px);
+  .hx-tagline {
+    font-size: 13.5px;
+    letter-spacing: 0.06em;
     margin-top: 20px;
-    transform: none;
   }
 
-  .pulse-micro {
-    margin-top: 32px;
-  }
-
-  .pulse-footerlabel {
-    left: 25px;
-  }
-}
-
-@media (max-width: 650px) {
-  .pulse-hero-shell {
-    padding: 0 22px;
-  }
-
-  .pulse-hero {
-    min-height: unset;
-  }
-
-  .pulse-hero-grid {
-    padding-top: 60px;
-    padding-bottom: 68px;
-  }
-
-  .pulse-eyebrow {
-    font-size: 9px;
-    letter-spacing: 1.8px;
-  }
-
-  .pulse-hero h1 {
-    font-size: clamp(45px, 11.7vw, 71px);
-    line-height: 1.04;
-    letter-spacing: -2.7px;
-    margin: 24px 0 22px;
-  }
-
-  .pulse-sub {
-    font-size: 14px;
-    line-height: 1.7;
-    margin-bottom: 29px;
-  }
-
-  .pulse-actions {
-    justify-content: center;
-    gap: 20px;
-  }
-
-  .pulse-primary {
-    font-size: 13px;
-    padding: 15px 18px;
+  .hx-actions {
+    flex-direction: column;
     gap: 14px;
+    margin-top: 26px;
   }
 
-  .pulse-secondary {
-    font-size: 12px;
-  }
-
-  .pulse-play {
-    height: 34px;
-    width: 34px;
-  }
-
-  .pulse-visual {
-    margin-top: 29px;
-    width: calc(100% + 24px);
-  }
-
-  .pulse-tooltip {
-    left: 0;
-    bottom: 5%;
-    padding: 11px 12px;
-    max-width: 185px;
-  }
-
-  .pulse-tooltip strong {
-    font-size: 10px;
-  }
-
-  .pulse-tooltip span {
-    font-size: 9px;
-  }
-
-  .pulse-micro {
-    margin-top: 24px;
-    font-size: 8px;
-    gap: 12px;
-  }
-
-  .pulse-corner {
-    right: 4%;
-    top: 9%;
-    font-size: 8px;
-  }
-
-  .pulse-footerlabel {
+  .hx-edge-tl,
+  .hx-edge-tr,
+  .hx-edge-bl,
+  .hx-edge-br {
     display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-spin,
-  .pulse-spin-reverse,
-  .pulse-wave,
-  .pulse-point,
-  .pulse-tooltip {
-    animation: none !important;
+  .hx-orbit,
+  .hx-word span,
+  .hx-tagline,
+  .hx-actions {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 
-  .pulse-primary {
-    transition: none;
+  .hx-orbit {
+    transform: translate(-50%, -54%);
+  }
+
+  .hx-arc-group,
+  .hx-ticks,
+  .hx-marker {
+    animation: none;
+  }
+
+  .hx-core-glow {
+    animation: none;
+    opacity: 1;
+  }
+
+  .hx-word span {
+    transform: none;
   }
 }
 
-/* The page shell wraps the hero in a flex box with its own padding and a purple
-   backdrop tuned to the previous theme. The Electric Pulse plate is full-bleed and
-   carries its own background, so when it is present the wrapper steps aside. */
-.main-hero:has(.pulse-hero) {
-  display: block;
-  padding: 0;
-  min-height: 0;
-  background: transparent;
-  overflow: visible;
-}
-
-/* The site's scroll stepper runs down the right edge and lands purple nodes on
-   top of the plate. The reference has no rail, so it steps aside here. */
+/* The site's scroll rail runs down the right edge and lands a hard vertical band
+   on top of the hero plate; the reference has no rail, so it steps aside here. */
 .page-bar-track,
 .page-stepper-node {
   display: none;
