@@ -321,32 +321,10 @@ export default function Documents() {
           <header className="dl-head">
             <h1 className="dl-title">Add a document.</h1>
             <p className="dl-answer">Ask it anything.</p>
-
             <p className="dl-copy">
               PDF, PowerPoint and Word. Every page is read and indexed, figures are read too, and
               each answer points at the page it came from.
             </p>
-
-            <dl className="dl-spec">
-              <div>
-                <dt>Formats</dt>
-                <dd>PDF · PPTX · DOCX</dd>
-              </div>
-              <div>
-                <dt>Ceiling</dt>
-                <dd>40 MB</dd>
-              </div>
-              <div>
-                <dt>Scans</dt>
-                <dd>Read with OCR</dd>
-              </div>
-              <div>
-                <dt>Answers</dt>
-                <dd>Anchored to a page</dd>
-              </div>
-            </dl>
-
-            <span className="dl-where">Workspace · Documents</span>
           </header>
 
           <section
@@ -362,6 +340,11 @@ export default function Documents() {
               handleFile(event.dataTransfer.files?.[0])
             }}
           >
+            <span className="dl-bracket is-tl" aria-hidden="true" />
+            <span className="dl-bracket is-tr" aria-hidden="true" />
+            <span className="dl-bracket is-bl" aria-hidden="true" />
+            <span className="dl-bracket is-br" aria-hidden="true" />
+
             {uploading ? (
               <div className="dl-working">
                 <span className="dl-working-stage">
@@ -375,12 +358,29 @@ export default function Documents() {
               </div>
             ) : (
               <button type="button" className="dl-drop" onClick={() => inputRef.current?.click()}>
-                <span className="dl-drop-icon">
-                  <FileUp size={22} strokeWidth={1.6} />
+                <span className="dl-icon-wrap">
+                  <span className="dl-icon-glow" aria-hidden="true" />
+                  <span className="dl-icon">
+                    <FileUp size={30} strokeWidth={1.7} />
+                  </span>
                 </span>
+
                 <span className="dl-drop-title">Drop a document or click</span>
                 <span className="dl-drop-copy">
-                  Scanned pages are read with OCR, and slide speaker notes are indexed too.
+                  Every page is read and indexed, figures too. Scanned pages go through OCR, and
+                  slide speaker notes are indexed as well.
+                </span>
+
+                <span className="dl-pill">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path
+                      d="M6 3.75h8.25L18.75 8.25V20.25H6z M14.25 3.75v4.5h4.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.6"
+                    />
+                  </svg>
+                  PDF · PPTX · DOCX (UP TO 40 MB)
                 </span>
               </button>
             )}
@@ -392,11 +392,6 @@ export default function Documents() {
               hidden
               onChange={(event) => handleFile(event.target.files?.[0])}
             />
-
-            <div className="dl-foot">
-              <span>40 MB ceiling</span>
-              <span>Page-anchored answers</span>
-            </div>
           </section>
 
           {error ? <p className="dl-error">{error}</p> : null}

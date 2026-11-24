@@ -46,6 +46,7 @@ def _run_video(backend, job):
         job["display_name"],
         job["video_id"],
         time.perf_counter(),
+        job_context=job,
     )
 
 

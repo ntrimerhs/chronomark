@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
+from fastapi import FastAPI, UploadFile, BackgroundTasks, Form, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -1313,7 +1313,11 @@ def _update_shared_json(path: Path, data, video_id: str | None = None):
             # Legacy callers without a video_id: keep their payload under a
             # top-level shape the readers already understand.
             existing.update(data if isinstance(data, dict) else {})
-        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        # A fixed temp name collided when two workers finished at once: one
+        # renamed the other's file away and the loser died with FileNotFoundError.
+        tmp_path = path.with_name(
+            f"{path.name}.{os.getpid()}.{uuid.uuid4().hex[:6]}.tmp"
+        )
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=2, ensure_ascii=False)
         tmp_path.replace(path)
@@ -1347,6 +1351,71 @@ def _set_job_status(job_id, status=None, stage=None, progress=None, error=None, 
     if result is not None:
         job["result"] = result
     JOBS[job_id] = job
+
+
+# --- chunked video (browser-side split) --------------------------------------
+# A long recording is cut by the browser into ten-minute pieces, which keeps every
+# piece inside the edge audio route's window. Each piece is an ordinary video job;
+# this section remembers the pieces of one video and merges them in order.
+
+CHUNKS_DIR = BASE_DIR / "audio" / "chunks"
+
+
+def _chunk_path(video_id: str, index: int) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", str(video_id)) or "video"
+    return CHUNKS_DIR / safe / f"{int(index):04d}.json"
+
+
+def _chunk_dir(video_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", str(video_id)) or "video"
+    return CHUNKS_DIR / safe
+
+
+def merge_chunks(video_id: str, chunk_count: int, offsets: dict | None = None) -> dict | None:
+    """Merge the pieces of one video, in order, with their offsets.
+
+    Idempotent: it only runs when every piece is present, and the merged file is
+    what the rest of the pipeline reads.
+    """
+    directory = _chunk_dir(video_id)
+    parts = []
+    for index in range(int(chunk_count)):
+        path = _chunk_path(video_id, index)
+        if not path.exists():
+            return None
+        try:
+            parts.append((index, json.loads(path.read_text(encoding="utf-8"))))
+        except Exception as error:
+            print(f"[Chunks] {video_id} piece {index} unreadable: {error}")
+            return None
+
+    segments = []
+    texts = []
+    for index, payload in sorted(parts, key=lambda item: item[0]):
+        offset = float((offsets or {}).get(index, payload.get("offset") or 0) or 0)
+        for segment in payload.get("segments") or []:
+            item = dict(segment)
+            for key in ("start", "end"):
+                if isinstance(item.get(key), (int, float)):
+                    item[key] = item[key] + offset
+            segments.append(item)
+        piece_text = (payload.get("text") or "").strip()
+        if piece_text:
+            texts.append(piece_text)
+
+    merged = {"segments": segments, "text": " ".join(texts).strip()}
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "merged.json").write_text(json.dumps(merged, ensure_ascii=False), encoding="utf-8")
+    _update_shared_json(TRANSCRIPTS_PATH, merged, video_id)
+
+    try:
+        embeddings = create_embeddings_from_transcript(merged)
+        store_text_embeddings(video_id, embeddings)
+        print(f"[Chunks] {video_id}: merged {len(parts)} pieces, {len(segments)} segments indexed")
+    except Exception as error:
+        print(f"[Chunks] {video_id}: merged but not indexed: {error}")
+
+    return merged
 
 
 def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: str | None = None, file_key: str | None = None):
@@ -2140,7 +2209,14 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
 
 
 @app.post('/uploadfile/')
-async def create_upload_file(background_tasks: BackgroundTasks, file_upload: UploadFile):
+async def create_upload_file(
+    background_tasks: BackgroundTasks,
+    file_upload: UploadFile,
+    video_id: str | None = Form(None),
+    chunk_index: int | None = Form(None),
+    chunk_count: int | None = Form(None),
+    chunk_offset: float | None = Form(None),
+):
     """Stream the upload into R2 and kick off analysis -- no local copy.
 
     The body is forwarded to R2 in multipart chunks (8 MiB, sequential reads),
@@ -2170,7 +2246,11 @@ async def create_upload_file(background_tasks: BackgroundTasks, file_upload: Upl
         raise HTTPException(status_code=502, detail=str(error))
 
     file_key = uploaded["file_key"]
-    video_id = Path(r2_service.sanitize_file_name(file_upload.filename)).stem or "video"
+    # A chunked upload sends its own video_id so every piece lands under the same
+    # name; a single-file upload keeps deriving it from the filename.
+    video_id = (video_id or "").strip() or (
+        Path(r2_service.sanitize_file_name(file_upload.filename)).stem or "video"
+    )
     print(f"[Upload] {file_upload.filename} -> R2 {file_key} ({uploaded['size'] / 1024 / 1024:.1f} MB)")
 
     job_id = str(uuid.uuid4())
@@ -2197,6 +2277,9 @@ async def create_upload_file(background_tasks: BackgroundTasks, file_upload: Upl
             "file_key": file_key,
             "display_name": file_upload.filename,
             "video_id": video_id,
+            "chunk_index": chunk_index,
+            "chunk_count": chunk_count,
+            "chunk_offset": chunk_offset,
         }
     )
     print(f"[Upload] queued video job {job_id} ({file_upload.filename})")
@@ -2491,7 +2574,7 @@ async def api_video_presence(file_key: str, active: bool = True):
     }
 
 
-def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
+def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time, job_context=None):
     """Analyze an R2-hosted video without storing it on this server.
 
     Pass 1 streams the file into ffmpeg straight from a presigned URL: audio is
@@ -2643,6 +2726,29 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
         }
         _set_job_status(job_id, status="completed", stage="completed", progress=100, result=result)
         print(f"[Pipeline] R2 video processed for {video_id} in {total_time_sec:.1f}s")
+
+        # Chunked upload: every piece stores its own transcript, and the merge runs
+        # as soon as the last one is present.
+        chunk_index = (job_context or {}).get("chunk_index")
+        chunk_count = (job_context or {}).get("chunk_count")
+        if chunk_index is not None and chunk_count:
+            path = _chunk_path(video_id, chunk_index)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(
+                    {
+                        "offset": (job_context or {}).get("chunk_offset") or 0,
+                        "text": transcript_for_json.get("text") or "",
+                        "segments": transcript_for_json.get("segments") or [],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            print(f"[Chunks] {video_id}: stored piece {chunk_index + 1}/{chunk_count}")
+            merged = merge_chunks(video_id, chunk_count)
+            if merged is not None:
+                print(f"[Chunks] {video_id}: all {chunk_count} pieces merged")
     except Exception as e:
         total_time_sec = time.perf_counter() - start_time
         _set_job_status(job_id, status="failed", stage="failed", progress=100, error=str(e))
