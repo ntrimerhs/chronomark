@@ -748,3 +748,11 @@
     transition: none;
   }
 }
+
+/* The site's scroll stepper draws a rail down the right edge with coloured
+   nodes; on the hero plate it reads as a stray stick over the composition, and
+   the reference has no rail. It is suppressed while this hero is on screen. */
+.page-bar-track,
+.page-stepper-node {
+  display: none;
+}
