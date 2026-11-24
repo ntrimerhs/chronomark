@@ -494,3 +494,10 @@
   background: transparent;
   overflow: visible;
 }
+
+/* The site's scroll stepper runs down the right edge and lands purple nodes on
+   top of the plate. The reference has no rail, so it steps aside here. */
+.page-bar-track,
+.page-stepper-node {
+  display: none;
+}
