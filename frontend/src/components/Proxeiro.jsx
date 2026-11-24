@@ -1,5 +1,6 @@
 import '../styles/proxeiro.css'
 import '../styles/uploadTheme.css'
+import '../styles/uploadChronometric.css'
 import React,{useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import axios from 'axios';  ///do in terminal npm install axios
 import { API_BASE_URL } from '../config';
