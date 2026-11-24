@@ -176,7 +176,15 @@
 .lv-brand-wrap {
   display: flex;
   align-items: center;
+  gap: 14px;
   justify-self: start;
+}
+
+/* hairline between the mark and the search, as in the reference lock-up */
+.lv-brand-divider {
+  width: 1px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 /* the mark sits straight on the plate: no pill, no border, no backdrop */

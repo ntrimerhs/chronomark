@@ -169,6 +169,10 @@ export default function PulseLanding() {
             >
               <img className="lv-brand-logo" src={wordmark} alt="Chronomark" />
             </a>
+            <span className="lv-brand-divider" aria-hidden="true" />
+            <div className="lv-search-slot">
+              <CommandPalette />
+            </div>
           </div>
 
           <nav className="lv-nav" aria-label="Sections">
@@ -187,9 +191,6 @@ export default function PulseLanding() {
               <span>Get Started</span>
               <span className="material-symbols-outlined">arrow_forward</span>
             </a>
-            <div className="lv-search-slot">
-              <CommandPalette />
-            </div>
           </div>
         </div>
       </header>
