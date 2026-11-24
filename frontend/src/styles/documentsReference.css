@@ -26,8 +26,8 @@
   --tint: var(--pink-soft);
   --shadow: none;
   --reader: #0B0B12;
-  /* the global ChronoMark header sits above the workspace */
-  height: calc(100vh - 76px);
+  /* no global header above the workspace: it owns the whole viewport */
+  height: 100vh;
   min-height: 560px;
 }
 
@@ -141,7 +141,7 @@
 .docs-app .suggestions::-webkit-scrollbar {display:none}
 .docs-app .prompt-chip {display:flex;align-items:center;white-space:nowrap;gap:6px;font-size:11px;font-weight:670;padding:8px 10px;border-radius:8px;background:#F3F4F8;border:1px solid #F3F4F8;color:#2A2C3B}
 .docs-app .prompt-chip:hover {border-color:#D8D6FF;color:var(--accent);background:#D8D6FF}
-.docs-app .composer {border:1px solid #F3F4F8;border-radius:13px;padding:12px 12px 9px;box-shadow:0 4px 18px #1B1B2B;background:white}
+.docs-app .composer {border:1px solid #F3F4F8;border-radius:13px;padding:12px 12px 9px;box-shadow:0 4px 18px #1B1B2B;background:#141420}
 .docs-app .composer:focus-within {border-color:#D8D6FF;box-shadow:0 0 0 3px #A8A2FF}
 .docs-app .composer textarea {resize:none;width:100%;height:45px;max-height:120px;border:0;outline:0!important;font-size:13px;line-height:1.5;color:var(--text);background:transparent;display:block}
 .docs-app .composer textarea::placeholder {color:#A7ACBA}

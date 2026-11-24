@@ -8,9 +8,9 @@
   --font-sans: 'Satoshi', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   position: relative;
   width: 100%;
-  /* Fixed, not min: the hero is exactly the viewport under the header, so the
-     composition is centred instead of being pushed down by whatever follows. */
-  height: calc(100vh - 76px);
+  /* Fixed, not min: the hero is exactly one viewport, so the composition is
+     centred instead of being pushed down by whatever follows. */
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
