@@ -30,6 +30,7 @@ const YtIcon = () => (
 //npm i video.js
 import VideoJSPlayer from './VideoJSPlayer';
 import VideoChat from './VideoChat.jsx'
+import splitMp4 from '../lib/mp4Split'
 
 /* What the pipeline is made of, and a meter that idles until a file arrives. */
 /* The four stops of the track, and where each backend stage lands on it. */
@@ -136,6 +137,75 @@ const Proxeiro = () => {
         throw new Error('Processing timed out. Try a shorter video or retry.');
     };
 
+
+    // A long recording is cut in the browser and uploaded as ordered chunks, so
+    // every piece stays inside the edge audio route's window and nothing has to
+    // be decoded on the server. Any failure here falls back to the single-file
+    // upload below, which is the path that has always worked.
+    const CHUNK_SECONDS = 600
+    const CHUNK_MIN_BYTES = 24 * 1024 * 1024
+
+    const uploadInChunks = async (fileToUpload) => {
+        if (fileToUpload.size < CHUNK_MIN_BYTES) return false;
+        if (!/\.(mp4|m4a|mov)$/i.test(fileToUpload.name)) return false;
+
+        setProcessingStage('uploading');
+        setUploadProgres(0);
+        const pieces = await splitMp4(fileToUpload, CHUNK_SECONDS);
+        if (!pieces) return false;
+
+        const videoName = (fileToUpload.name.split('.').slice(0, -1).join('.') || 'video')
+            .replace(/[^A-Za-z0-9._-]/g, '_');
+        let lastJobId = null;
+
+        for (let index = 0; index < pieces.length; index += 1) {
+            const form = new FormData();
+            form.append('file_upload', pieces[index].blob, `${videoName}.part${index}.mp4`);
+            form.append('video_id', videoName);
+            form.append('chunk_index', String(index));
+            form.append('chunk_count', String(pieces.length));
+            form.append('chunk_offset', String(Math.round(pieces[index].offset)));
+
+            const response = await axios.post(`${API_BASE_URL}/uploadfile/`, form, {
+                timeout: 600000,
+                onUploadProgress: (event) => {
+                    if (!event.total) return;
+                    const within = event.loaded / event.total;
+                    setUploadProgres(Math.min(100, Math.round(((index + within) / pieces.length) * 100)));
+                },
+            });
+            lastJobId = response?.data?.job_id || lastJobId;
+        }
+
+        setUploadProgres(100);
+        if (lastJobId) {
+            setProcessingStage('queued');
+            await waitForJob(lastJobId);
+        }
+        return true;
+    };
+
+    const waitForJob = async (jobId) => {
+        for (let attempt = 0; attempt < 9000; attempt += 1) {
+            const { data } = await axios.get(`${API_BASE_URL}/upload-status/${jobId}`);
+            const status = data?.status;
+            setProcessingStage(data?.stage || 'processing');
+            if (typeof data?.progress === 'number') {
+                setBackendProgress(Math.max(0, Math.min(100, data.progress)));
+            }
+            if (status === 'completed') {
+                const result = data?.result || {};
+                setUploadedFileURL(`${API_BASE_URL}${result.file_url}?t=${Date.now()}`);
+                setCurrentVideoId(result.video_id ?? null);
+                setCurrentFileKey(result.file_key ?? null);
+                return;
+            }
+            if (status === 'failed') throw new Error(data?.error || 'Processing failed.');
+            await wait(1200);
+        }
+        throw new Error('Processing timed out.');
+    };
+
     const uploadVideo = async (fileToUpload) => {
         const url = `${API_BASE_URL}/uploadfile/`;
         const formData = new FormData();
@@ -160,6 +230,14 @@ const Proxeiro = () => {
                     setUploadProgres(percentCompleted);
                 }
             }
+            // Long recordings go up in pieces when the browser can cut them;
+            // anything else (or any failure) uses the single request below.
+            if (await uploadInChunks(fileToUpload)) {
+                setProcessingStage('completed');
+                setBackendProgress(100);
+                return;
+            }
+
             const response = await axios.post(url, formData, config);
             setUploadProgres(100);
             const jobId = response?.data?.job_id;
