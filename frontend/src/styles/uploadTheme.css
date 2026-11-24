@@ -620,7 +620,7 @@
   grid-template-columns: minmax(280px, 430px) minmax(0, 780px);
   justify-content: center;
   align-content: center;
-  min-height: 100vh;
+  min-height: calc(100vh - 76px);
   grid-template-areas:
     'intro panel'
     'intro chat';

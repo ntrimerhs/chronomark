@@ -26,8 +26,8 @@
   --tint: var(--pink-soft);
   --shadow: none;
   --reader: #0B0B12;
-  /* no global header above the workspace: it owns the whole viewport */
-  height: 100vh;
+  /* the global ChronoMark header sits above the workspace */
+  height: calc(100vh - 76px);
   min-height: 560px;
 }
 

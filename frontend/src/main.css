@@ -146,8 +146,10 @@
 
 .main-hero {
   width: 100%;
-  /* No header any more: the hero takes the whole viewport. */
-  min-height: 100vh;
+  /* The header occupies the top ~74px, so the hero is sized to the remaining
+     viewport — at a full 100vh the bottom edge, and the scrubber pinned to it,
+     fall below the fold. */
+  min-height: calc(100vh - 74px);
   display: flex;
   align-items: center;
   /* Clears the scrubber: its timestamp badge overhangs the track by ~59px once
