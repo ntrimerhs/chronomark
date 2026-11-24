@@ -1,0 +1,412 @@
+/* Sign in / create account, and the account chip the header shows afterwards.
+
+   Palette is the project one (canvas #0B0B12, panel #141420, hairline #2A2C3B,
+   accent #A8A2FF, ink #F3F4F8) so the dialog reads as part of the same product
+   as the workspaces behind it. */
+
+.auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(11, 11, 18, 0.72);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  animation: auth-fade 160ms ease-out;
+}
+
+.auth-card {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 30px 28px 24px;
+  border: 1px solid #2a2c3b;
+  border-radius: 18px;
+  background: #141420;
+  box-shadow: 0 40px 90px rgba(11, 11, 18, 0.72);
+  color: #f3f4f8;
+  animation: auth-rise 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auth-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #a7acba;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.auth-close:hover {
+  background: rgba(243, 244, 248, 0.06);
+  color: #f3f4f8;
+}
+
+.auth-head {
+  margin-bottom: 22px;
+}
+
+.auth-mark {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #2a2c3b;
+  border-radius: 9px;
+  margin-bottom: 14px;
+}
+
+.auth-mark-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #a8a2ff;
+  box-shadow: 0 0 14px rgba(168, 162, 255, 0.7);
+}
+
+.auth-head h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+}
+
+.auth-head p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #a7acba;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-field > span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #a7acba;
+}
+
+.auth-field input {
+  height: 42px;
+  padding: 0 13px;
+  border: 1px solid #2a2c3b;
+  border-radius: 10px;
+  background: #0b0b12;
+  color: #f3f4f8;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.auth-field input::placeholder {
+  color: rgba(167, 172, 186, 0.6);
+}
+
+.auth-field input:focus {
+  border-color: #6f63d9;
+  box-shadow: 0 0 0 3px rgba(111, 99, 217, 0.22);
+}
+
+.auth-hint {
+  margin: -6px 0 2px;
+  font-size: 11.5px;
+  color: rgba(167, 172, 186, 0.72);
+}
+
+.auth-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #d8d6ff;
+}
+
+.auth-error {
+  margin: 2px 0 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(244, 63, 94, 0.32);
+  border-radius: 9px;
+  background: rgba(244, 63, 94, 0.08);
+  color: #ffc9d2;
+  font-size: 12.5px;
+}
+
+.auth-submit {
+  height: 44px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 10px;
+  background: #a8a2ff;
+  color: #14122b;
+  font-size: 13.5px;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: filter 140ms ease, opacity 140ms ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.auth-swap {
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  color: #a7acba;
+  text-align: center;
+}
+
+.auth-swap button {
+  border: 0;
+  background: none;
+  color: #a8a2ff;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.auth-swap button:hover {
+  text-decoration: underline;
+}
+
+/* ── the account chip in the header ─────────────────────────────────────── */
+
+.ph-account {
+  position: relative;
+}
+
+.ph-account-button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  padding: 0 12px 0 6px;
+  border: 1px solid #2a2c3b;
+  border-radius: 999px;
+  background: rgba(20, 20, 32, 0.7);
+  color: #f3f4f8;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ph-account-button:hover {
+  border-color: #6f63d9;
+}
+
+.ph-account-initials {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #6f63d9;
+  color: #f3f4f8;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ph-account-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-account-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  padding: 6px;
+  border: 1px solid #2a2c3b;
+  border-radius: 12px;
+  background: #141420;
+  box-shadow: 0 24px 60px rgba(11, 11, 18, 0.6);
+  z-index: 30;
+}
+
+.ph-account-email {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid #2a2c3b;
+  margin-bottom: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #a7acba;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ph-account-menu button {
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #f3f4f8;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ph-account-menu button:hover {
+  background: rgba(243, 244, 248, 0.06);
+}
+
+@keyframes auth-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes auth-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-backdrop,
+  .auth-card {
+    animation: none;
+  }
+}
+
+/* The header's two auth actions are buttons now, not anchors: they open the
+   dialog instead of jumping to an anchor. */
+.ph-actions .ph-signin,
+.ph-actions .ph-signup {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ph-actions .ph-signup {
+  color: #a8a2ff;
+}
+
+.ph-actions .ph-signup:hover {
+  color: #d8d6ff;
+}
+
+/* ── the register / sign-in page ────────────────────────────────────────── */
+
+.auth-page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 96px 24px 56px;
+  background: #0b0b12;
+  color: #f3f4f8;
+  overflow: hidden;
+}
+
+.auth-page-plate {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 46% at 50% 12%, rgba(111, 99, 217, 0.28), transparent 70%),
+    radial-gradient(46% 40% at 82% 88%, rgba(168, 162, 255, 0.14), transparent 72%);
+}
+
+.auth-page-brand {
+  position: absolute;
+  top: 28px;
+  left: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  color: #f3f4f8;
+  text-decoration: none;
+}
+
+.auth-page-brand i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #a8a2ff;
+  box-shadow: 0 0 12px rgba(168, 162, 255, 0.8);
+}
+
+.auth-page-card {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 32px 30px 26px;
+  border: 1px solid #2a2c3b;
+  border-radius: 20px;
+  background: rgba(20, 20, 32, 0.92);
+  box-shadow: 0 40px 100px rgba(11, 11, 18, 0.6);
+}
+
+.auth-form.is-page {
+  gap: 13px;
+}
+
+.auth-form.is-page .auth-field input {
+  height: 46px;
+}
+
+.auth-form.is-page .auth-submit {
+  height: 46px;
+  margin-top: 6px;
+}
+
+.auth-page-foot {
+  position: relative;
+  margin: 0;
+  font-size: 12.5px;
+  color: #a7acba;
+}
+
+.auth-page-foot a {
+  color: #a8a2ff;
+  text-decoration: none;
+}
+
+.auth-page-foot a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 620px) {
+  .auth-page {
+    padding: 84px 16px 40px;
+  }
+
+  .auth-page-card {
+    padding: 26px 20px 22px;
+  }
+
+  .auth-page-brand {
+    top: 20px;
+    left: 20px;
+  }
+}

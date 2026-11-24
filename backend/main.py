@@ -2031,6 +2031,77 @@ class YoutubeRequest(BaseModel):
     frame_max_width: int = 0  # 0 = keep the video's own resolution
 
 
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str | None = None
+
+
+@app.post('/auth/signup')
+async def auth_signup(req: SignupRequest):
+    """Create an account that is already confirmed.
+
+    Supabase's own sign-up mails a confirmation link, and this project has no
+    mailer configured, so an account created that way could never be activated.
+    The service key can create the user with email_confirm already set -- that
+    is the whole reason this endpoint exists. It issues no token: the browser
+    still signs in with the public key afterwards, so nothing is trusted here
+    that was not proven there.
+    """
+    import requests as http
+
+    base = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+    secret = os.environ.get("SUPABASE_SECRET_KEY") or ""
+    if not base or not secret:
+        raise HTTPException(status_code=503, detail="Sign-up is not configured on this server")
+
+    email = (req.email or "").strip().lower()
+    password = req.password or ""
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+        raise HTTPException(status_code=400, detail="Enter a valid email address")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="The password needs at least 8 characters")
+
+    payload = {
+        "email": email,
+        "password": password,
+        "email_confirm": True,
+        "user_metadata": {
+            "full_name": (req.full_name or email.split("@")[0]).strip()[:80],
+        },
+    }
+
+    def _create():
+        return http.post(
+            f"{base}/auth/v1/admin/users",
+            json=payload,
+            headers={"apikey": secret, "Authorization": f"Bearer {secret}"},
+            timeout=25,
+        )
+
+    response = await run_in_threadpool(_create)
+
+    if response.status_code in (200, 201):
+        print(f"[Auth] account created: {email}")
+        return {"status": "created", "email": email}
+
+    detail = "Could not create the account"
+    try:
+        body = response.json()
+        detail = (
+            body.get("msg")
+            or body.get("error_description")
+            or body.get("message")
+            or detail
+        )
+    except Exception:
+        pass
+
+    if "already" in str(detail).lower() or "exists" in str(detail).lower():
+        raise HTTPException(status_code=409, detail="That account already exists")
+    raise HTTPException(status_code=400, detail=str(detail))
+
+
 @app.post('/download-youtube/')
 async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTasks):
     """Download a YouTube video via yt-dlp, push it to R2, then process it

@@ -99,6 +99,10 @@ services:
         # Until then the previous bundle (http://62.238.121.168:37712) keeps
         # working on :8080.
         VITE_API_URL: "https://chronomark.0digital.xyz/api"
+        # Auth is hosted by Supabase. Only the publishable key reaches the
+        # browser; the secret key stays in backend/.env, server side.
+        VITE_SUPABASE_URL: "https://xtrvuuixewnxiudovehl.supabase.co"
+        VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_OT_F0jWN-1IbKJPto0sN_A_gujPeZUk"
     container_name: chronomark-frontend
     ports:
       - "8080:80"
