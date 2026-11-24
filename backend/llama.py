@@ -171,6 +171,53 @@ def _create(**kwargs):
     return _openai_client.chat.completions.create(**kwargs)
 
 
+# A chat answer must not end because a token budget ended. When the provider
+# stops with finish_reason="length" the model is asked to carry on from the last
+# character: the same conversation, an assistant turn holding what it has
+# already written, and a user turn that forbids repeating itself. Bounded by
+# CONTINUE_ROUNDS so a runaway answer still terminates.
+CONTINUE_ROUNDS = int(os.getenv("LLM_CONTINUE_ROUNDS", "4") or "4")
+CONTINUE_PROMPT = (
+    "Continue exactly where you stopped. Do not repeat anything you already "
+    "wrote, do not restart the answer, do not add a preamble or a recap of what "
+    "came before. Output only the continuation, in the same format."
+)
+
+
+def complete_with_continuation(messages, max_tokens, temperature=None):
+    """Return (text, truncated): the whole answer, not the first budget's worth."""
+    temperature = _TEMPERATURE if temperature is None else temperature
+    parts = []
+    truncated = False
+    current = list(messages)
+    for round_index in range(CONTINUE_ROUNDS + 1):
+        completion = _create(
+            model=_OPENAI_MODEL,
+            messages=current,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        choice = completion.choices[0]
+        piece = choice.message.content or ""
+        # A continuation resumes at the exact character the budget cut, so
+        # "39" + "40" would read as one number: keep the words apart.
+        if parts and piece and not parts[-1][-1:].isspace() and not piece[:1].isspace():
+            piece = " " + piece
+        parts.append(piece)
+        truncated = getattr(choice, "finish_reason", None) == "length"
+        if not truncated:
+            break
+        print(
+            f"[LLM] stopped at the {max_tokens}-token budget; "
+            f"continuing ({round_index + 1}/{CONTINUE_ROUNDS})"
+        )
+        current = current + [
+            {"role": "assistant", "content": "".join(parts)},
+            {"role": "user", "content": CONTINUE_PROMPT},
+        ]
+    return "".join(parts), truncated
+
+
 _DOCUMENT_SYSTEM_PROMPT = (
     "You are ChronoMark's study assistant: an advanced AI answering questions "
     "about a DOCUMENT the user uploaded (a PDF, a slide deck or a Word file). It "
@@ -388,12 +435,13 @@ def ask_document(
     messages.append({"role": "user", "content": text})
 
     try:
-        completion = _create(
-            model=_OPENAI_MODEL,
-            messages=messages,
-            max_tokens=_DOCUMENT_SUMMARY_TOKENS if summary_mode else _DOCUMENT_ANSWER_TOKENS,
-            temperature=_TEMPERATURE,
+        # The whole answer, even when the provider stops on the token budget:
+        # a document answer that ends mid-sentence is worse than a slow one.
+        raw, truncated = complete_with_continuation(
+            messages,
+            _DOCUMENT_SUMMARY_TOKENS if summary_mode else _DOCUMENT_ANSWER_TOKENS,
         )
+        raw = raw.strip()
     except Exception as error:
         if not client:
             raise
@@ -404,12 +452,10 @@ def ask_document(
             max_tokens=_DOCUMENT_ANSWER_TOKENS,
             temperature=_TEMPERATURE,
         )
+        choice = completion.choices[0]
+        raw = (choice.message.content or "").strip()
+        truncated = getattr(choice, "finish_reason", None) == "length"
 
-    choice = completion.choices[0]
-    raw = (choice.message.content or "").strip()
-    # "length" means the provider stopped because the budget ran out: exactly
-    # the case the chat continues in a new message.
-    truncated = getattr(choice, "finish_reason", None) == "length"
     return _tidy_document_answer(raw), truncated
 
 
@@ -993,13 +1039,13 @@ def ask_llama(
 
     if _openai_client:
         try:
-            completion = _create(
-                model=_OPENAI_MODEL,
-                messages=messages_for("openai"),
-                max_tokens=_MAX_OUTPUT_TOKENS,
-                temperature=_TEMPERATURE,
+            raw, truncated = complete_with_continuation(
+                messages_for("openai"),
+                _MAX_OUTPUT_TOKENS,
             )
-            return completion.choices[0].message.content.strip()
+            if truncated:
+                print("[LLM] answer still unfinished after the continuation rounds")
+            return raw.strip()
         except Exception as e:
             if not client:
                 raise

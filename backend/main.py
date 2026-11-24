@@ -14,7 +14,11 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi.staticfiles import StaticFiles
 from video_processing import extract_audio
 from video_processing import extract_frames, extract_frame_at, normalize_video
-from whisper import transcribe_audio_chunks
+from whisper import (
+    can_transcribe_directly,
+    transcribe_audio_chunks,
+    transcribe_media_direct,
+)
 import base64
 import json
 import math
@@ -1278,9 +1282,20 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
     transcript_for_json = {"segments": []}
     embeddings = []
 
+    # A short local video goes to Groq exactly as uploaded: the endpoint takes the
+    # container and downsamples internally, so the ffmpeg audio pass -- the
+    # heaviest CPU step on this box -- is skipped and no WAV is written. A longer
+    # file, an unsupported container, or a remote URL keeps extract-and-chunk.
+    media_direct = can_transcribe_directly(video_path)
+    audio_source = str(video_path) if media_direct else None
+    if media_direct:
+        print(f"[Whisper] {Path(video_path).name}: sending the media straight to Groq")
+        output_audio = None
+
     try:
         t_audio = time.perf_counter()
-        extract_audio(video_path, output_audio)
+        if not media_direct:
+            extract_audio(video_path, output_audio)
         print(f"✓ Audio extraction complete for {vid}  [{time.perf_counter()-t_audio:.1f}s]")
     except RuntimeError as e:
         print(f"✗ Direct audio extraction failed for {vid}: {e}")
@@ -1298,7 +1313,9 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
             output_audio = None
 
     try:
-        if output_audio and Path(output_audio).exists():
+        if not audio_source and output_audio and Path(output_audio).exists():
+            audio_source = str(output_audio)
+        if audio_source:
             import time as _time
             t0 = _time.perf_counter()
             print(f"✓ Starting transcription for {vid}...")
@@ -1314,7 +1331,14 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
                         progress=30 + int(45 * completed / total),
                     )
 
-            transcript = transcribe_audio_chunks(str(output_audio), on_progress=_on_transcribe_progress)
+            if media_direct:
+                transcript = transcribe_media_direct(audio_source)
+                if job_id:
+                    _set_job_status(job_id, stage="transcribing_audio", progress=75)
+            else:
+                transcript = transcribe_audio_chunks(
+                    audio_source, on_progress=_on_transcribe_progress
+                )
             transcript_for_json = _compact_transcript_for_json(transcript)
             print(f"✓ Transcription complete: {len(transcript_for_json.get('segments', []))} segments  [{_time.perf_counter()-t0:.1f}s]")
 
@@ -2454,7 +2478,12 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
             # Stable address for the player; resolves to a fresh presigned URL.
             "file_url": f"/api/video-stream/{file_key}",
             "file_key": file_key,
-            "audio_url": f"/audio/{video_id}.wav",
+            # No WAV is produced when the media went to Groq directly.
+            "audio_url": (
+                f"/audio/{video_id}.wav"
+                if (Path("audio") / f"{video_id}.wav").exists()
+                else None
+            ),
             "video_id": video_id,
             "transcript_url": "/audio/output.json",
             "embeddings_url": "/audio/output_embeddings.json",

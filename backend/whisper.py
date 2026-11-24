@@ -942,3 +942,36 @@ def transcribe_audio_chunks(audio_path, language=None, on_progress=None):
         "words": all_words,
         "language": language,
     }
+
+
+# --- media straight to Groq --------------------------------------------------
+# The transcription endpoint accepts the media container itself (mp4, webm, m4a,
+# mp3, flac, ogg, wav, mpeg, mpga) and downsamples to 16 kHz mono internally, so
+# a short video needs no ffmpeg audio pass and no WAV artifact at all. Anything
+# longer keeps the extract-and-chunk path, which is the only way to stay inside
+# the per-request upload limit.
+GROQ_DIRECT_SUFFIXES = {
+    ".mp4", ".webm", ".m4a", ".mp3", ".flac", ".ogg", ".wav", ".mpeg", ".mpga",
+}
+GROQ_DIRECT_MAX_BYTES = int(float(os.getenv("GROQ_DIRECT_MAX_MB", "24")) * 1024 * 1024)
+
+
+def can_transcribe_directly(media_path) -> bool:
+    """True when Groq can take this file exactly as it is."""
+    if _groq_client is None or _LOCAL_ENABLED:
+        return False
+    text = str(media_path)
+    if text.lower().startswith(("http://", "https://")):
+        return False
+    path = Path(text)
+    if path.suffix.lower() not in GROQ_DIRECT_SUFFIXES:
+        return False
+    try:
+        return path.stat().st_size <= GROQ_DIRECT_MAX_BYTES
+    except OSError:
+        return False
+
+
+def transcribe_media_direct(media_path, language=None):
+    """Transcribe a media container without extracting its audio first."""
+    return transcribe_audio(str(media_path), language)
