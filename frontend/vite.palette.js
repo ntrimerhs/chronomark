@@ -96,18 +96,10 @@ export default function palettePlugin() {
       return recoloured === code ? null : { code: recoloured, map: null };
     },
 
-    // Last word on stylesheets: the finished CSS catches whatever the minifier
-    // synthesised. JS is deliberately left alone — a colour name can be an object
-    // key inside a dependency (video.js builds a caption palette as
-    // {white: ..., black: ...}), and rewriting it produces `{#0b0b12: ...}`,
-    // which is a syntax error that takes the whole bundle down with it.
-    generateBundle(_options, bundle) {
-      for (const file of Object.values(bundle)) {
-        if (file.type === 'asset' && file.fileName.endsWith('.css')) {
-          const source = typeof file.source === 'string' ? file.source : file.source?.toString();
-          if (source) file.source = recolor(source);
-        }
-      }
-    },
+    // Vendor CSS only. An earlier version also swept the finished bundle, which
+    // silently rewrote our own authored colours on the way out: rgba(42,44,59,.7)
+    // came back as rgba(27,27,43,.7), and the accent gradient started on the light
+    // tone instead of #6F63D9. Authored CSS already uses the palette, so it must be
+    // left exactly as written.
   };
 }
