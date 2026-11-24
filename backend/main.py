@@ -3347,16 +3347,11 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
         }
         _save_document(document)
 
-        # The summary is the question every reader asks, so it is answered here,
-        # before the document is announced as ready: the button then comes back
-        # instantly instead of making the reader watch "Reading the pages".
-        _set_job_status(job_id, status="processing", stage="summarising", progress=95)
-        try:
-            _warm_document_summary(document)
-        except Exception as warm_error:
-            # Never fail an upload over the pre-analysis: the summary button
-            # still works, it just has to think at the moment it is pressed.
-            print(f"[Docs] pre-analysis skipped: {warm_error}")
+        # No pre-analysis: the upload used to run a whole-document summary here
+        # so the "Summarize" button could answer from a cache, and it cost 20-40
+        # seconds on every upload. The button asks the model at the moment it is
+        # pressed now, and the document is announced as ready as soon as its
+        # pages are indexed.
 
         total_time = time.perf_counter() - start_time
         _set_job_status(
