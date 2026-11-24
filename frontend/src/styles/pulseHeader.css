@@ -263,3 +263,20 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 }
+
+/* A click must not leave a ring behind. Keyboard focus is still visible, so
+   tabbing through the bar remains obvious. */
+.ph-nav a:focus,
+.ph-brand:focus,
+.ph-signin:focus,
+.ph-start:focus {
+  outline: none;
+}
+
+.ph-nav a:focus-visible,
+.ph-brand:focus-visible,
+.ph-signin:focus-visible,
+.ph-start:focus-visible {
+  outline: 2px solid rgba(168, 162, 255, 0.7);
+  outline-offset: 3px;
+}

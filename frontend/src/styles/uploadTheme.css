@@ -1172,3 +1172,146 @@
   object-fit: contain;
   background: #000;
 }
+
+/* ── Video workspace, same shape as the documents one ───────────────────────
+   A sidebar on the left, then the player and the conversation as full-height
+   panels separated by a 12px seam and a hairline -- no rounded cards floating in
+   a field of background. */
+.upload-shell.upload-shell-loaded {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+}
+
+.video-sidebar {
+  width: 220px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 14px 16px;
+  background: #0b0b12;
+  border-right: 1px solid #2a2c3b;
+}
+
+.video-sidebar-brand {
+  display: block;
+  margin-bottom: 18px;
+  font-family: var(--font-sans, system-ui);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  color: #f3f4f8;
+  text-decoration: none;
+}
+
+.video-sidebar-brand:hover {
+  color: #a8a2ff;
+}
+
+.video-sidebar-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #a7acba;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.video-sidebar-action:hover:not(:disabled) {
+  background: #141420;
+  color: #f3f4f8;
+}
+
+.video-sidebar-action.is-new {
+  background: rgba(168, 162, 255, 0.1);
+  color: #d8d6ff;
+}
+
+.video-sidebar-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.video-sidebar-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border-top: 1px solid #2a2c3b;
+  min-width: 0;
+}
+
+.video-sidebar-label {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #a7acba;
+}
+
+.video-sidebar-bottom strong {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f3f4f8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-sidebar-bottom small {
+  font-size: 10.5px;
+  color: #a7acba;
+}
+
+.upload-shell-loaded .upload-grid-loaded {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 12px;
+  padding: 0 0 0 12px;
+}
+
+.upload-shell-loaded .upload-center-card {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.upload-shell-loaded .upload-chat-shell-inline {
+  flex: 0 0 40%;
+  min-width: 320px;
+  max-width: 46%;
+  height: 100%;
+  border-left: 1px solid #2a2c3b;
+  padding: 0;
+}
+
+.upload-shell-loaded .chat-panel {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 980px) {
+  .video-sidebar {
+    display: none;
+  }
+
+  .upload-shell-loaded .upload-chat-shell-inline {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+}
