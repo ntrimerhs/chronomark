@@ -1182,7 +1182,9 @@ def _media_transform_transcript(file_key, video_path, job_id=None):
         return None
 
     if job_id:
-        _set_job_status(job_id, stage="extracting_audio", progress=25)
+        # 25% used to be the last word until the whole first slice came back; the
+        # stage now says what it is waiting for.
+        _set_job_status(job_id, stage="transcribing_audio", progress=25)
 
     def progress(done, total):
         if job_id and total:

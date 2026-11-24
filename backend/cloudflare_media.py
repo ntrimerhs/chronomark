@@ -15,6 +15,7 @@ Anything outside those limits is left to the caller's next route.
 
 import math
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import cloudflare_stream
@@ -23,8 +24,25 @@ MEDIA_ZONE = (os.getenv("MEDIA_TRANSFORM_ZONE") or "").strip()
 PUBLIC_ORIGIN = (os.getenv("MEDIA_PUBLIC_ORIGIN") or "").strip().rstrip("/")
 SLICE_SECONDS = int(os.getenv("MEDIA_TRANSFORM_SLICE", "60") or "60")
 SLICE_WORKERS = int(os.getenv("MEDIA_TRANSFORM_WORKERS", "4") or "4")
-# The edge refuses sources longer than ten minutes.
+# The edge refuses sources longer than ten minutes, and larger than 100 MB.
 MAX_SECONDS = int(os.getenv("MEDIA_TRANSFORM_MAX_SECONDS", "600") or "600")
+MAX_BYTES = int(float(os.getenv("MEDIA_TRANSFORM_MAX_MB", "100")) * 1024 * 1024)
+# A whole video must not hold a worker for ever: if the edge has not answered by
+# this point the caller falls back to the local path instead of sitting at 25%.
+DEADLINE_SECONDS = int(os.getenv("MEDIA_TRANSFORM_DEADLINE", "600") or "600")
+SLICE_TIMEOUT = int(os.getenv("MEDIA_TRANSFORM_SLICE_TIMEOUT", "240") or "240")
+
+
+def source_size(url: str):
+    """Content-Length of the source, or None when the origin will not say."""
+    import requests
+
+    try:
+        response = requests.head(url, timeout=20, allow_redirects=True)
+        length = response.headers.get("Content-Length")
+        return int(length) if length and length.isdigit() else None
+    except Exception:
+        return None
 
 
 def configured() -> bool:
@@ -62,10 +80,26 @@ def transcribe_media(file_key: str, duration_seconds: float, language: str | Non
         return None
 
     source = public_url(file_key)
+    size = source_size(source)
+    if size and size > MAX_BYTES:
+        print(
+            f"[Media] {file_key}: {size / 1024 / 1024:.0f} MB is over the edge limit "
+            f"of {MAX_BYTES / 1024 / 1024:.0f} MB; using the local path"
+        )
+        return None
+
     total = max(1, int(math.ceil(duration_seconds / SLICE_SECONDS)))
     print(f"[Media] {file_key}: {duration_seconds:.0f}s in {total} edge slice(s)")
+    started = time.time()
+
+    def over_deadline() -> bool:
+        return (time.time() - started) > DEADLINE_SECONDS
 
     def one(index: int):
+        if over_deadline():
+            raise RuntimeError(
+                f"the edge did not finish within {DEADLINE_SECONDS}s; falling back"
+            )
         offset = index * SLICE_SECONDS
         remaining = duration_seconds - offset
         length = int(max(1, min(SLICE_SECONDS, math.ceil(remaining))))
@@ -78,7 +112,9 @@ def transcribe_media(file_key: str, duration_seconds: float, language: str | Non
                 f"https://{MEDIA_ZONE}/cdn-cgi/media/mode=audio,time={offset}s,"
                 f"duration={length}s,format=m4a/{source}"
             )
-        payload = cloudflare_stream.transcribe_url(url, language=language)
+        payload = cloudflare_stream.transcribe_url(
+            url, language=language, timeout=SLICE_TIMEOUT
+        )
         return offset, payload
 
     results = []
