@@ -24,6 +24,7 @@ import asyncio
 import json
 import math
 import uuid
+import jobs as job_store
 from bert import create_embeddings_from_transcript, embed_query, warm_up as warm_text_model
 from qdrant_store import ensure_collections, store_text_embeddings, clear_collections
 from qdrant_store import client, TEXT_COLLECTION, FRAME_COLLECTION, search_text, scroll_all_text
@@ -1259,6 +1260,20 @@ def _update_shared_json(path: Path, data, video_id: str | None = None):
 
 
 def _set_job_status(job_id, status=None, stage=None, progress=None, error=None, result=None):
+    # The worker is a separate process: the status file is the shared truth, the
+    # dict below is only this process's cache of it.
+    try:
+        job_store.update(
+            job_id,
+            status=status,
+            stage=stage,
+            progress=progress,
+            error=error,
+            result=result,
+        )
+    except Exception as store_error:
+        print(f"[Jobs] status write failed for {job_id}: {store_error}")
+
     job = JOBS.get(job_id, {})
     if status is not None:
         job["status"] = status
@@ -2061,6 +2076,14 @@ async def create_upload_file(background_tasks: BackgroundTasks, file_upload: Upl
     print(f"[Upload] {file_upload.filename} -> R2 {file_key} ({uploaded['size'] / 1024 / 1024:.1f} MB)")
 
     job_id = str(uuid.uuid4())
+    job_store.create(
+        job_id,
+        status="processing",
+        stage="queued",
+        progress=5,
+        kind="video",
+        video_id=video_id,
+    )
     JOBS[job_id] = {
         "job_id": job_id,
         "status": "processing",
@@ -2069,15 +2092,16 @@ async def create_upload_file(background_tasks: BackgroundTasks, file_upload: Upl
         "error": None,
         "result": None,
     }
-
-    background_tasks.add_task(
-        _process_r2_video_job,
-        job_id,
-        file_key,
-        file_upload.filename,
-        video_id,
-        start_time,
+    job_store.enqueue(
+        {
+            "kind": "video",
+            "job_id": job_id,
+            "file_key": file_key,
+            "display_name": file_upload.filename,
+            "video_id": video_id,
+        }
     )
+    print(f"[Upload] queued video job {job_id} ({file_upload.filename})")
 
     CURRENT_VIDEO_ID = video_id
 
@@ -2094,7 +2118,8 @@ async def create_upload_file(background_tasks: BackgroundTasks, file_upload: Upl
 
 @app.get('/upload-status/{job_id}')
 async def get_upload_status(job_id: str):
-    job = JOBS.get(job_id)
+    # The worker owns the progress; this process may only have the first entry.
+    job = job_store.read(job_id) or JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return {
@@ -3461,7 +3486,11 @@ async def api_upload_document(background_tasks: BackgroundTasks, file_upload: Up
 
     start_time = time.perf_counter()
 
-    handle = tempfile.NamedTemporaryFile(prefix="chronomark-doc-", suffix=suffix, delete=False)
+    # The temp copy lives in the shared uploads directory: the worker is a
+    # different process (and container) and has to be able to open it.
+    handle = tempfile.NamedTemporaryFile(
+        prefix="chronomark-doc-", suffix=suffix, dir=str(job_store.UPLOAD_DIR), delete=False
+    )
     temp_path = Path(handle.name)
     size = 0
     try:
@@ -3511,6 +3540,14 @@ async def api_upload_document(background_tasks: BackgroundTasks, file_upload: Up
 
     doc_id = f"doc_{uuid.uuid4().hex[:10]}"
     job_id = str(uuid.uuid4())
+    job_store.create(
+        job_id,
+        status="processing",
+        stage="queued",
+        progress=5,
+        doc_id=doc_id,
+        kind="document",
+    )
     JOBS[job_id] = {
         "job_id": job_id,
         "status": "processing",
@@ -3519,10 +3556,18 @@ async def api_upload_document(background_tasks: BackgroundTasks, file_upload: Up
         "error": None,
         "result": None,
     }
-
-    background_tasks.add_task(
-        _process_document_job, job_id, doc_id, str(temp_path), file_upload.filename, uploaded["file_key"], start_time
+    # The answer to the uploader is this line: the worker does the slow part.
+    job_store.enqueue(
+        {
+            "kind": "document",
+            "job_id": job_id,
+            "doc_id": doc_id,
+            "temp_path": str(temp_path),
+            "file_name": file_upload.filename,
+            "file_key": uploaded["file_key"],
+        }
     )
+    print(f"[Upload] queued document job {job_id} ({file_upload.filename})")
 
     return {
         "job_id": job_id,

@@ -14,3 +14,6 @@ qdrant_data/
 *.jsonl
 metrics.json
 secrets/
+queue/
+jobs/
+uploads/

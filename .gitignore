@@ -44,3 +44,6 @@ backend/chats/
 
 # Google Document AI service account: never baked into the image, never committed.
 backend/secrets/
+backend/queue/
+backend/jobs/
+backend/uploads/

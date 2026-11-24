@@ -42,7 +42,46 @@ services:
       # image (see backend/.dockerignore) and never committed (.gitignore):
       # losing this file only turns the PDF path back into pypdf.
       - ./backend/secrets:/app/secrets:ro
+      # The worker is a separate process: the queue, the status files and the
+      # uploads it picks up all live on directories both can see.
+      - ./backend/uploads:/app/uploads
+      - ./backend/queue:/app/queue
+      - ./backend/jobs:/app/jobs
       - hf_cache:/cache/huggingface
+    restart: unless-stopped
+
+  # Ingestion only, and there can be more than one: the queue claim is an atomic
+  # rename, so replicas never take the same job. Each worker runs one job at a
+  # time (WORKER_CONCURRENCY=1) so a single heavy video cannot starve the others.
+  #
+  #   docker compose up -d --scale worker=4 worker
+  #
+  # Memory on this box is the limit: ~1584 MB free, ~300 MB per worker.
+  worker:
+    image: chronomark-backend:latest
+    env_file:
+      - ./backend/.env
+    environment:
+      WORKER_CONCURRENCY: "1"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/queue:/app/queue
+      - ./backend/jobs:/app/jobs
+      - ./backend/audio:/app/audio
+      - ./backend/frames:/app/frames
+      - ./backend/documents:/app/documents
+      - ./backend/chats:/app/chats
+      - ./cookies.txt:/app/cookies.txt
+      - ./backend/secrets:/app/secrets:ro
+      - hf_cache:/cache/huggingface
+    command: ["python", "worker.py"]
+    # A runaway job must not take the API down with it.
+    mem_limit: 900m
+    deploy:
+      replicas: 2
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
