@@ -340,6 +340,11 @@ const Proxeiro = () => {
 
     const displayProgress = processingStage === 'uploading' ? uploadProgress : backendProgress;
 
+    // The meter and the YouTube entry point are mutually exclusive: while a file
+    // or a link is being processed there is nothing to import, and before that
+    // there is nothing to report.
+    const jobActive = isUploading || processingStage !== 'idle';
+
     // Keyboard control while watching. Space plays and pauses, the arrows move
     // ten seconds either way, F and Escape toggle fullscreen. Anything typed in
     // the chat box is left alone, otherwise a space in a question would pause
@@ -638,6 +643,7 @@ const Proxeiro = () => {
                                     </button>
                                 </div>
                             ) : (
+                                jobActive ? null : (
                                 <button
                                     type="button"
                                     className="yt-open-btn"
@@ -647,6 +653,7 @@ const Proxeiro = () => {
                                     <YtIcon />
                                     Import from YouTube
                                 </button>
+                                )
                             )}
 
                             <div className="upload-form-footer">
@@ -660,7 +667,7 @@ const Proxeiro = () => {
                                 </button>
                             </div>
 
-                            <div className="upload-progress-block">
+                            <div className={`upload-progress-block${jobActive ? ' is-active' : ''}`}>
                                 <div className="upload-progress-labels">
                                     <span>Process / status</span>
                                     <span className="upload-progress-value">{displayProgress}%</span>
