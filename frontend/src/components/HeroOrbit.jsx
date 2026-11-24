@@ -1,114 +1,90 @@
 import { Link } from 'react-router-dom'
 import './heroOrbit.css'
 
-/* The homepage hero, to the supplied composition, at the supplied measurements.
+/* The homepage hero, to the supplied section.
 
-   Section 1024px tall with the 32px grid, the ambient core glow, the corner
-   telemetry, the 340 / 580 / 740px reticle, and the foreground block pulled back
-   over it by -260 / -420 / -490px so the wordmark sits on the dial rather than
-   under it.
+   Structure and measurements follow the reference element for element: a 90vh
+   plate, two ambient glows, the 620px ticked ring with its 480px dashed orbit and
+   340px dotted track, the axis lines and the corner cross, three telemetry
+   readouts in the corners, then the wordmark, subtitle, intro, the two actions
+   and the repository ticker.
 
-   Only the nine palette colours are used and the layout is expressed in the same
-   pixel values as the reference; the reticle is decorative and takes no pointer
-   events, and its motion stops under reduced motion. */
+   Colours stay inside the nine-colour palette (the reference's near-identical
+   gradient stops and its emerald dot are expressed with the accent tones), and
+   the reticle takes no pointer events. */
 
-const MARKS = ['TIME', 'DATA', 'PRECISION', 'IMPACT']
-const SOURCES = ['MIT OPENCOURSEWARE', 'STANFORD CS ARCHIVES', 'NEURIPS 2024', 'CERN SYMPOSIUMS']
+const MARKS = ['Time', 'Data', 'Precision', 'Impact']
+const REPOSITORIES = ['MIT OPENCOURSEWARE', 'STANFORD CS ARCHIVES', 'NEURIPS 2024', 'CERN SYMPOSIUMS']
 
 export default function HeroOrbit() {
   return (
-    <section className="hero2" id="top">
-      <div className="hero2-ambient" aria-hidden="true">
-        <span className="hero2-core" />
-        <span className="hero2-wash" />
+    <section className="hero2">
+      <div className="hero2-backdrop" aria-hidden="true">
+        <span className="hero2-glow-wide" />
+        <span className="hero2-glow-core" />
+
+        <div className="hero2-dial">
+          <div className="hero2-orbit-dashed">
+            <div className="hero2-track-dotted" />
+          </div>
+
+          <span className="hero2-axis is-x" />
+          <span className="hero2-axis is-y" />
+
+          <span className="hero2-cross">+</span>
+
+          <span className="hero2-orbit-dot">
+            <i className="hero2-ping" />
+            <i className="hero2-dot" />
+          </span>
+        </div>
       </div>
 
       <div className="hero2-marks" aria-hidden="true">
-        <span className="hero2-rule" />
         {MARKS.map((mark) => (
           <span key={mark}>{mark}</span>
         ))}
       </div>
 
-      <div className="hero2-stamp" aria-hidden="true">
-        <span className="hero2-rule-accent" />
-        <span className="hero2-faint">T —</span>
-        <b>00:01:43</b>
+      <div className="hero2-index" aria-hidden="true">
+        01 / ∞ —
       </div>
 
-      <div className="hero2-index" aria-hidden="true">
-        <b>01</b>
-        <span className="hero2-faint">/</span>
-        <span className="hero2-ink">∞</span>
-        <span className="hero2-rule-long" />
+      <div className="hero2-stamp" aria-hidden="true">
+        <span>—</span> T − 00:01:43
       </div>
 
       <div className="hero2-latency" aria-hidden="true">
-        <b>///</b>
-        <span>SYSTEM ACTIVE • LATENCY 4.2ms</span>
+        <i />
+        <span>/// SYSTEM ACTIVE • LATENCY 4.2ms</span>
       </div>
 
-      <div className="hero2-reticle" aria-hidden="true">
-        <span className="hero2-ring-outer">
-          <i className="hero2-notch is-n" />
-          <i className="hero2-notch is-s" />
-          <i className="hero2-notch is-e" />
-          <i className="hero2-notch is-w" />
-          <i className="hero2-slash is-nw" />
-          <i className="hero2-slash is-ne" />
-          <i className="hero2-slash is-sw" />
-          <i className="hero2-slash is-se" />
-        </span>
-
-        <span className="hero2-ring-dashed" />
-
-        <span className="hero2-ring-inner">
-          <i className="hero2-satellite" />
-        </span>
-
-        <span className="hero2-ring-dotted" />
-
-        <span className="hero2-crosshair">
-          <i />
-          <i />
-          <b />
-        </span>
-
-        <span className="hero2-arc">
-          <i className="hero2-marker">
-            <b className="hero2-ping" />
-            <b className="hero2-dot" />
-          </i>
-        </span>
-      </div>
-
-      <div className="hero2-copy">
+      <div className="hero2-content">
         <h1 className="hero2-title">CHRONOMARK</h1>
 
-        <p className="hero2-tagline">
+        <p className="hero2-subtitle">
           Hours of lecture. One exact <em>moment.</em>
         </p>
 
-        <p className="hero2-lede">
+        <p className="hero2-intro">
           The temporal intelligence engine that indexes 4-hour academic symposiums, audio phonemes,
           and chalkboard equations down to the exact millisecond.
         </p>
 
         <div className="hero2-actions">
-          <Link className="hero2-pill" to="/upload">
+          <Link className="hero2-primary" to="/upload">
             <span>Explore the demo</span>
-            <i aria-hidden="true">↗</i>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M7 17L17 7M17 7H7M17 7v10" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </Link>
 
-          <a className="hero2-ghost" href="#features">
-            <span className="hero2-play" aria-hidden="true">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M5 3l14 9-14 9V3z" />
-              </svg>
-            </span>
+          <a className="hero2-secondary" href="#features">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M8 5v14l11-7z" />
+            </svg>
             <span>How it works</span>
             <span className="hero2-wave" aria-hidden="true">
-              <i />
               <i />
               <i />
               <i />
@@ -116,10 +92,10 @@ export default function HeroOrbit() {
           </a>
         </div>
 
-        <div className="hero2-sources">
-          <span>INDEXED REPOSITORIES:</span>
-          {SOURCES.map((source) => (
-            <span key={source}>{source}</span>
+        <div className="hero2-ticker">
+          <span className="hero2-ticker-label">INDEXED REPOSITORIES:</span>
+          {REPOSITORIES.map((repository) => (
+            <span key={repository}>{repository}</span>
           ))}
         </div>
       </div>
