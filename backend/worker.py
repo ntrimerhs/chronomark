@@ -27,13 +27,15 @@ def _load_pipeline():
 
 
 def _run_document(backend, job):
+    # The job measures its own elapsed time with time.perf_counter(); handing it
+    # enqueued_at (an epoch) produced a negative "ready in ...s" line.
     backend._process_document_job(
         job["job_id"],
         job["doc_id"],
         job["temp_path"],
         job["file_name"],
         job.get("file_key") or "",
-        job.get("enqueued_at") or time.time(),
+        time.perf_counter(),
     )
 
 
@@ -43,7 +45,7 @@ def _run_video(backend, job):
         job["file_key"],
         job["display_name"],
         job["video_id"],
-        job.get("enqueued_at") or time.time(),
+        time.perf_counter(),
     )
 
 

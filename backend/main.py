@@ -1143,6 +1143,11 @@ MAX_CONCURRENT_VIDEO_JOBS = int(
 _JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_VIDEO_JOBS)
 _DOC_JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_DOC_JOBS)
 
+# Figure descriptions are independent vision calls. Done one after another they
+# dominated an upload (35s of a 55s job for a 23-page handout); they are network
+# bound, so several at a time costs this box nothing.
+FIGURE_WORKERS = int(os.getenv("DOCUMENT_FIGURE_WORKERS", "5") or "5")
+
 # Cloudflare Stream transcode: when the token really has Stream access, a remote
 # video is transcoded and served by Cloudflare and handed to Groq as a URL, so
 # this box never downloads the file and never runs ffmpeg on it. Off unless the
@@ -3437,23 +3442,35 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
             figures = document_tools.extract_figure_images(Path(temp_path))
             if figures:
                 print(f"[Docs] reading {len(figures)} figure(s)")
-            for figure in figures:
+
+            def _read_figure(figure):
+                """One vision call. executor.map keeps the pages in order."""
                 try:
                     encoded = base64.b64encode(figure["data"]).decode("ascii")
                     description = describe_figure(f"data:{figure['mime']};base64,{encoded}")
                 except Exception as figure_error:
                     print(f"[Docs] figure p.{figure['page']} skipped: {figure_error}")
-                    continue
+                    return None
                 if not description:
-                    continue
-                figure_blocks.append(
-                    {
-                        "page": figure["page"],
-                        "heading": f"figure p.{figure['page']}",
-                        "text": f"[figure p.{figure['page']}] {description}",
-                    }
-                )
+                    return None
                 print(f"[Docs] figure p.{figure['page']}: {len(description)} chars")
+                return {
+                    "page": figure["page"],
+                    "heading": f"figure p.{figure['page']}",
+                    "text": f"[figure p.{figure['page']}] {description}",
+                }
+
+            if figures:
+                started = time.perf_counter()
+                with ThreadPoolExecutor(
+                    max_workers=min(FIGURE_WORKERS, len(figures))
+                ) as pool:
+                    described = list(pool.map(_read_figure, figures))
+                figure_blocks = [block for block in described if block]
+                print(
+                    f"[Docs] {len(figure_blocks)}/{len(figures)} figure(s) read in "
+                    f"{time.perf_counter() - started:.1f}s"
+                )
         except Exception as figure_error:
             print(f"[Docs] figure pass skipped: {figure_error}")
 
