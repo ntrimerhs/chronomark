@@ -1,104 +1,190 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './heroOrbit.css'
 
-/* The homepage hero, to the supplied section.
+/* The homepage hero, built to the reference.
 
-   Structure and measurements follow the reference element for element: a 90vh
-   plate, two ambient glows, the 620px ticked ring with its 480px dashed orbit and
-   340px dotted track, the axis lines and the corner cross, three telemetry
-   readouts in the corners, then the wordmark, subtitle, intro, the two actions
-   and the repository ticker.
+   One composition: a technical grid and three colour washes, a precision dial
+   drawn in SVG, the CHRONOMARK wordmark sitting across it, the tagline and two
+   controls, with small monospaced readouts at the edges.
 
-   Colours stay inside the nine-colour palette (the reference's near-identical
-   gradient stops and its emerald dot are expressed with the accent tones), and
-   the reticle takes no pointer events. */
+   The dial is decorative and sits behind the type with pointer-events off. Its
+   motion is CSS only — a marker travelling the inner orbit, a slower counter-
+   rotating tick ring, a breathing glow — and it stops under reduced motion.
 
-const MARKS = ['Time', 'Data', 'Precision', 'Impact']
-const REPOSITORIES = ['MIT OPENCOURSEWARE', 'STANFORD CS ARCHIVES', 'NEURIPS 2024', 'CERN SYMPOSIUMS']
+   Everything is real text and real SVG: nothing here is a screenshot, so the
+   wordmark stays selectable and the circles stay crisp at any size. */
+
+const WORD = 'CHRONOMARK'
+const TICKS = Array.from({ length: 60 }, (_, i) => i * 6)
+const CARDINALS = [0, 90, 180, 270]
+
+/* The bottom-left readout is a real stopwatch: it counts up from the moment
+   the hero mounts, so the page itself feels alive instead of printed. */
+function useElapsedClock() {
+  const [elapsed, setElapsed] = useState(0)
+
+  useEffect(() => {
+    const started = Date.now()
+    const timer = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - started) / 1000))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const hours = String(Math.floor(elapsed / 3600)).padStart(2, '0')
+  const minutes = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')
+  const seconds = String(elapsed % 60).padStart(2, '0')
+  return `${hours}:${minutes}:${seconds}`
+}
 
 export default function HeroOrbit() {
+  const clock = useElapsedClock()
   return (
-    <section className="hero2">
-      <div className="hero2-backdrop" aria-hidden="true">
-        <span className="hero2-glow-wide" />
-        <span className="hero2-glow-core" />
-
-        <div className="hero2-dial">
-          <div className="hero2-orbit-dashed">
-            <div className="hero2-track-dotted" />
-          </div>
-
-          <span className="hero2-axis is-x" />
-          <span className="hero2-axis is-y" />
-
-          <span className="hero2-cross">+</span>
-
-          <span className="hero2-orbit-dot">
-            <i className="hero2-ping" />
-            <i className="hero2-dot" />
-          </span>
-        </div>
+    <div className="hx">
+      {/* the site's own mesh blobs, back on top of the plate */}
+      <div className="hero-mesh" aria-hidden="true">
+        <span className="mesh-blob mesh-blob-1" />
+        <span className="mesh-blob mesh-blob-2" />
+        <span className="mesh-blob mesh-blob-3" />
+        <span className="mesh-blob mesh-blob-4" />
       </div>
 
-      <div className="hero2-marks" aria-hidden="true">
-        {MARKS.map((mark) => (
-          <span key={mark}>{mark}</span>
-        ))}
+      <div className="hx-wash hx-wash-pink" aria-hidden="true" />
+      <div className="hx-wash hx-wash-violet" aria-hidden="true" />
+      <div className="hx-wash hx-wash-blue" aria-hidden="true" />
+      <div className="hx-grid" aria-hidden="true" />
+      {/* a soft radial glow behind the dial centre: gives the composition
+          depth instead of sitting on flat plate colour */}
+      <div className="hx-core-glow" aria-hidden="true" />
+
+      {/* edge readouts */}
+      <div className="hx-edge hx-edge-tl" aria-hidden="true">
+        <span className="hx-rule" />
+        <p>
+          TIME<br />DATA<br />PRECISION<br />IMPACT
+        </p>
       </div>
+      <p className="hx-edge hx-edge-tr" aria-hidden="true">
+        <span>01 / ∞</span>
+        <span className="hx-rule hx-rule-short" />
+      </p>
+      <p className="hx-edge hx-edge-bl" aria-hidden="true">
+        <span className="hx-rule hx-rule-short" />
+        <span>T — {clock}</span>
+      </p>
+      <p className="hx-edge hx-edge-br" aria-hidden="true">
+        <span>///</span>
+      </p>
 
-      <div className="hero2-index" aria-hidden="true">
-        01 / ∞ —
-      </div>
+      <div className="hx-stage">
+        <svg className="hx-orbit" viewBox="0 0 700 700" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="hxArc" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stopColor="#A8A2FF" />
+              <stop offset="1" stopColor="#A8A2FF" />
+            </linearGradient>
+            <linearGradient id="hxRing" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#A8A2FF" stopOpacity="0.5" />
+              <stop offset="0.5" stopColor="#A8A2FF" stopOpacity="0.16" />
+              <stop offset="1" stopColor="#A8A2FF" stopOpacity="0.5" />
+            </linearGradient>
+            <filter id="hxGlow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="7" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
 
-      <div className="hero2-stamp" aria-hidden="true">
-        <span>—</span> T − 00:01:43
-      </div>
+          {/* crosshairs */}
+          <g className="hx-crosshair">
+            <line x1="350" y1="0" x2="350" y2="700" />
+            <line x1="0" y1="350" x2="700" y2="350" />
+          </g>
 
-      <div className="hero2-latency" aria-hidden="true">
-        <i />
-        <span>/// SYSTEM ACTIVE • LATENCY 4.2ms</span>
-      </div>
+          {/* outer + inner circles */}
+          <circle className="hx-ring hx-ring-outer" cx="350" cy="350" r="322" />
+          <circle className="hx-ring hx-ring-inner" cx="350" cy="350" r="233" />
 
-      <div className="hero2-content">
-        <h1 className="hero2-title">CHRONOMARK</h1>
+          {/* dotted ring */}
+          <circle className="hx-dotted" cx="350" cy="350" r="196" />
 
-        <p className="hero2-subtitle">
+          {/* tick ring: rotates slowly, opposite to the marker */}
+          <g className="hx-ticks">
+            {TICKS.map((angle) => {
+              const long = CARDINALS.includes(angle)
+              return (
+                <line
+                  key={angle}
+                  x1="350"
+                  y1={long ? 18 : 26}
+                  x2="350"
+                  y2={long ? 44 : 38}
+                  transform={`rotate(${angle} 350 350)`}
+                  className={long ? 'hx-tick is-long' : 'hx-tick'}
+                />
+              )
+            })}
+          </g>
+
+          {/* centre mark */}
+          <g className="hx-centre">
+            <line x1="336" y1="350" x2="364" y2="350" />
+            <line x1="350" y1="336" x2="350" y2="364" />
+          </g>
+
+          {/* the travelling arc + marker */}
+          <g className="hx-arc-group">
+            <path className="hx-arc" d="M 470 145 A 233 233 0 0 1 560 300" />
+            <path className="hx-arc-trail" d="M 402 128 A 233 233 0 0 1 470 145" />
+            <g className="hx-marker">
+              <circle cx="470" cy="145" r="26" fill="#A8A2FF" opacity="0.2" />
+              <circle cx="470" cy="145" r="11" fill="#A8A2FF" filter="url(#hxGlow)" />
+              <circle cx="470" cy="145" r="3.8" fill="#D8D6FF" />
+            </g>
+          </g>
+        </svg>
+
+        <h1 className="hx-word" aria-label="ChronoMark">
+          {WORD.split('').map((char, i) => (
+            <span key={`${char}-${i}`} style={{ '--i': i }}>
+              {char}
+            </span>
+          ))}
+        </h1>
+
+        <p className="hx-tagline">
           Hours of lecture. One exact <em>moment.</em>
         </p>
 
-        <p className="hero2-intro">
-          The temporal intelligence engine that indexes 4-hour academic symposiums, audio phonemes,
-          and chalkboard equations down to the exact millisecond.
-        </p>
-
-        <div className="hero2-actions">
-          <Link className="hero2-primary" to="/upload">
-            <span>Explore the demo</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M7 17L17 7M17 7H7M17 7v10" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+        <div className="hx-actions">
+          <Link className="hx-primary" to="/upload">
+            Explore the demo
+            <span className="hx-arrow" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M4 12 12 4M6 4h6v6"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
           </Link>
 
-          <a className="hero2-secondary" href="#features">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-            <span>How it works</span>
-            <span className="hero2-wave" aria-hidden="true">
-              <i />
-              <i />
-              <i />
+          <a className="hx-ghost" href="#features">
+            <span className="hx-play" aria-hidden="true">
+              <svg width="8" height="9" viewBox="0 0 8 9" fill="none">
+                <path d="M1 1.2 7 4.5 1 7.8V1.2Z" fill="currentColor" />
+              </svg>
             </span>
+            How it works
           </a>
         </div>
-
-        <div className="hero2-ticker">
-          <span className="hero2-ticker-label">INDEXED REPOSITORIES:</span>
-          {REPOSITORIES.map((repository) => (
-            <span key={repository}>{repository}</span>
-          ))}
-        </div>
       </div>
-    </section>
+    </div>
   )
 }

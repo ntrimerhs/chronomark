@@ -1,514 +1,470 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+/* The hero.
 
-/* Hero, to the supplied section.
+   Composition: three colour washes and a fine grid for depth, a dial drawn in
+   SVG, the wordmark across it, then the tagline and controls. The dial is behind
+   the type at every size, and nothing in it takes pointer events. */
 
-   Same structure and measurements as the reference: a 90vh plate, two ambient
-   glows, a 620px ticked ring holding a 480px dashed orbit and a 340px dotted
-   track, axis lines and a corner cross, three corner telemetry readouts, then the
-   wordmark, subtitle, intro, actions and repository ticker.
-
-   Only the nine palette colours are used; the reference's near-identical gradient
-   stops and its emerald dot are expressed with the accent tones. Everything is
-   namespaced .hero2- so no other surface inherits this layout. */
-
-.hero2 {
-  --h2-canvas: #0b0b12;
-  --h2-card: #1b1b2b;
-  --h2-line: #2a2c3b;
-  --h2-accent: #6f63d9;
-  --h2-light: #a8a2ff;
-  --h2-pale: #d8d6ff;
-  --h2-ink: #f3f4f8;
-  --h2-muted: #a7acba;
-
+.hx {
+  --font-sans: 'Satoshi', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   position: relative;
-  min-height: 90vh;
-  padding: 80px 24px;
+  width: 100%;
+  /* Fixed, not min: the hero is exactly the viewport under the header, so the
+     composition is centred instead of being pushed down by whatever follows. */
+  height: calc(100vh - 76px);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: var(--h2-canvas);
-  color: var(--h2-ink);
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  user-select: none;
+  /* Opaque plate: the page gradient behind it steps colour mid-viewport, which
+     showed through when this was transparent. The mesh blobs now sit on top. */
+  background: #0B0B12;
+  isolation: isolate;
 }
 
-.main-hero:has(.hero2) {
-  display: block;
-  padding: 0;
-  min-height: 0;
-  background: transparent;
-  overflow: visible;
-}
+/* ── Edge readouts ── */
 
-/* ── backdrop: glows and the reticle ── */
-
-.hero2-backdrop {
+.hx-edge {
   position: absolute;
-  inset: 0;
+  z-index: 3;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.hero2-glow-wide,
-.hero2-glow-core {
-  position: absolute;
-  border-radius: 50%;
-}
-
-.hero2-glow-wide {
-  width: 680px;
-  height: 680px;
-  background: rgba(111, 99, 217, 0.15);
-  filter: blur(120px);
-}
-
-.hero2-glow-core {
-  width: 360px;
-  height: 360px;
-  background: rgba(168, 162, 255, 0.1);
-  filter: blur(80px);
-}
-
-.hero2-dial {
-  position: relative;
-  width: 620px;
-  height: 620px;
-  border-radius: 50%;
-  border: 1px solid rgba(167, 172, 186, 0.22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.hero2-orbit-dashed {
-  width: 480px;
-  height: 480px;
-  border-radius: 50%;
-  border: 1px dashed rgba(111, 99, 217, 0.38);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.hero2-track-dotted {
-  width: 340px;
-  height: 340px;
-  border-radius: 50%;
-  border: 1px dotted rgba(168, 162, 255, 0.26);
-}
-
-.hero2-axis {
-  position: absolute;
-}
-
-.hero2-axis.is-x {
-  width: 100%;
-  height: 1px;
-  background: linear-gradient(to right, transparent, var(--h2-line), transparent);
-}
-
-.hero2-axis.is-y {
-  height: 100%;
-  width: 1px;
-  background: linear-gradient(to bottom, transparent, var(--h2-line), transparent);
-}
-
-.hero2-cross {
-  position: absolute;
-  color: rgba(168, 162, 255, 0.4);
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 12px;
-  line-height: 1;
-}
-
-.hero2-orbit-dot {
-  position: absolute;
-  top: 28%;
-  right: 14%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.hero2-orbit-dot .hero2-ping {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--h2-light);
-  opacity: 0.75;
-  animation: hero2-ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
-.hero2-orbit-dot .hero2-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--h2-accent);
-}
-
-/* ── corner telemetry ── */
-
-.hero2-marks,
-.hero2-index,
-.hero2-stamp,
-.hero2-latency {
-  position: absolute;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  color: rgba(167, 172, 186, 0.5);
-  pointer-events: none;
-}
-
-.hero2-marks {
-  top: 48px;
-  left: 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
-  text-transform: uppercase;
-}
-
-.hero2-index {
-  top: 48px;
-  right: 40px;
-}
-
-.hero2-stamp {
-  bottom: 40px;
-  left: 40px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(167, 172, 186, 0.6);
-}
-
-.hero2-stamp span {
-  color: var(--h2-accent);
-}
-
-.hero2-latency {
-  bottom: 40px;
-  right: 40px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(167, 172, 186, 0.6);
-}
-
-.hero2-latency i {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--h2-light);
-}
-
-/* ── content ── */
-
-.hero2-content {
-  position: relative;
-  z-index: 10;
-  max-width: 896px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.hero2-title {
-  margin: 0 0 24px;
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-weight: 900;
-  font-size: 36px;
-  line-height: 1.05;
+  line-height: 2.1;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--h2-ink);
-  filter: drop-shadow(0 0 35px rgba(168, 162, 255, 0.2));
+  color: rgba(243, 244, 248, 0.42);
+  pointer-events: none;
 }
 
-.hero2-subtitle {
-  margin: 0 0 16px;
-  font-size: 18px;
-  font-weight: 300;
-  letter-spacing: 0.025em;
-  color: var(--h2-pale);
+.hx-edge-tl {
+  top: 96px;
+  left: 5.2%;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.hero2-subtitle em {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--h2-light);
-}
-
-.hero2-intro {
-  margin: 0 0 40px;
-  max-width: 576px;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.625;
-  color: var(--h2-muted);
-}
-
-.hero2-actions {
-  display: flex;
-  flex-wrap: wrap;
+.hx-edge-tr {
+  top: 96px;
+  right: 5.2%;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
 }
 
-.hero2-primary,
-.hero2-secondary {
+.hx-edge-bl {
+  bottom: 60px;
+  left: 5.2%;
+  align-items: center;
+}
+
+.hx-edge-br {
+  bottom: 60px;
+  right: 5.2%;
+}
+
+.hx-rule {
+  display: block;
+  width: 34px;
+  height: 1px;
+  background: rgba(243, 244, 248, 0.3);
+}
+
+.hx-rule-short {
+  width: 22px;
+}
+
+/* ── The stage ── */
+
+.hx-stage {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 1120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 24px;
+}
+
+.hx-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(94vw, 700px);
+  height: auto;
+  transform: translate(-50%, -54%);
+  z-index: -1;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #0B0B12 58%, transparent 96%);
+  mask-image: linear-gradient(180deg, #0B0B12 58%, transparent 96%);
+  opacity: 0;
+  animation: hx-orbit-in 1200ms cubic-bezier(0.22, 1, 0.36, 1) 120ms forwards;
+}
+
+@keyframes hx-orbit-in {
+  from { opacity: 0; transform: translate(-50%, -54%) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, -54%) scale(1); }
+}
+
+/* Radial glow behind the dial centre. Sits between the washes and the dial. */
+.hx-core-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(70vw, 640px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -55%);
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(168, 162, 255, 0.16) 0%,
+    rgba(168, 162, 255, 0.07) 38%,
+    transparent 68%
+  );
+  filter: blur(30px);
+  pointer-events: none;
+  opacity: 0;
+  animation: hx-fade 1400ms ease 400ms forwards;
+}
+
+.hx-ring {
+  fill: none;
+  stroke: rgba(243, 244, 248, 0.32);
+  stroke-width: 1;
+}
+
+.hx-ring-inner {
+  stroke: url(#hxRing);
+  stroke-width: 1.4;
+}
+
+.hx-dotted {
+  fill: none;
+  stroke: rgba(243, 244, 248, 0.5);
+  stroke-width: 1.6;
+  stroke-dasharray: 1 13;
+  stroke-linecap: round;
+}
+
+.hx-crosshair line {
+  stroke: rgba(243, 244, 248, 0.09);
+  stroke-width: 1;
+  stroke-dasharray: 3 9;
+}
+
+.hx-tick {
+  stroke: rgba(243, 244, 248, 0.55);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.hx-tick.is-long {
+  stroke: rgba(168, 162, 255, 0.85);
+  stroke-width: 2;
+}
+
+.hx-centre line {
+  stroke: rgba(243, 244, 248, 0.6);
+  stroke-width: 1.2;
+}
+
+/* Motion A: the arc and its marker travel the inner orbit. */
+.hx-arc-group {
+  transform-origin: 350px 350px;
+  animation: hx-spin 14s linear infinite;
+}
+
+@keyframes hx-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Motion B: the tick ring turns the other way, much more slowly. */
+.hx-ticks {
+  transform-origin: 350px 350px;
+  animation: hx-spin-back 54s linear infinite;
+}
+
+@keyframes hx-spin-back {
+  to { transform: rotate(-360deg); }
+}
+
+.hx-arc {
+  fill: none;
+  stroke: url(#hxArc);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.hx-arc-trail {
+  fill: none;
+  stroke: url(#hxArc);
+  stroke-width: 9;
+  stroke-linecap: round;
+  opacity: 0.38;
+  filter: blur(5px);
+}
+
+/* Motion C: the marker breathes. */
+.hx-marker {
+  transform-origin: 470px 145px;
+  animation: hx-breathe 3.6s ease-in-out infinite;
+}
+
+@keyframes hx-breathe {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* ── Wordmark ── */
+
+.hx-word {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: nowrap;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(36px, 7.1vw, 104px);
+  font-weight: 500;
+  line-height: 0.94;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em; /* balances the trailing letter-space so it reads centred */
+  color: #F3F4F8;
+  white-space: nowrap;
+}
+
+.hx-word span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(18px);
+  animation: hx-letter 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(160ms + var(--i) * 45ms);
+}
+
+@keyframes hx-letter {
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Tagline ── */
+
+.hx-tagline {
+  margin: 26px 0 0;
+  font-size: clamp(18px, 2.1vw, 30px);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-align: center;
+  color: #F3F4F8;
+  opacity: 0;
+  animation: hx-fade 900ms ease 900ms forwards;
+}
+
+@keyframes hx-fade {
+  to { opacity: 1; }
+}
+
+.hx-tagline em {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.08em;
+  letter-spacing: 0.02em;
+  background-image: linear-gradient(96deg, #A8A2FF 0%, #A8A2FF 35%, #A8A2FF 70%, #A8A2FF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: 0 0 34px rgba(168, 162, 255, 0.35);
+  padding-right: 0.06em; /* keep the italic tail from clipping against the clip */
+}
+
+/* ── Controls ── */
+
+.hx-actions {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-top: 34px;
+  opacity: 0;
+  animation: hx-fade 900ms ease 1050ms forwards;
+}
+
+.hx-primary {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px 28px;
+  gap: 13px;
+  padding: 7px 7px 7px 24px;
+  min-height: 54px;
   border-radius: 999px;
-  font-size: 14px;
-  font-weight: 500;
+  background: #F3F4F8;
+  color: #0B0B12;
+  font-size: 14.5px;
+  font-weight: 560;
   text-decoration: none;
-  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease,
-    color 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.hero2-primary {
-  background: linear-gradient(to right, var(--h2-accent), var(--h2-light));
-  color: #fff;
-  box-shadow: 0 0 25px rgba(111, 99, 217, 0.45);
+.hx-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px -22px rgba(168, 162, 255, 0.55);
 }
 
-.hero2-primary svg {
-  width: 16px;
-  height: 16px;
-  transition: transform 0.3s ease;
+.hx-arrow {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #A8A2FF;
+  color: #0B0B12;
+  flex: none;
+  transition: transform 0.2s ease;
 }
 
-.hero2-primary:hover {
-  background: linear-gradient(to right, var(--h2-light), var(--h2-pale));
-  box-shadow: 0 0 35px rgba(111, 99, 217, 0.65);
-}
-
-.hero2-primary:hover svg {
+.hx-primary:hover .hx-arrow {
   transform: translate(2px, -2px);
 }
 
-.hero2-secondary {
-  gap: 10px;
-  padding: 14px 24px;
-  background: rgba(20, 20, 32, 0.8);
-  border: 1px solid var(--h2-line);
-  color: var(--h2-pale);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-}
-
-.hero2-secondary > svg {
-  width: 16px;
-  height: 16px;
-  color: var(--h2-light);
-}
-
-.hero2-secondary:hover {
-  background: var(--h2-card);
-  border-color: rgba(111, 99, 217, 0.5);
-  color: #fff;
-}
-
-.hero2-wave {
-  display: flex;
+.hx-ghost {
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  margin-left: 4px;
-  color: var(--h2-light);
+  gap: 11px;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  color: rgba(243, 244, 248, 0.86);
+  text-decoration: none;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
 }
 
-.hero2-wave i {
-  width: 2px;
-  border-radius: 2px;
-  background: currentColor;
+.hx-ghost:hover {
+  color: #F3F4F8;
+  text-shadow: 0 0 18px rgba(168, 162, 255, 0.45);
 }
 
-.hero2-wave i:nth-child(1) {
-  height: 10px;
-  opacity: 0.6;
+.hx-play {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(243, 244, 248, 0.32);
+  flex: none;
 }
 
-.hero2-wave i:nth-child(2) {
-  height: 16px;
+.hx-primary:focus-visible,
+.hx-ghost:focus-visible {
+  outline: 2px solid #A8A2FF;
+  outline-offset: 3px;
 }
 
-.hero2-wave i:nth-child(3) {
-  height: 8px;
-  opacity: 0.6;
-}
+/* ── Responsive ── */
 
-/* ── repositories ticker ── */
-
-.hero2-ticker {
-  margin-top: 64px;
-  padding-top: 32px;
-  border-top: 1px solid rgba(27, 27, 43, 0.6);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  column-gap: 32px;
-  row-gap: 8px;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(167, 172, 186, 0.5);
-}
-
-.hero2-ticker-label {
-  color: rgba(111, 99, 217, 0.8);
-}
-
-/* ── motion ── */
-
-@keyframes hero2-ping {
-  0% {
-    transform: scale(1);
-    opacity: 0.75;
+@media (max-width: 1100px) {
+  .hx-orbit {
+    width: min(96vw, 560px);
+    transform: translate(-50%, -56%);
   }
-  70%,
-  100% {
-    transform: scale(2.2);
-    opacity: 0;
+
+  .hx-word {
+    font-size: clamp(30px, 7.4vw, 72px);
+    letter-spacing: 0.16em;
+  }
+
+  .hx-tagline {
+    letter-spacing: 0.1em;
   }
 }
 
-/* ── breakpoints, matching the reference ── */
-
-@media (min-width: 640px) {
-  .hero2-title {
-    font-size: 60px;
+@media (max-width: 760px) {
+  .hx {
+    min-height: calc(100vh - 64px);
   }
 
-  .hero2-subtitle {
-    font-size: 24px;
+  .hx-orbit {
+    width: min(104vw, 380px);
+    transform: translate(-50%, -58%);
   }
 
-  .hero2-intro {
-    font-size: 16px;
-  }
-}
-
-@media (min-width: 768px) {
-  .hero2-title {
-    font-size: 72px;
+  .hx-stage {
+    padding: 0 20px;
   }
 
-  .hero2-subtitle {
-    font-size: 30px;
+  .hx-word {
+    font-size: clamp(26px, 8.6vw, 44px);
+    letter-spacing: 0.12em;
+    text-indent: 0.12em;
   }
-}
 
-@media (min-width: 1024px) {
-  .hero2-title {
-    font-size: 96px;
+  .hx-tagline {
+    font-size: 13.5px;
+    letter-spacing: 0.06em;
+    margin-top: 20px;
   }
-}
 
-@media (max-width: 1023px) {
-  .hero2-marks,
-  .hero2-index,
-  .hero2-stamp,
-  .hero2-latency {
+  .hx-actions {
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 26px;
+  }
+
+  .hx-edge-tl,
+  .hx-edge-tr,
+  .hx-edge-bl,
+  .hx-edge-br {
     display: none;
   }
 }
 
-@media (max-width: 700px) {
-  .hero2 {
-    padding: 60px 20px;
-    min-height: 0;
-  }
-
-  .hero2-dial {
-    width: 380px;
-    height: 380px;
-  }
-
-  .hero2-orbit-dashed {
-    width: 300px;
-    height: 300px;
-  }
-
-  .hero2-track-dotted {
-    width: 210px;
-    height: 210px;
-  }
-
-  .hero2-glow-wide {
-    width: 420px;
-    height: 420px;
-    filter: blur(90px);
-  }
-
-  .hero2-glow-core {
-    width: 240px;
-    height: 240px;
-    filter: blur(60px);
-  }
-
-  .hero2-title {
-    font-size: clamp(26px, 8.4vw, 40px);
-    letter-spacing: 0.16em;
-    margin-bottom: 18px;
-  }
-
-  .hero2-subtitle {
-    font-size: 17px;
-  }
-
-  .hero2-intro {
-    font-size: 13px;
-    margin-bottom: 28px;
-  }
-
-  .hero2-primary,
-  .hero2-secondary {
-    padding: 12px 20px;
-    font-size: 13px;
-  }
-
-  .hero2-ticker {
-    margin-top: 40px;
-    padding-top: 22px;
-    column-gap: 18px;
-    font-size: 9px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .hero2-orbit-dot .hero2-ping {
-    animation: none !important;
+  .hx-orbit,
+  .hx-word span,
+  .hx-tagline,
+  .hx-actions {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 
-  .hero2-primary,
-  .hero2-primary svg,
-  .hero2-secondary {
-    transition: none;
+  .hx-orbit {
+    transform: translate(-50%, -54%);
+  }
+
+  .hx-arc-group,
+  .hx-ticks,
+  .hx-marker {
+    animation: none;
+  }
+
+  .hx-core-glow {
+    animation: none;
+    opacity: 1;
+  }
+
+  .hx-word span {
+    transform: none;
   }
 }
 
-/* The site's scroll stepper draws a rail with coloured nodes down the right edge;
-   over the plate it reads as a stray stick and the reference has no rail. */
+/* The site's scroll rail runs down the right edge and lands a hard vertical band
+   on top of the hero plate; the reference has no rail, so it steps aside here. */
 .page-bar-track,
 .page-stepper-node {
   display: none;
+}
+
+/* Primary control: the accent carries the action. The palette sweep had turned the
+   old bright gradient into plain ink, which read as a secondary button. */
+.hx-primary {
+  background: #6F63D9;
+  color: #F3F4F8;
+  box-shadow: 0 14px 40px rgba(111, 99, 217, 0.32);
+}
+
+.hx-primary:hover {
+  box-shadow: 0 18px 48px rgba(111, 99, 217, 0.44);
+}
+
+.hx-arrow {
+  background: #A8A2FF;
+  color: #0B0B12;
 }
