@@ -1,208 +1,222 @@
 # ChronoMark
 
-Turn a lecture recording or a handout into something you can ask questions about.
-ChronoMark transcribes the video, reads the slides and figures, indexes every
-passage, and answers in plain language with a citation that jumps to the exact
-moment (`12:40`) or page (`p. 12`) the answer came from.
+Upload a lecture recording or a study handout, then ask it questions. Every answer
+comes back cited — `p. 12` for a document, `12:40` for a video — because every
+line of the answer is grounded in a page or a moment that was actually read.
 
-Two pipelines, one index:
+The interesting part of this project is what it refuses to do on its own machine:
+the heavy lifting (OCR, transcription, embeddings, answers) is API-side, and the
+box itself only orchestrates. The API answers an upload in **under a second**, a
+fleet of workers does the indexing, and a long video can be transcribed without
+ever being downloaded.
+
+---
+
+## Architecture
 
 ```
-video    ──ffmpeg──► audio ──Whisper──► transcript ─┐
-                    └► frames ──vision OCR──► text ──┤
-                                                      ├──► embeddings ──► Qdrant ──► chat
-document ──pypdf / python-pptx / python-docx──► pages ┤
-                    └► figures ──vision──► descriptions ─┘
+                    ┌──────────────┐
+   browser ────────▶│  FastAPI API  │────  uploads/queue/<job>.json ────┐
+      │             └──────────────┘                                    │
+      │                    │  status: jobs/<job>.json                   ▼
+      │                    │                                    ┌────────────────┐
+      │                    ▼                                    │    workers     │
+      │             ┌─────────────┐                             │ (N replicas)   │
+      └────────────▶│     R2      │◀───── presigned URLs ──────▶│ claim by rename│
+                    └─────────────┘                             └───────┬────────┘
+                                                                        │
+                        ┌───────────────┬───────────────┬───────────────┼──────────────┐
+                        ▼               ▼               ▼               ▼              ▼
+                 Google Document   Groq Whisper    OpenAI embed     DeepSeek      Cloudflare
+                      AI              (ASR)        3-small (1536d)   (answers)      Stream
+                        │               │               │               │              │
+                        └───────────────┴───────▶ ┌─────▼─────┐ ◀───────┴──────────────┘
+                                                  │  Qdrant   │
+                                                  │  vectors  │
+                                                  └───────────┘
 ```
 
-Everything heavy (transcription, vision, chat, vectors, file storage) runs on
-hosted APIs, so the server itself only does ffmpeg, page parsing and a small CPU
-embedding model.
+### Document path
 
-## What it does
+| Step | Where it runs |
+|---|---|
+| Upload (PDF/PPTX/DOCX, ≤ 40 MB) | API writes it to R2 and one job file, replies `200` |
+| OCR + page structure | **Google Document AI**, 14-page pieces in parallel |
+| Figure reading | Groq vision |
+| Chunking + embeddings | **OpenAI `text-embedding-3-small`** (1536d) |
+| Index | Qdrant (`video_text_segments_1536`) |
+| Answers | **DeepSeek**, streamed to the browser over SSE |
 
-**Video**
+### Video path — three routes, cheapest first
 
-- Upload a file from disk, or paste a YouTube link. The video goes straight to
-  Cloudflare R2; the server only keeps the derived WAV and frames.
-- Whisper (Groq `whisper-large-v3` by default) transcribes it in 5-minute chunks
-  in parallel, with the language detected once and pinned across the file.
-- Coverage frames every 30 seconds are read by a vision model, so an answer can
-  reproduce code or a slide that was never spoken aloud.
-- Answers cite `mm:ss`; clicking a citation seeks the player.
+| Route | When | Local CPU |
+|---|---|---|
+| **Groq direct** | local file ≤ `GROQ_DIRECT_MAX_MB` (24) | none |
+| **Cloudflare Stream** | remote/R2 media, `STREAM_TRANSCODE=1`, token has Stream access | none — Stream transcodes, Groq fetches the MP4 URL |
+| **ffmpeg + chunking** | everything else | audio extract + chunk split |
 
-**Documents (PDF / PowerPoint / Word)**
+Frame extraction and CLIP embeddings are gated by `FRAME_EMBEDDINGS` (off by
+default): the most expensive thing the box used to do, and the answers are
+transcript-backed anyway.
 
-- Every page is extracted and chunked with its heading, so a chunk always knows
-  which section it belongs to.
-- Scanned pages fall back to OCR; PowerPoint speaker notes are indexed too.
-- Figures are read once at ingest and stored as `[figure p.N]` descriptions with
-  a plain-text diagram, so a question about "the tree in Figure 14" can be
-  answered and the tree can be drawn in the answer.
-- Answers cite `p. N`; clicking one opens the PDF at that page.
-- Study tools read the same index: multiple-choice quiz (with LaTeX), flashcards
-  and a full-document study guide.
+---
 
-**Answer style**
+## Stack and what it costs
 
-Answers are grounded in the material, but written to teach rather than to quote:
-every formula gets a plain-language gloss, every symbol is defined the first time
-it appears, dense notation is broken into parts, and a concrete example from the
-material comes before the general rule. Mathematics is written in LaTeX and
-rendered with KaTeX. Long answers continue in a new message instead of being cut
-off, and a Greek document is always answered in Greek.
+| Service | Role | Price |
+|---|---|---|
+| Google Document AI | OCR, page and paragraph structure | $1.50 / 1,000 pages, first 1,000 free monthly |
+| Groq `whisper-large-v3` | speech to text | $0.04–0.111 / hour of audio |
+| OpenAI `text-embedding-3-small` | 1536d embeddings | $0.02 / 1M tokens |
+| DeepSeek `deepseek-flash` | answers, quizzes, flashcards | per token |
+| Qdrant Cloud | vector store | plan-dependent |
+| Cloudflare R2 | video + document storage | storage + operations |
+| Cloudflare Stream | optional transcoding | $5 / 1,000 min stored, $1 / 1,000 min delivered |
 
-## Stack
+A 23-page handout costs roughly **$0.04** end to end (OCR dominates), and about
+$0.0002 of that is embeddings.
 
-| Layer | Choice |
-| --- | --- |
-| Frontend | React 19, Vite 8, react-router, video.js, KaTeX (remark-math / rehype-katex) |
-| Backend | FastAPI + uvicorn, ffmpeg, pypdf / python-pptx / python-docx |
-| Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, CPU) |
-| Vectors | Qdrant (server / Cloud; embedded local store also supported) |
-| Speech | Groq Whisper `whisper-large-v3` (OpenAI and HF also supported) |
-| LLM + vision | DeepSeek (OpenAI-compatible), with OpenAI and HF fallbacks |
-| Files | Cloudflare R2 via presigned URLs |
-| Serving | nginx for the SPA, Caddy in front on the VPS |
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/ntrimerhs/chronomark.git
+cd chronomark
+cp backend/.env.example backend/.env   # then fill it in (see below)
+docker compose up -d --build
+```
+
+The frontend is served on `:8080`, the API on `:37712`. A Caddy instance in front
+(`chronomark.0digital.xyz`) terminates TLS and proxies `/api/*` to the backend with
+the prefix stripped.
+
+### Environment (`backend/.env`)
+
+**Required**
+
+| Variable | Purpose |
+|---|---|
+| `DEEPSEEK_API_KEY` | answers and study material |
+| `GROQ_API_KEY` | speech to text, figure vision |
+| `QDRANT_URL`, `QDRANT_API_KEY` | vector store |
+| `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | object storage |
+| `EMBEDDING_API_KEY` | OpenAI key for embeddings (falls back to `OPENAI_API_KEY`) |
+
+**Provider switches**
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `EMBEDDING_PROVIDER` | `auto` | `openai` / `local` (local MiniLM, 384d, free) |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIM` | `text-embedding-3-small`, `1536` | must match the collection name |
+| `TEXT_COLLECTION` | `video_text_segments_<dim>` | which Qdrant collection is read |
+| `FRAME_EMBEDDINGS` | `0` | `1` re-enables frame extraction + CLIP |
+| `STREAM_TRANSCODE` | `0` | `1` enables the Cloudflare Stream route |
+
+**Document AI (optional)** — without these, PDFs go through pypdf and scans are
+missed:
+
+| Variable | Purpose |
+|---|---|
+| `GOOGLE_APPLICATION_CREDENTIALS` | path to the service-account JSON (mounted read-only from `backend/secrets/`) |
+| `DOCUMENT_AI_PROJECT`, `DOCUMENT_AI_LOCATION`, `DOCUMENT_AI_PROCESSOR_ID` | processor coordinates |
+| `DOCUMENT_AI_CONCURRENCY` | pieces in flight (default 3) |
+
+**Cloudflare Stream (optional)** — the audio/video route needs an API token with
+*Stream: Edit*, not the R2 S3 keys:
+
+| Variable | Purpose |
+|---|---|
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | Stream API access |
+| `STREAM_CLIP_SECONDS`, `STREAM_CLIP_WORKERS` | long-video chunking (defaults 1200s / 4) |
+
+**Tuning**
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MAX_CONCURRENT_DOC_JOBS` / `MAX_CONCURRENT_VIDEO_JOBS` | `3` / `2` | in-process gates inside one worker |
+| `WORKER_CONCURRENCY` | `2` in worker.py, `1` in compose | jobs per worker container |
+| `GROQ_DIRECT_MAX_MB` | `24` | above this, video takes another route |
+| `LLM_CONTINUE_ROUNDS` | `4` | how many times a truncated answer is continued |
+
+---
+
+## How the queue works
+
+The API never runs a job. It writes `<job_id>.json` into `backend/queue/` and
+replies. A worker claims a job by **renaming** it to `.processing` — an atomic
+operation, so any number of workers can share the directory without ever taking
+the same job twice. Progress is written to `backend/jobs/<job_id>.json`, which the
+API serves from `/upload-status/{job_id}`.
+
+```bash
+docker compose up -d --scale worker=4 worker      # more workers, same queue
+docker compose logs -f worker                     # watch claims and completions
+```
+
+Two replicas run by default, each doing one job at a time with a 900 MB cap.
+Measured on a 2 vCPU / 3 GB box: ~300 MB per worker, ~1.5 GB free — so two is
+comfortable, four is the practical ceiling, and the queue absorbs a burst of
+twenty uploads by simply making them wait.
+
+---
+
+## Isolation that was measured, not assumed
+
+| Change | Effect |
+|---|---|
+| Blocking work moved off the event loop (`run_in_threadpool`) | 5 concurrent questions: **23.4s → 5.9s**; a healthcheck during the burst **22.3s → 0.005s** |
+| Separate document/video upload gates | a video decode no longer holds PDF uploads |
+| Document AI pieces in parallel | 23-page handout **13.8s → 9.3s** |
+| Answer streaming (SSE) | first token at **2.28s** instead of waiting ~5s for the whole answer |
+| API + worker split | upload answered in **847 ms** (was the whole job) |
+
+---
+
+## API
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/upload-document` | accept a PDF/PPTX/DOCX, enqueue indexing |
+| `POST /uploadfile/` | accept a video (streamed to R2), enqueue analysis |
+| `GET /upload-status/{job_id}` | progress, read from the shared job store |
+| `POST /api/document/ask` | answer over a document |
+| `POST /api/document/ask/stream` | the same answer as SSE, token by token |
+| `POST /api/document/quiz`, `/flashcards`, `/notes` | study material |
+| `POST /ask` | answer over a video, with second-level citations |
+| `GET /api/documents`, `/api/document/{id}`, `/{id}/chats` | library and conversations |
+
+---
 
 ## Repository layout
 
 ```
-backend/
-  main.py                FastAPI app: upload endpoints, jobs, /ask, document API
-  whisper.py             chunked transcription, language detection, retries
-  video_processing.py    ffmpeg: audio extraction, frame extraction, normalising
-  documents.py           page extraction (PDF/PPTX/DOCX), figures, chunking
-  bert.py                embeddings, idle unload, thread and batch limits
-  qdrant_store.py        collections, upsert, search, per-video filtering
-  llama.py               prompts, answering, quiz/flashcards/notes, figure reader
-  services/r2_service.py presigned URLs, multipart upload, retention helpers
-  scripts/set_r2_cors.py applies the bucket CORS policy (optional)
-frontend/
-  src/components/        hero, upload page, documents page, chat, palette
-  src/styles/            the whole visual system (scoped skins)
-  nginx.conf             SPA fallback, cache headers, gzip
-docker-compose.yml       backend + frontend (+ warp container for yt-dlp egress)
+backend/            FastAPI app, workers and the pipelines
+  main.py           endpoints, ingestion jobs, video pipeline
+  worker.py         the process that claims and runs jobs
+  jobs.py           file-based queue + status store
+  documents.py      PDF/PPTX/DOCX extraction (Document AI with a pypdf fallback)
+  bert.py           embeddings (OpenAI or local MiniLM)
+  llama.py          prompts, streaming, answer continuation
+  whisper.py        ASR via Groq (direct media or extracted audio)
+  cloudflare_stream.py  optional transcode route
+  qdrant_store.py   collections and search
+frontend/           React 19 + Vite SPA (landing, video workspace, document workspace)
+docker-compose.yml  api, worker (x2), frontend, WARP egress
 ```
 
-## Quick start with Docker
+---
 
-```bash
-cp backend/.env.example backend/.env   # fill in the keys you have
-docker compose up -d --build
-```
+## Known limitations
 
-- Frontend: <http://localhost:8080>
-- API: the port mapped in `docker-compose.yml` (`ports:`) to container `8000`
-
-At minimum the stack wants `DEEPSEEK_API_KEY` (or `OPENAI_API_KEY`) and
-`GROQ_API_KEY`, a vector store (`QDRANT_URL`, or empty for the embedded store)
-and the four `R2_*` variables for file storage.
-
-## Local development
-
-```bash
-# backend
-cd backend
-python -m venv ../.venv
-../.venv/Scripts/pip install -r requirements.txt        # Windows
-../.venv/bin/pip install -r requirements.txt            # macOS / Linux
-../.venv/Scripts/python -m uvicorn main:app --reload --port 8000
-
-# frontend (second terminal)
-cd frontend
-npm install
-npm run dev      # http://localhost:5173
-```
-
-`run-backend.ps1` / `run-frontend.ps1` (and the `.sh` equivalents) wrap exactly
-these two commands.
-
-The embedded Qdrant store (`./qdrant_data`) can only be opened by one process at
-a time: point `QDRANT_URL` at a Qdrant server to run a local backend and a Docker
-backend side by side. `migrate_qdrant_to_server.py` copies an existing embedded
-index into a server.
-
-## API
-
-Video
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | `/uploadfile/` | Upload a video; streams it to R2, starts analysis |
-| GET | `/api/get-upload-url` | Presigned PUT so the browser uploads straight to R2 |
-| POST | `/api/process-video` | Analyse a video that is already in R2 |
-| POST | `/download-youtube/` | Download via yt-dlp, push to R2, analyse |
-| GET | `/upload-status/{job_id}` | Job stage, progress, result |
-| GET | `/api/video-stream/{file_key}` | 302 to a fresh presigned playback URL |
-| GET | `/api/video-presence/{file_key}` | Heartbeat that keeps the R2 copy alive |
-
-Documents
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | `/api/upload-document` | Upload PDF/PPTX/DOCX (max 40 MB) and index it |
-| GET | `/api/documents` | Indexed documents, newest first |
-| GET | `/api/document/{doc_id}` | Pages, language, and where to fetch the file |
-| GET | `/api/document-file/{doc_id}` | Same-origin relay of the original file |
-| GET | `/api/document-stream/{file_key}` | 302 to R2 (used when bucket CORS allows) |
-| DELETE | `/api/document/{doc_id}` | Remove points, R2 object and metadata |
-| POST | `/api/document/ask` | Ask a question; answers cite `p. N` |
-| POST | `/api/document/quiz` | Multiple-choice questions plus the figures they use |
-| POST | `/api/document/flashcards` | Term/definition cards |
-| POST | `/api/document/notes` | Full study guide with citations |
-
-Diagnostics: `/debug/qdrant-counts`, `/debug/segments`, `/metrics`.
-
-## Configuration
-
-Everything lives in `backend/.env` (see `backend/.env.example` for the full,
-commented list). The ones worth knowing:
-
-| Variable | Default | What it does |
-| --- | --- | --- |
-| `DEEPSEEK_API_KEY` / `OPENAI_API_KEY` | – | Answering and vision |
-| `GROQ_API_KEY` | – | Whisper transcription |
-| `QDRANT_URL` / `QDRANT_API_KEY` | empty = embedded | Vector store |
-| `R2_*` | – | File storage |
-| `WHISPER_LANGUAGE` | auto | Pin the transcript language (`el`, `en`, …) |
-| `VIDEO_RETENTION_MINUTES` | `60` | Delete the R2 copy when nobody is watching |
-| `ARTIFACT_RETENTION_DAYS` | `7` | Age out local WAVs and frame folders |
-| `MAX_CONCURRENT_JOBS` | `2` | Heavy jobs allowed at once (the rest queue) |
-| `COVERAGE_INTERVAL_SEC` | `30` | Frame sampling for OCR |
-| `FRAME_MAX_WIDTH` | `960` | Frame width handed to the vision model |
-| `OCR_MAX_FRAMES` | `24` | Vision calls per video, evenly spaced |
-| `WHISPER_MAX_WORKERS` | `6` | Parallel transcription chunks per job |
-| `EMBEDDING_THREADS` | `1` | Torch threads (leave a core for ffmpeg) |
-| `EMBEDDING_BATCH` | `32` | Peak memory during embedding |
-| `EMBEDDING_IDLE_UNLOAD_SEC` | `900` | Drop the model after this idle time |
-| `PUBLIC_SITE_ORIGIN` | `https://chronomark.0digital.xyz` | Origin the CORS check looks for |
-| `YT_DLP_PROXY` | – | Optional SOCKS proxy for YouTube downloads |
-
-## Capacity
-
-Measured on a 2 vCPU / 3.8 GB machine with the hosted APIs doing the heavy work:
-
-| | |
-| --- | --- |
-| 3 parallel short video uploads | 15–23 s each, ~945 MB peak |
-| 4 parallel questions | all served, 5–17 s (LLM-bound) |
-| 3 parallel PDF uploads | ~5 s each |
-| Comfortable | 2 concurrent analyses, ~10 active readers |
-| Upgrade trigger | swap in use, backend RSS > 1.5 GB, load average > 2 |
-
-`MAX_CONCURRENT_JOBS` is what stops a burst from pushing the box into swap: a
-third upload waits its turn instead of taking the server down with it. Nothing
-else needs new hardware — the knobs above trade detail for cost.
-
-## Notes and limitations
-
-- Job state lives in memory. A restart loses the progress of uploads in flight
-  (indexed results survive; job status does not).
-- One uvicorn worker by design: more workers would each load the embedding model
-  and would split the in-memory job table.
-- Documents are relayed through the API unless the R2 bucket has a CORS policy
-  for this origin. `scripts/set_r2_cors.py` applies one, and the app switches to
-  direct R2 reads automatically once it exists.
-- Older exploration files (`inspect_*.py`, `_type_para1.py`, `CONTEXT.md`,
-  `SETUP.md`, `deploy/`) are kept for reference.
+- **`.pptx` and `.docx` are parsed locally** — Document AI covers PDFs and images.
+- **Long videos need ffmpeg** unless the Cloudflare Stream route is enabled; it
+  requires a Stream token and downloads enabled on the account.
+- **Video answers are not streamed yet** — only the document chat is (SSE).
+- **Document AI** costs real money past the free 1,000 pages/month, and the online
+  endpoint takes at most 15 pages per request (hence the 14-page split).
+- **Frame/visual search is off by default**; turn on `FRAME_EMBEDDINGS=1` and the
+  box pays for CLIP again.
+- The queue is filesystem-based on purpose: it survives restarts and needs no
+  extra service, but it is single-host. Multi-host would want Redis behind the
+  same interface.
