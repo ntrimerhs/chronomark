@@ -137,3 +137,14 @@
 .vjs-tech {
   cursor: pointer;
 }
+
+/* Caption styling. video.js writes these colours inline from JavaScript, where
+   they cannot be recoloured without editing the library, so they are overridden
+   here with the palette instead. */
+.video-js .vjs-text-track-cue,
+.video-js .vjs-text-track-cue div,
+.video-js .vjs-text-track-cue span {
+  color: #F3F4F8 !important;
+  background-color: rgba(20, 20, 32, 0.8) !important;
+  text-shadow: none !important;
+}
