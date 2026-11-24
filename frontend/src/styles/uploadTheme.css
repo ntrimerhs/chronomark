@@ -1317,3 +1317,28 @@
   height: 100%;
   min-height: 0;
 }
+
+/* The video sidebar and chat borrow the document workspace's own classes, so
+   their widths, paddings and gaps are the same numbers -- not a copy that can
+   drift. This only makes the borrowed variables available outside .docs-app. */
+.upload-chat-shell-inline.docs-app {
+  --panel: #101823;
+  --ink: #f5f5f8;
+  --muted: rgba(245, 245, 248, 0.55);
+  --surface: #101823;
+  --hairline: rgba(245, 245, 248, 0.12);
+  --pink: #f42fa7;
+  --pink-soft: rgba(244, 47, 167, 0.12);
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background: transparent;
+  position: static;
+}
+
+.upload-chat-shell-inline.docs-app .panel.chat-panel {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+}
