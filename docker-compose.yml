@@ -75,6 +75,10 @@ services:
       - ./backend/secrets:/app/secrets:ro
       - hf_cache:/cache/huggingface
     command: ["python", "worker.py"]
+    # The backend's healthcheck probes uvicorn on :8000; a worker serves no
+    # HTTP, so it would report unhealthy forever.
+    healthcheck:
+      disable: true
     # A runaway job must not take the API down with it.
     mem_limit: 900m
     deploy:
