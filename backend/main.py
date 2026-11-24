@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi.staticfiles import StaticFiles
 from video_processing import extract_audio
 from video_processing import extract_frames, extract_frame_at, normalize_video
+import cloudflare_stream
 from whisper import (
     can_transcribe_directly,
     transcribe_audio_chunks,
@@ -1141,6 +1142,14 @@ MAX_CONCURRENT_VIDEO_JOBS = int(
 _JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_VIDEO_JOBS)
 _DOC_JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_DOC_JOBS)
 
+# Cloudflare Stream transcode: when the token really has Stream access, a remote
+# video is transcoded and served by Cloudflare and handed to Groq as a URL, so
+# this box never downloads the file and never runs ffmpeg on it. Off unless the
+# operator asks for it, and it fails back to the local path on its own.
+_STREAM_TRANSCODE = (os.getenv("STREAM_TRANSCODE", "0") or "0").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+
 
 def _compact_transcript_for_json(transcript):
     """Persist only timestamped text segments instead of raw chunk metadata."""
@@ -1318,9 +1327,22 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
         print(f"[Whisper] {Path(video_path).name}: sending the media straight to Groq")
         output_audio = None
 
+    # Cloudflare Stream can transcode the media and serve it, which removes the
+    # download and the ffmpeg pass entirely: the worker becomes a courier that
+    # hands URLs to Groq. Only for remote media (Cloudflare has to fetch it) and
+    # only when the token actually reaches Stream; otherwise None and the local
+    # path below runs as before.
+    stream_transcript = None
+    if not media_direct and _STREAM_TRANSCODE:
+        source = str(video_path)
+        if source.lower().startswith(("http://", "https://")):
+            if job_id:
+                _set_job_status(job_id, stage="transcoding_remote", progress=25)
+            stream_transcript = cloudflare_stream.transcribe_large_media(source, name=vid)
+
     try:
         t_audio = time.perf_counter()
-        if not media_direct:
+        if not media_direct and stream_transcript is None:
             extract_audio(video_path, output_audio)
         print(f"✓ Audio extraction complete for {vid}  [{time.perf_counter()-t_audio:.1f}s]")
     except RuntimeError as e:
@@ -1357,7 +1379,10 @@ def _run_audio_pipeline(video_path, output_audio: Path, job_id=None, video_id: s
                         progress=30 + int(45 * completed / total),
                     )
 
-            if media_direct:
+            if stream_transcript is not None:
+                transcript = stream_transcript
+                print(f"[Stream] transcription served from Cloudflare for {vid}")
+            elif media_direct:
                 transcript = transcribe_media_direct(audio_source)
                 if job_id:
                     _set_job_status(job_id, stage="transcribing_audio", progress=75)
