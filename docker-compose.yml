@@ -38,6 +38,10 @@ services:
       # Hugging Face model cache (MiniLM, CLIP): downloaded once, reused across
       # rebuilds. ~2 GB -- on a 4 GB VPS keep an eye on disk.
       - ./cookies.txt:/app/cookies.txt
+      # Google Document AI service account. Read-only, never baked into the
+      # image (see backend/.dockerignore) and never committed (.gitignore):
+      # losing this file only turns the PDF path back into pypdf.
+      - ./backend/secrets:/app/secrets:ro
       - hf_cache:/cache/huggingface
     restart: unless-stopped
 

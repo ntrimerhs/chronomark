@@ -15,8 +15,13 @@ Output shape, identical for every format:
      "pages": [{"page": 1, "heading": "Εισαγωγή", "text": "..."}, ...]}
 """
 
+import base64
 import io
+import json
+import os
 import re
+import threading
+import time
 from pathlib import Path
 
 # A chunk is what one embedding covers. Long enough to hold a full explanation,
@@ -30,6 +35,149 @@ _SCANNED_PAGE_CHARS = 40
 _MAX_OCR_PAGES = 15
 
 SUPPORTED_EXTENSIONS = {".pdf", ".pptx", ".docx"}
+
+# --- Google Document AI (optional) -------------------------------------------
+# pypdf reads a text layer; it cannot read a scan at all, and what it returns is
+# one flat string per page. Document AI returns the page as structure -- text
+# blocks in reading order, with their bounding boxes -- for $1.50 per 1,000
+# pages (first 1,000 free every month). It is used for PDFs only, and only when
+# credentials and a processor are configured: without them this module behaves
+# exactly as it did before, which keeps the pipeline deployable without a GCP
+# project.
+#
+# The online :process endpoint accepts at most 15 pages / 20 MB per call, so a
+# longer handout is cut into 14-page pieces with pypdf, sent one at a time, and
+# the page texts are stitched back together in order.
+
+DOCUMENT_AI_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or ""
+DOCUMENT_AI_PROJECT = os.getenv("DOCUMENT_AI_PROJECT") or ""
+DOCUMENT_AI_LOCATION = os.getenv("DOCUMENT_AI_LOCATION", "eu")
+DOCUMENT_AI_PROCESSOR = os.getenv("DOCUMENT_AI_PROCESSOR_ID") or ""
+DOCUMENT_AI_MAX_PAGES = 14
+DOCUMENT_AI_MAX_BYTES = 19 * 1024 * 1024
+
+_documentai_token = None
+_documentai_token_expiry = 0.0
+_documentai_lock = threading.Lock()
+
+
+def documentai_available() -> bool:
+    """True only when a processor and usable credentials are both configured."""
+    return bool(
+        DOCUMENT_AI_CREDENTIALS
+        and DOCUMENT_AI_PROCESSOR
+        and os.path.exists(DOCUMENT_AI_CREDENTIALS)
+    )
+
+
+def _documentai_project() -> str:
+    if DOCUMENT_AI_PROJECT:
+        return DOCUMENT_AI_PROJECT
+    with open(DOCUMENT_AI_CREDENTIALS, "r", encoding="utf-8") as handle:
+        return json.load(handle)["project_id"]
+
+
+def _documentai_access_token() -> str:
+    """OAuth token for the service account, cached until just before it expires."""
+    global _documentai_token, _documentai_token_expiry
+    with _documentai_lock:
+        if _documentai_token and time.time() < _documentai_token_expiry - 60:
+            return _documentai_token
+        from google.auth.transport.requests import Request
+        from google.oauth2 import service_account
+
+        credentials = service_account.Credentials.from_service_account_file(
+            DOCUMENT_AI_CREDENTIALS,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+        credentials.refresh(Request())
+        _documentai_token = credentials.token
+        expiry = credentials.expiry.timestamp() if credentials.expiry else time.time() + 3000
+        _documentai_token_expiry = expiry
+        return _documentai_token
+
+
+def _anchored_text(full_text: str, layout: dict) -> str:
+    """The slice of the document text a layout block points at."""
+    anchor = (layout or {}).get("textAnchor") or {}
+    parts = []
+    for segment in anchor.get("textSegments") or []:
+        start = int(segment.get("startIndex", 0) or 0)
+        end = int(segment.get("endIndex", 0) or 0)
+        if end > start:
+            parts.append(full_text[start:end])
+    return _clean("".join(parts))
+
+
+def _documentai_process(pdf_bytes: bytes, first_page: int) -> list:
+    """One :process call for a ≤14-page PDF piece."""
+    import requests
+
+    project = _documentai_project()
+    url = (
+        f"https://{DOCUMENT_AI_LOCATION}-documentai.googleapis.com/v1/projects/"
+        f"{project}/locations/{DOCUMENT_AI_LOCATION}/processors/{DOCUMENT_AI_PROCESSOR}:process"
+    )
+    response = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {_documentai_access_token()}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "rawDocument": {
+                "content": base64.b64encode(pdf_bytes).decode("ascii"),
+                "mimeType": "application/pdf",
+            }
+        },
+        timeout=300,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Document AI HTTP {response.status_code}: {response.text[:300]}")
+
+    document = response.json().get("document") or {}
+    full_text = document.get("text") or ""
+    pages = []
+    for index, page in enumerate(document.get("pages") or [], start=first_page):
+        # Paragraphs, in reading order, give the page back its shape; a page with
+        # no paragraph anchors falls back to the whole page block.
+        blocks = [
+            _anchored_text(full_text, paragraph.get("layout"))
+            for paragraph in page.get("paragraphs") or []
+        ]
+        text = "\n\n".join(block for block in blocks if block).strip()
+        if not text:
+            text = _anchored_text(full_text, page.get("layout"))
+        if not text:
+            continue
+        pages.append({"page": index, "heading": _heading_for(text), "text": text})
+    return pages
+
+
+def extract_pdf_documentai(path: Path, image_ocr=None) -> dict:
+    """Read a PDF through Document AI, splitting it to fit the online endpoint."""
+    from pypdf import PdfReader, PdfWriter
+
+    reader = PdfReader(str(path))
+    total = len(reader.pages)
+    pages = []
+
+    for start in range(0, total, DOCUMENT_AI_MAX_PAGES):
+        writer = PdfWriter()
+        for page in reader.pages[start : start + DOCUMENT_AI_MAX_PAGES]:
+            writer.add_page(page)
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        payload = buffer.getvalue()
+        if len(payload) > DOCUMENT_AI_MAX_BYTES:
+            raise RuntimeError(
+                f"pages {start + 1}-{start + DOCUMENT_AI_MAX_PAGES} exceed the 20 MB limit"
+            )
+        pages.extend(_documentai_process(payload, first_page=start + 1))
+
+    if not pages:
+        raise RuntimeError("Document AI returned no text")
+    return {"kind": "pdf", "page_count": total, "pages": pages}
 
 
 def _clean(text: str) -> str:
@@ -261,7 +409,20 @@ def extract_document(path: Path, file_name: str = "", image_ocr=None) -> dict:
         )
 
     if suffix == ".pdf":
-        result = extract_pdf(path, image_ocr=image_ocr)
+        if documentai_available():
+            try:
+                result = extract_pdf_documentai(path, image_ocr=image_ocr)
+                print(
+                    f"[Docs] Document AI read {result['page_count']} pages, "
+                    f"{sum(len(p['text']) for p in result['pages'])} chars"
+                )
+            except Exception as error:
+                # The OCR branch must never cost an upload: pypdf still works on
+                # any PDF that carries a text layer.
+                print(f"[Docs] Document AI failed ({error}); falling back to pypdf")
+                result = extract_pdf(path, image_ocr=image_ocr)
+        else:
+            result = extract_pdf(path, image_ocr=image_ocr)
     elif suffix == ".pptx":
         result = extract_pptx(path)
     else:

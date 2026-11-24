@@ -27,3 +27,7 @@ boto3
 pypdf
 python-pptx
 python-docx
+
+# documents.py: Document AI OCR for PDFs (optional, only used when a processor
+# and service-account credentials are configured). Small: no gRPC client.
+google-auth

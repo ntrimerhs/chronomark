@@ -1,16 +1,20 @@
-"""Re-embed the indexed corpus into the Voyage collection.
+"""Re-embed the indexed corpus into the collection the current model writes to.
 
-The text collection is named after the vector width, so switching embeddings
-from the local MiniLM (384d) to Voyage (1024d) writes a new collection and leaves
-the old one untouched -- that old collection is the backup until this migration
-is verified.
+The text collection is named after its vector width, so switching embeddings
+(the local MiniLM at 384, OpenAI text-embedding-3-small at 1536) writes a new
+collection and leaves the old one untouched -- that old collection is the backup
+until this migration is verified.
 
 Nothing is parsed again. Every point already carries the text it was indexed
-from, so this reads the old collection, re-embeds those exact strings, and
-writes the same point ids and payloads into the new one: a document keeps its
-page numbers and figure descriptions, a video keeps its timestamps.
+from, so this reads the old collection, re-embeds those exact strings, and writes
+the same point ids and payloads into the new one: a document keeps its page
+numbers and figure descriptions, a video keeps its timestamps.
 
-    docker exec chronomark-backend python migrate_to_voyage.py
+It is idempotent and resumable (points already in the target are skipped), and it
+can run while the API keeps serving the old collection.
+
+    docker run --rm --env-file backend/.env -e NEW_TEXT_COLLECTION=... \
+        chronomark-backend python migrate_embeddings.py
 """
 
 import os
@@ -27,7 +31,7 @@ OLD_COLLECTION = os.getenv("OLD_TEXT_COLLECTION", "video_text_segments")
 # while this backfills the new one, so the two cannot be inferred from whoever
 # started the process.
 NEW_COLLECTION = os.getenv("NEW_TEXT_COLLECTION") or qdrant_store.TEXT_COLLECTION
-BATCH = int(os.getenv("MIGRATE_BATCH", "128") or "128")
+BATCH = int(os.getenv("MIGRATE_BATCH", "96") or "96")
 
 
 def _ensure_target() -> None:
@@ -86,8 +90,6 @@ def main() -> int:
 
     _ensure_target()
 
-    # Points that already exist in the target (a previous interrupted run) are
-    # skipped, so re-running this is cheap and safe.
     existing = {str(point.id) for point in _read_all(NEW_COLLECTION)}
     todo = [point for point in points if str(point.id) not in existing]
     print(f"[Migrate] {len(todo)} left after skipping {len(points) - len(todo)} already written")
@@ -106,15 +108,10 @@ def main() -> int:
         if len(vectors) != len(keep):
             print(f"[Migrate] embed returned {len(vectors)} vectors for {len(keep)} texts")
             return 1
-        payloads = []
-        for (point, _text), vector in zip(keep, vectors):
-            payloads.append(
-                models.PointStruct(
-                    id=point.id,
-                    vector=vector,
-                    payload=point.payload or {},
-                )
-            )
+        payloads = [
+            models.PointStruct(id=point.id, vector=vector, payload=point.payload or {})
+            for (point, _text), vector in zip(keep, vectors)
+        ]
         qdrant_store.client.upsert(collection_name=NEW_COLLECTION, points=payloads)
         written += len(payloads)
         done = start + len(chunk)
