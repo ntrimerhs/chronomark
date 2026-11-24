@@ -1,59 +1,80 @@
-import '../styles/header.css';
-import { ArrowUpRight } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
-import CommandPalette from './CommandPalette';
+import { useState } from 'react'
+import { Menu, X } from 'lucide-react'
+import CommandPalette from './CommandPalette'
+import '../styles/header.css'
 
-/* The navigation, to the hero reference: the mark stays the supplied artwork,
-   the name is set as spaced uppercase type beside it, and the sections are
-   divided by hairlines rather than boxes.
+/* The navigation, to the Electric Pulse reference: a lime star mark beside the
+   wordmark, three section links, the acid-lime call to action, and a hamburger
+   that opens the same links as a panel on small screens.
 
-   The chat workspaces drop it entirely. Discover, search and the hero CTA all
-   lead back into marketing pages, and a conversation is not a place to sell
-   from: /documents keeps its own wordmark in the sidebar as the way home, and
-   /upload keeps a slim strip with the wordmark and nothing else. */
+   The command palette stays mounted: it is the site's search, not decoration. */
 
 const NAV_LINKS = [
-  { href: '/#features', label: '01 Discover' },
-];
-
-// No header at all: the workspace is the whole screen.
-const HEADERLESS_ROUTES = ['/documents'];
-// Only the wordmark, for a page that still needs a way home.
-const SLIM_ROUTES = ['/upload'];
+  { href: '/#features', label: 'Features' },
+  { href: '/upload', label: 'Solutions' },
+  { href: '/documents', label: 'Resources' },
+]
 
 export default function Header() {
-  const { pathname } = useLocation();
-
-  if (HEADERLESS_ROUTES.some((route) => pathname.startsWith(route))) {
-    return null;
-  }
-
-  const slim = SLIM_ROUTES.some((route) => pathname.startsWith(route));
+  const [open, setOpen] = useState(false)
 
   return (
-    <header className={`main-header${slim ? ' main-header-chat' : ''}`}>
-      <a href="/" className="logo-link">
-        <span className="logo-name">ChronoMark</span>
-      </a>
+    <header className="pulse-header">
+      <div className="pulse-shell pulse-nav">
+        <a className="pulse-brand" href="/" aria-label="Chronomark home">
+          <svg className="pulse-star" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M16 0c1.6 9 4.2 13 16 16-11.8 3-14.4 7-16 16C14.4 23 11.8 19 0 16 11.8 13 14.4 9 16 0Z" />
+          </svg>
+          <span>
+            Chronomark <b>AI</b>
+          </span>
+        </a>
 
-      {slim ? null : (
-        <>
+        <nav className="pulse-links" aria-label="Primary">
           {NAV_LINKS.map((link) => (
-            <a key={link.href} href={link.href} className="cell nav-link">
+            <a key={link.href} href={link.href}>
               {link.label}
             </a>
           ))}
+        </nav>
 
-          <div className="spacer" />
+        <div className="pulse-nav-actions">
+          <span className="pulse-search">
+            <CommandPalette />
+          </span>
 
-          <CommandPalette />
-
-          <a href="/upload" className="cta">
-            try now
-            <ArrowUpRight />
+          <a href="/upload" className="pulse-cta">
+            Try Now
+            <span aria-hidden="true">↗</span>
           </a>
-        </>
-      )}
+
+          <button
+            type="button"
+            className="pulse-burger"
+            onClick={() => setOpen((value) => !value)}
+            aria-label={open ? 'Close menu' : 'Open menu'}
+            aria-expanded={open}
+            aria-controls="pulse-mobile-menu"
+          >
+            {open ? <X size={19} /> : <Menu size={19} />}
+          </button>
+        </div>
+      </div>
+
+      <nav
+        id="pulse-mobile-menu"
+        className={`pulse-mobile${open ? ' is-open' : ''}`}
+        aria-label="Mobile navigation"
+      >
+        {NAV_LINKS.map((link) => (
+          <a key={link.href} href={link.href} onClick={() => setOpen(false)}>
+            {link.label}
+          </a>
+        ))}
+        <a href="/upload" onClick={() => setOpen(false)}>
+          Try Now ↗
+        </a>
+      </nav>
     </header>
-  );
+  )
 }

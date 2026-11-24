@@ -2,27 +2,40 @@
 @import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@600&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
+/* Electric Pulse: the site's palette.
+   Bg #050816, surface #0D1B3A, electric blue #3B82F6, ice #7DD3FC,
+   acid lime #C7F464, white #F8FAFC. The older token names are kept and remapped
+   onto it, so components written against the previous theme inherit the new
+   colours instead of keeping a private palette. */
 :root {
-  --bg: #0A121C;
-  --bg-deep: #1a1333;
-  --bg-surface: #2d1533;
-  --bg-panel: rgba(255, 255, 255, 0.05);
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #E9E6F7;
-  --text-strong: #FFFFFF;
-  --text-muted: #7093C3;
-  --accent-purple: #BFACFC;
-  --accent-soft: #E9E6F7;
-  --accent-indigo: #301E6B;
-  --accent-pink: #ff3b9a;
-  --accent-pink-2: #ff5ba8;
-  --accent-grey: #3B3649;
-  --surface: #1a1333;
-  --shadow: 0 28px 100px rgba(0, 0, 0, 0.32);
+  --pulse-bg: #050816;
+  --pulse-surface: #0d1b3a;
+  --pulse-blue: #3b82f6;
+  --pulse-ice: #7dd3fc;
+  --pulse-lime: #c7f464;
+  --pulse-white: #f8fafc;
+
+  --bg: var(--pulse-bg);
+  --bg-deep: #071026;
+  --bg-surface: var(--pulse-surface);
+  --bg-panel: rgba(125, 211, 252, 0.04);
+  --border: rgba(125, 211, 252, 0.13);
+  --text: #c8d7ea;
+  --text-strong: var(--pulse-white);
+  --text-muted: #9eafc8;
+  --accent-purple: var(--pulse-ice);
+  --accent-soft: #dbe9f8;
+  --accent-indigo: #0a2b64;
+  --accent-pink: var(--pulse-lime);
+  --accent-pink-2: #d7ff8a;
+  --accent-grey: #1b2a44;
+  --surface: var(--pulse-surface);
+  --shadow: 0 28px 100px rgba(0, 0, 0, 0.4);
 
   --font-sans: 'Inter', system-ui, sans-serif;
-  --font-display: 'Work Sans', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
   --font-btn: 'Manrope', system-ui, sans-serif;
 
   font: 18px/1.6 var(--font-sans);
@@ -38,7 +51,7 @@ html, body, #root {
   padding: 0;
   overflow-x: hidden;
   /* matched to the hero plate so no strip shows beside the scroll rail */
-  background: #080D19;
+  background: var(--pulse-bg);
 }
 
 body {
