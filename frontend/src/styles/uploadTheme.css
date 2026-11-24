@@ -1293,3 +1293,27 @@
     max-width: none;
   }
 }
+
+/* The theme caps the chat panel at 560px so it fits beside an uploader card.
+   In the loaded workspace it has to reach the bottom of the screen instead --
+   that cap was the empty band under the conversation. Only the box is fixed;
+   the panel's own skin (borders, background, radius) is left alone. */
+.upload-shell-loaded .chat-panel {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+}
+
+.upload-shell.upload-shell-loaded {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.upload-shell-loaded .upload-grid-loaded,
+.upload-shell-loaded .upload-chat-shell-inline {
+  height: 100%;
+  min-height: 0;
+}
