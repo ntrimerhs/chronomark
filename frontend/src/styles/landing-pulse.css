@@ -200,19 +200,17 @@
   box-shadow: 0 0 20px rgba(198, 191, 255, 0.2);
 }
 
-.lv-brand-label {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 12px;
-  line-height: 16px;
-  letter-spacing: 0.25em;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--lv-ink);
-  transition: color 0.2s ease;
+.lv-brand-logo {
+  display: block;
+  height: 20px;
+  width: auto;
+  /* the artwork ships white on transparent; a touch of glow keeps it legible */
+  filter: drop-shadow(0 0 8px rgba(198, 191, 255, 0.25));
+  transition: filter 0.3s ease;
 }
 
-.lv-brand:hover .lv-brand-label {
-  color: var(--lv-primary);
+.lv-brand:hover .lv-brand-logo {
+  filter: drop-shadow(0 0 12px rgba(198, 191, 255, 0.5));
 }
 
 .lv-brand-ping {
