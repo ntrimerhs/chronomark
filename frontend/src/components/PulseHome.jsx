@@ -123,7 +123,7 @@ export default function PulseHome() {
               <line x1="21" y1="21" x2="16.65" y2="16.65" strokeLinecap="round" />
             </svg>
             <span>SEARCH</span>
-            <kbd>βK</kbd>
+            <kbd>⌘K</kbd>
           </a>
           <a className="pulse-try" href="#demo-lab">
             <span>TRY NOW</span>
@@ -156,7 +156,7 @@ export default function PulseHome() {
           <div className="pulse-index" aria-hidden="true">
             <b>01</b>
             <span className="pulse-faint">/</span>
-            <span className="pulse-pure">β</span>
+            <span className="pulse-pure">∞</span>
             <span className="pulse-index-rule" />
           </div>
 
@@ -301,11 +301,11 @@ export default function PulseHome() {
                     <div className="pulse-chalk" aria-hidden="true">
                       <p className="pulse-chalk-cap">### SECTION 4.2: TENSOR EIGENVALUES ###</p>
                       <p className="pulse-chalk-eq">
-                        β‡_ΞΈ L(ΞΈ) = π”Ό [ (y - f(x; ΞΈ))αµ€ β€Ά Ξ£β»ΒΉ β€Ά β‚f/β‚ΞΈ ]
+                        ∇_θ L(θ) = 𝔼 [ (y - f(x; θ))ᵀ • Σ⁻¹ • ∂f/∂θ ]
                       </p>
                       <p className="pulse-chalk-warn">Ξ»_max (Aαµ€ A) &gt; Ξ³_critical β‡’ DIVERGENCE AT SCALE</p>
                       <p className="pulse-chalk-cap">
-                        Proof continued: lim_{'{'}kβ†’β{'}'} ||W^{'{'}k+1{'}'} - W^k|| β‰  0
+                        Proof continued: lim_{'{'}k→∞{'}'} ||W^{'{'}k+1{'}'} - W^k|| ≠ 0
                       </p>
                     </div>
 
@@ -331,11 +331,11 @@ export default function PulseHome() {
 
                     <div className="pulse-board-foot">
                       <span className="pulse-time">
-                        <i aria-hidden="true">ββ</i>
+                        <i aria-hidden="true">❚❚</i>
                         <span>01:14:22</span>
                         <em>/ 02:44:18</em>
                       </span>
-                      <span className="pulse-live">β— 4K SYNCHRONIZED</span>
+                      <span className="pulse-live">● 4K SYNCHRONIZED</span>
                     </div>
                   </div>
 
@@ -514,7 +514,7 @@ export default function PulseHome() {
                   <span>
                     EMBEDDING: <b>Chrono-Vector 768-D</b>
                   </span>
-                  <span className="pulse-emerald">β— 100% AUDITABLE ACCURACY</span>
+                  <span className="pulse-emerald">● 100% AUDITABLE ACCURACY</span>
                 </div>
               </div>
             </div>
