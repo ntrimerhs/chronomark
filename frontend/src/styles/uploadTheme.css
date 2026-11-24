@@ -1243,10 +1243,34 @@
   min-height: 0;
 }
 
-/* The sidebar belongs beside the player, full height, and collapses to its rail. */
+/* The sidebar belongs beside the player, full height, and collapses to its rail.
+   The shell is a GRID by default (intro | panel + chat), so a flex-direction
+   alone changes nothing: the sidebar was auto-placed into the leftover grid row
+   and showed up under the player, at the bottom left. The display has to change
+   as well. */
 .upload-shell.upload-shell-loaded {
+  display: flex;
   flex-direction: row;
   align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  grid-template-columns: none;
+  grid-template-areas: none;
+  column-gap: 0;
+  row-gap: 0;
+}
+
+.upload-shell-loaded .upload-grid-loaded {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.upload-shell-loaded .upload-chat-shell-inline {
+  flex: 0 0 clamp(330px, 30vw, 430px);
+  min-width: 0;
+  height: 100%;
 }
 
 .video-sidebar-host {
@@ -1258,4 +1282,12 @@
 .video-sidebar-host .sidebar {
   height: 100%;
   min-height: 0;
+}
+
+/* Below this width the three columns stop paying for themselves; the sidebar
+   folds away and the player keeps the room. */
+@media (max-width: 860px) {
+  .upload-shell-loaded .video-sidebar-host {
+    display: none !important;
+  }
 }
