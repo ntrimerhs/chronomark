@@ -1126,8 +1126,18 @@ JOBS = {}
 # start anyway does not add throughput, it makes every one of them slower and
 # can push the box into swap, where the whole backend (and every job in it)
 # dies. Queued here instead, politely, at the upload endpoint.
+# Uploads used to share one two-slot gate, so a video decode held every PDF
+# upload behind it even though a PDF is API-bound and costs this box almost
+# nothing. Each kind now has its own gate: three documents at a time, two videos.
 MAX_CONCURRENT_JOBS = int(os.getenv("MAX_CONCURRENT_JOBS", "2") or "2")
-_JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
+MAX_CONCURRENT_DOC_JOBS = int(
+    os.getenv("MAX_CONCURRENT_DOC_JOBS", "3") or "3"
+)
+MAX_CONCURRENT_VIDEO_JOBS = int(
+    os.getenv("MAX_CONCURRENT_VIDEO_JOBS", os.getenv("MAX_CONCURRENT_JOBS", "2")) or "2"
+)
+_JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_VIDEO_JOBS)
+_DOC_JOB_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_DOC_JOBS)
 
 
 def _compact_transcript_for_json(transcript):
@@ -1764,12 +1774,25 @@ def _fallback_frame_interval(video_path, ceiling=60.0, minimum=2.0, target_frame
     return max(minimum, min(ceiling, float(duration) / target_frames))
 
 
+# A video's frame pass is the most expensive thing this box does: ffmpeg decodes
+# the file twice and CLIP embeds every still on CPU. FRAME_EMBEDDINGS=0 keeps it
+# out of the pipeline entirely -- answers then come from the transcript alone,
+# which is what the API-backed path (Groq for speech, OpenAI for vectors) needs
+# anyway. Set it to 1 to bring visual search back.
+_FRAME_PIPELINE = (os.getenv("FRAME_EMBEDDINGS", "0") or "0").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+
+
 def _sync_concept_frames(video_path, transcript, frames_dir, base_count=0, max_width=0, coverage_stamps=None):
     """Add frames chosen from the transcript, then index everything in the dir.
 
     Used by both orderings: in audio-first mode base_count is 0 and these are
     the only frames; in the parallel mode they supplement the scene pass.
     """
+    if not _FRAME_PIPELINE:
+        return base_count
+
     try:
         added = _add_concept_frames(
             video_path, transcript, frames_dir, max_width=max_width,
@@ -2380,6 +2403,8 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
             raise RuntimeError(f"R2 download URL failed: {r2_error}") from r2_error
 
         def _visual_only_task(from_source):
+            if not _FRAME_PIPELINE:
+                return 0, {}
             try:
                 count, coverage_stamps = extract_frames(
                     from_source,
@@ -2507,6 +2532,11 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time):
 
 @app.post("/ask")
 async def ask(req: Question):
+    # Blocking retrieval and model call: off the event loop, in a thread.
+    return await run_in_threadpool(_ask_impl, req)
+
+
+def _ask_impl(req: Question):
     try:
         question = req.question
         requested_video_id = req.video_id
@@ -3269,7 +3299,7 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
     """Parse a document, chunk it, embed the chunks and index them by page."""
     # Waits for a slot rather than starting a third heavy job: a queued upload
     # that finishes slowly is better than three that all thrash the box.
-    if not _JOB_SLOTS.acquire(timeout=900):
+    if not _DOC_JOB_SLOTS.acquire(timeout=900):
         _set_job_status(
             job_id,
             status="failed",
@@ -3777,6 +3807,14 @@ async def api_document_chat_delete(doc_id: str, chat_id: str):
 
 @app.post("/api/document/ask")
 async def api_document_ask(req: DocumentQuestion):
+    # Everything below is blocking -- Qdrant, the embedding call, the model round
+    # trip. On the event loop it froze the whole API for the length of an answer:
+    # five questions took five times as long as one, and a healthcheck during the
+    # burst waited 22 seconds. In a thread they run side by side.
+    return await run_in_threadpool(_document_ask_impl, req)
+
+
+def _document_ask_impl(req: DocumentQuestion):
     """Ask about a document: retrieve pages, answer, cite `p. N`."""
     question = (req.question or "").strip()
     if not question:

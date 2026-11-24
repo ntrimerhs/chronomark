@@ -22,6 +22,7 @@ import os
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 # A chunk is what one embedding covers. Long enough to hold a full explanation,
@@ -55,6 +56,10 @@ DOCUMENT_AI_LOCATION = os.getenv("DOCUMENT_AI_LOCATION", "eu")
 DOCUMENT_AI_PROCESSOR = os.getenv("DOCUMENT_AI_PROCESSOR_ID") or ""
 DOCUMENT_AI_MAX_PAGES = 14
 DOCUMENT_AI_MAX_BYTES = 19 * 1024 * 1024
+# How many of those pieces fly at once. The processor quota is 120 requests per
+# minute; latency per request is ~7s, so three concurrent calls turn a 3-piece
+# handout from ~21s into ~8s.
+DOCUMENT_AI_CONCURRENCY = int(os.getenv("DOCUMENT_AI_CONCURRENCY", "3") or "3")
 
 _documentai_token = None
 _documentai_token_expiry = 0.0
@@ -160,8 +165,12 @@ def extract_pdf_documentai(path: Path, image_ocr=None) -> dict:
 
     reader = PdfReader(str(path))
     total = len(reader.pages)
-    pages = []
 
+    # Build every piece first, then send them concurrently: each request carries
+    # ~7 seconds of latency and a handout usually needs two or three, which used
+    # to run back to back. The processor allows 120 requests per minute, so three
+    # in flight at once is well inside the quota.
+    pieces = []
     for start in range(0, total, DOCUMENT_AI_MAX_PAGES):
         writer = PdfWriter()
         for page in reader.pages[start : start + DOCUMENT_AI_MAX_PAGES]:
@@ -173,7 +182,18 @@ def extract_pdf_documentai(path: Path, image_ocr=None) -> dict:
             raise RuntimeError(
                 f"pages {start + 1}-{start + DOCUMENT_AI_MAX_PAGES} exceed the 20 MB limit"
             )
-        pages.extend(_documentai_process(payload, first_page=start + 1))
+        pieces.append((start + 1, payload))
+
+    pages = []
+    if pieces:
+        with ThreadPoolExecutor(max_workers=min(DOCUMENT_AI_CONCURRENCY, len(pieces))) as pool:
+            futures = [
+                pool.submit(_documentai_process, payload, first_page=first_page)
+                for first_page, payload in pieces
+            ]
+            # Results come back in submission order, so the pages stay in order.
+            for future in futures:
+                pages.extend(future.result())
 
     if not pages:
         raise RuntimeError("Document AI returned no text")
