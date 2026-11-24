@@ -5,11 +5,12 @@ import './heroOrbit.css'
 
    Seven drifting orbs behind a convergence flare, then the spaced wordmark with
    its violet text-shadow, the typewriter headline with its blinking caret, the
-   subhead, and the command capsule with its timecode toast and ⌘K focus.
+   subhead, and the command capsule with its hover, focus and ⌘K behaviour.
 
    The orbs are scoped to this section (the reference fixes them to the viewport,
    which would paint over the sections below it), everything else is the reference
-   markup with the reference palette and timings. */
+   markup with the reference palette and timings. Submitting the capsule does not
+   raise a toast; the button reads "Try now". */
 
 const ORBS = [
   { className: 'hv-orb-1', color: 'indigo' },
@@ -23,14 +24,11 @@ const ORBS = [
 
 const PART_1 = 'Hours of lecture. '
 const PART_2 = 'One exact moment.'
-const TIMECODES = ['T - 01:24:08', 'T - 00:42:15', 'T - 02:11:39', 'T - 00:18:54']
 
 export default function HeroOrbit() {
   const [typed, setTyped] = useState(0)
-  const [toast, setToast] = useState(null)
   const [query, setQuery] = useState('')
   const inputRef = useRef(null)
-  const toastTimer = useRef(0)
 
   /* typewriter: type, hold, delete, breathe, repeat */
   useEffect(() => {
@@ -87,17 +85,8 @@ export default function HeroOrbit() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  useEffect(() => () => window.clearTimeout(toastTimer.current), [])
-
   const part1 = PART_1.slice(0, Math.min(typed, PART_1.length))
   const part2 = typed > PART_1.length ? PART_2.slice(0, typed - PART_1.length) : ''
-
-  function showFeedback(value) {
-    clearTimeout(toastTimer.current)
-    const timecode = TIMECODES[Math.floor(Math.random() * TIMECODES.length)]
-    setToast(`${timecode} • Coordinate locked for "${value.slice(0, 22)}..."`)
-    toastTimer.current = window.setTimeout(() => setToast(null), 3500)
-  }
 
   return (
     <div className="hv">
@@ -133,7 +122,7 @@ export default function HeroOrbit() {
               className="hv-capsule"
               onSubmit={(event) => {
                 event.preventDefault()
-                showFeedback(query.trim() || 'General indexing query')
+                inputRef.current?.blur()
               }}
             >
               <div className="hv-capsule-icon">
@@ -157,17 +146,10 @@ export default function HeroOrbit() {
               </div>
 
               <button className="hv-capsule-submit" type="submit">
-                <span>Jump to timecode</span>
+                <span>Try now</span>
                 <span className="material-symbols-outlined">timer</span>
               </button>
             </form>
-
-            <div className={`hv-toast${toast ? ' is-visible' : ''}`} aria-live="polite">
-              <div className="hv-toast-pill">
-                <span className="hv-toast-dot" />
-                <span>{toast || 'T - 01:24:08 • Coordinate locked'}</span>
-              </div>
-            </div>
           </div>
 
           <div className="hv-chips" />

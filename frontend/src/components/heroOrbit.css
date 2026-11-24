@@ -390,49 +390,6 @@
   font-size: 16px;
 }
 
-/* ── toast ── */
-
-.hv-toast {
-  position: absolute;
-  left: 50%;
-  bottom: -48px;
-  transform: translateX(-50%);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-
-.hv-toast.is-visible {
-  opacity: 1;
-}
-
-.hv-toast-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  border-radius: 9999px;
-  border: 1px solid rgba(71, 69, 83, 0.3);
-  background: rgba(41, 41, 54, 0.9);
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
-  color: var(--hv-on-surface);
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 11px;
-  line-height: 14px;
-  letter-spacing: 0.15em;
-  white-space: nowrap;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-}
-
-.hv-toast-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--hv-primary);
-  animation: hv-ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
 /* empty chip row kept for the reference's spacing */
 .hv-chips {
   display: flex;
@@ -575,18 +532,6 @@
   }
 }
 
-@keyframes hv-ping {
-  0% {
-    transform: scale(1);
-    opacity: 0.9;
-  }
-  75%,
-  100% {
-    transform: scale(2.4);
-    opacity: 0;
-  }
-}
-
 /* ── breakpoints from the reference's font sizes ── */
 
 @media (min-width: 640px) {
@@ -661,18 +606,12 @@
     margin-top: 8px;
   }
 
-  .hv-toast-pill {
-    font-size: 9px;
-    white-space: normal;
-    max-width: 80vw;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hv-orb,
   .hv-flare,
-  .hv-caret,
-  .hv-toast-dot {
+  .hv-caret {
     animation: none !important;
   }
 }
