@@ -590,56 +590,90 @@ const Proxeiro = () => {
             )}
 
         {uploadedFileURL ? (
-          <aside className="video-sidebar">
-            <a className="video-sidebar-brand" href="/" title="ChronoMark — home">
-              CHRONOMARK
-            </a>
+          <div className="docs-app dark video-sidebar-host">
+            <aside className="sidebar">
+              <div className="sidebar-top">
+                <a href="/" className="sidebar-brand" title="ChronoMark — home">
+                  <span className="sidebar-copy sidebar-brand-name">ChronoMark</span>
+                </a>
+              </div>
 
-            <button
-              type="button"
-              className="video-sidebar-action is-new"
-              onClick={() => {
-                setUploadedFileURL(null);
-                setCurrentVideoId(null);
-                setCurrentFileKey(null);
-                setFile(null);
-                setProcessingStage('idle');
-                setBackendProgress(0);
-                setUploadProgress(0);
-                setCurrentTime(0);
-                setDuration(0);
-                setIsPlaying(false);
-              }}
-              title="Start over with another video"
-            >
-              <Plus size={16} />
-              New video
-            </button>
+              <div className="sidebar-main-actions">
+                <button
+                  type="button"
+                  className="sidebar-action new-action"
+                  title="Start over with another video"
+                  onClick={() => {
+                    setUploadedFileURL(null);
+                    setCurrentVideoId(null);
+                    setCurrentFileKey(null);
+                    setFile(null);
+                    setProcessingStage('idle');
+                    setBackendProgress(0);
+                    setUploadProgress(0);
+                    setCurrentTime(0);
+                    setDuration(0);
+                    setIsPlaying(false);
+                  }}
+                >
+                  <span className="sidebar-action-icon">
+                    <Plus size={17} />
+                  </span>
+                  <span className="sidebar-copy">New video</span>
+                </button>
 
-            <button type="button" className="video-sidebar-action" onClick={handleReplaceClick}>
-              <RefreshCw size={15} />
-              Replace file
-            </button>
+                <button
+                  type="button"
+                  className="sidebar-action"
+                  title="Import another recording from YouTube"
+                  onClick={() => {
+                    setShowYoutubeInput((previous) => !previous);
+                    setYoutubeUrl('');
+                  }}
+                  disabled={isUploading}
+                >
+                  <span className="sidebar-action-icon">
+                    <YtIcon />
+                  </span>
+                  <span className="sidebar-copy">From YouTube</span>
+                </button>
 
-            <button
-              type="button"
-              className="video-sidebar-action"
-              onClick={() => {
-                setShowYoutubeInput((previous) => !previous);
-                setYoutubeUrl('');
-              }}
-              disabled={isUploading}
-            >
-              <YtIcon />
-              From YouTube
-            </button>
+                <button
+                  type="button"
+                  className="sidebar-action"
+                  title="Replace the file behind this workspace"
+                  onClick={handleReplaceClick}
+                >
+                  <span className="sidebar-action-icon">
+                    <RefreshCw size={16} />
+                  </span>
+                  <span className="sidebar-copy">Replace file</span>
+                </button>
+              </div>
 
-            <div className="video-sidebar-bottom">
-              <span className="video-sidebar-label">Current video</span>
-              <strong title={file?.name || 'Loaded video'}>{file?.name || 'Loaded video'}</strong>
-              <small>{formatTime(duration)} · transcribed</small>
-            </div>
-          </aside>
+              <div className="sidebar-history">
+                <p className="history-placeholder">
+                  One recording per workspace. “New video” starts another.
+                </p>
+              </div>
+
+              <div className="sidebar-bottom">
+                <p className="sidebar-bottom-label sidebar-copy">Current video</p>
+                <div className="sidebar-document">
+                  <span className="sidebar-document-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                      <path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none" />
+                    </svg>
+                  </span>
+                  <span className="sidebar-document-text sidebar-copy">
+                    <strong title={file?.name || 'Loaded video'}>{file?.name || 'Loaded video'}</strong>
+                    <small>{formatTime(duration)} · transcribed</small>
+                  </span>
+                </div>
+              </div>
+            </aside>
+          </div>
         ) : null}
 
             <div className={`upload-grid${uploadedFileURL ? ' upload-grid-loaded' : ''}`}>
