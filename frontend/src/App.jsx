@@ -1,5 +1,5 @@
 import './App.css'
-import MainPage from './components/MainPage.jsx'
+import PulseHome from './components/PulseHome.jsx'
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Proxeiro from './components/Proxeiro.jsx'
 import Documents from './components/Documents.jsx'
@@ -12,7 +12,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path='/' element={<Form><MainPage></MainPage></Form>}/>
+        <Route path='/' element={<PulseHome />}/>
         {/* The two chat workspaces carry no footer: video and documents both end
             in a conversation, and a footer under it only pushes the composer up. */}
         <Route path='/upload' element={<Form footer={false}><Proxeiro></Proxeiro></Form>}/>
