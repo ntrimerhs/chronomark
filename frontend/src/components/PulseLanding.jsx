@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import CommandPalette from './CommandPalette'
+import PulseHeader from './PulseHeader'
 import '../styles/landing-pulse.css'
 
 /* The landing page, transcribed from the supplied markup.
@@ -109,47 +109,7 @@ export default function PulseLanding() {
         <div className="lv-veil" />
       </div>
 
-      <header className="lv-header">
-        <div className="lv-header-inner">
-          <div className="lv-brand-wrap">
-            <a
-              className="lv-brand"
-              href="/"
-              aria-label="Chronomark"
-              onClick={(event) => {
-                // a fresh load, not an in-app route change
-                event.preventDefault()
-                window.location.reload()
-              }}
-            >
-              <span className="lv-brand-label">CHRONOMARK</span>
-              <span className="lv-brand-dot" aria-hidden="true" />
-            </a>
-            <span className="lv-brand-divider" aria-hidden="true" />
-            <div className="lv-search-slot">
-              <CommandPalette />
-            </div>
-          </div>
-
-          <nav className="lv-nav" aria-label="Sections">
-            {NAV.map(([label, path, current]) => (
-              <a key={path} href={`#${path}`} className={current ? 'is-current' : undefined}>
-                {label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="lv-actions">
-            <a className="lv-signin" href="#platform">
-              Sign in
-            </a>
-            <a className="lv-start" href="/upload">
-              <span>Get Started</span>
-              <span className="material-symbols-outlined">arrow_forward</span>
-            </a>
-          </div>
-        </div>
-      </header>
+      <PulseHeader reloadOnBrand />
 
       <main className="lv-main" id="platform">
         <div className="lv-shell">
