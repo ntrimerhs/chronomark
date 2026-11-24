@@ -187,20 +187,25 @@
   background: rgba(255, 255, 255, 0.16);
 }
 
-/* the mark sits straight on the plate: no pill, no border, no backdrop */
+/* the mark in its pill: hairline outline, dark glass, one dot */
 .lv-brand {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(13, 13, 25, 0.6);
+  -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
   text-decoration: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .lv-brand:hover {
-  background: none;
+  border-color: rgba(198, 191, 255, 0.4);
+  box-shadow: 0 0 20px rgba(198, 191, 255, 0.2);
 }
 
 .lv-brand-label {
