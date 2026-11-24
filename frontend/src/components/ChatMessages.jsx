@@ -1,12 +1,14 @@
 import { memo, createContext, useContext, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import useAutoScroll from '../hooks/useAutoScroll';
 import { User, Bot, Loader2, ThumbsDown, ThumbsUp, Wand2 } from 'lucide-react';
 import { CircleX } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { protectCurrency } from '../lib/markdownText';
 import '../styles/chatmessages.css';
 
 const INLINE_TIMESTAMP_RE = /^(\d{1,2}):(\d{2})$/;
@@ -115,7 +117,9 @@ const markdownComponents = { code: MarkdownCode };
 
 // Math is written by the model as LaTeX ($...$ inline, $$...$$ display) and
 // rendered with KaTeX, so O(n^2) arrives as real notation instead of a caret.
-const remarkPlugins = [remarkMath];
+// GFM first: answers routinely carry a pipe table, which plain markdown prints
+// as pipes and dashes.
+const remarkPlugins = [remarkGfm, remarkMath];
 const rehypePlugins = [rehypeKatex];
 
 /* The row under an answer: was this useful, and can it be explained again in
@@ -210,7 +214,7 @@ function ChatMessages({ messages, isLoading, onSeek, citationLabel, onFollowUp, 
                           rehypePlugins={rehypePlugins}
                           components={markdownComponents}
                         >
-                          {content}
+                          {protectCurrency(content)}
                         </Markdown>
                       ) : (
                         <div className="chat-message-text">{content}</div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkMath from 'remark-math'
+import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
 import {
   BookOpen,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import { API_BASE_URL } from '../../config'
+import { protectCurrency } from '../../lib/markdownText'
 import 'katex/dist/katex.min.css'
 
 /* The chat panel, built to the reference: a head with the assistant identity, a
@@ -49,7 +51,9 @@ function buildMarkdownComponents(onJump, label) {
   return { code: Code }
 }
 
-const remarkPlugins = [remarkMath]
+// GFM on top of the maths: answers routinely come back with a pipe table, and
+// without it the pipes and dashes were printed as text.
+const remarkPlugins = [remarkGfm, remarkMath]
 const rehypePlugins = [rehypeKatex]
 
 export default function WorkspaceChat({
@@ -57,6 +61,7 @@ export default function WorkspaceChat({
   chatId,
   title,
   onCreateChat,
+  onNewChat,
   onChatChanged,
   onJumpToPage,
 }) {
@@ -233,7 +238,12 @@ export default function WorkspaceChat({
           </div>
         </div>
         <div className="chat-actions">
-          <button type="button" className="icon-btn" title="Start new conversation" onClick={onCreateChat}>
+          <button
+            type="button"
+            className="icon-btn"
+            title="New chat (upload another document)"
+            onClick={onNewChat || onCreateChat}
+          >
             <MessageSquarePlus size={16} />
           </button>
         </div>
@@ -274,7 +284,7 @@ export default function WorkspaceChat({
                   rehypePlugins={rehypePlugins}
                   components={markdownComponents}
                 >
-                  {message.content}
+                  {protectCurrency(message.content)}
                 </Markdown>
               </div>
               <div className="answer-tools">

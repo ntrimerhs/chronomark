@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { PanelLeft, Plus, Search, Trash2 } from 'lucide-react'
 
-/* Conversations sidebar, built to the reference: a "Your workspace" header with
-   a collapse control, New chat / Search chats, grouped history with delete, and
-   the document this workspace belongs to pinned at the bottom. */
+/* Conversations sidebar: the wordmark on top, a collapse control, New chat /
+   Search chats, grouped history with delete, and the document this workspace
+   belongs to pinned at the bottom.
+
+   The wordmark is the way home. No mark beside it: the workspace header is gone,
+   so the one always-visible piece of chrome is the name itself, set in type the
+   way the site header sets it. */
 
 function groupFor(timestamp) {
   if (!timestamp) return 'Earlier'
@@ -16,7 +20,6 @@ function groupFor(timestamp) {
 export default function WorkspaceSidebar({
   chats,
   activeChatId,
-  document: doc,
   collapsed,
   open,
   onToggle,
@@ -47,10 +50,9 @@ export default function WorkspaceSidebar({
       />
       <aside className={`sidebar${collapsed ? ' collapsed' : ''}${open ? ' mobile-open' : ''}`}>
         <div className="sidebar-top">
-          <div className="sidebar-title">
-            <span className="sidebar-title-mark">✦</span>
-            <span className="sidebar-copy">Your workspace</span>
-          </div>
+          <a href="/" className="sidebar-brand" title="ChronoMark — home">
+            <span className="sidebar-copy sidebar-brand-name">ChronoMark</span>
+          </a>
           <button
             type="button"
             className="sidebar-icon"
@@ -63,7 +65,12 @@ export default function WorkspaceSidebar({
         </div>
 
         <div className="sidebar-main-actions">
-          <button type="button" className="sidebar-action new-action" onClick={onNewChat} title="New chat">
+          <button
+            type="button"
+            className="sidebar-action new-action"
+            onClick={onNewChat}
+            title="New chat (upload another document)"
+          >
             <span className="sidebar-action-icon">
               <Plus size={17} />
             </span>
@@ -141,26 +148,6 @@ export default function WorkspaceSidebar({
             ))
           )}
         </div>
-
-        {doc ? (
-          <div className="sidebar-bottom">
-            <p className="sidebar-bottom-label sidebar-copy">Current document</p>
-            <div className="sidebar-document">
-              <span className="sidebar-document-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                  <path d="M6 2.5h8l5 5V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2Z" />
-                  <path d="M14 2.5v5h5M8 13h8M8 17h6" />
-                </svg>
-              </span>
-              <span className="sidebar-document-text sidebar-copy">
-                <strong>{doc.file_name}</strong>
-                <small>
-                  {doc.kind?.toUpperCase()} · {doc.page_count} pages
-                </small>
-              </span>
-            </div>
-          </div>
-        ) : null}
       </aside>
     </>
   )
