@@ -72,6 +72,55 @@ def _shift(segments: list, seconds: float) -> list:
     return shifted
 
 
+def audio_slices_transcript(
+    source: str,
+    duration_seconds: float,
+    language: str | None = None,
+    on_progress=None,
+    offset_seconds: float = 0.0,
+):
+    """Transcribe an edge-reachable video by pulling sixty-second audio slices."""
+    total = max(1, int(math.ceil(duration_seconds / SLICE_SECONDS)))
+    started = time.time()
+
+    def one(index: int):
+        if (time.time() - started) > DEADLINE_SECONDS:
+            raise RuntimeError(f"the edge did not finish within {DEADLINE_SECONDS}s")
+        offset = index * SLICE_SECONDS
+        remaining = duration_seconds - offset
+        length = int(max(1, min(SLICE_SECONDS, math.ceil(remaining))))
+        url = (
+            f"https://{MEDIA_ZONE}/cdn-cgi/media/mode=audio,time={offset}s,"
+            f"duration={length}s,format=m4a/{source}"
+        ) if offset else (
+            f"https://{MEDIA_ZONE}/cdn-cgi/media/mode=audio,"
+            f"duration={length}s,format=m4a/{source}"
+        )
+        payload = cloudflare_stream.transcribe_url(
+            url, language=language, timeout=SLICE_TIMEOUT
+        )
+        return offset, payload
+
+    results = []
+    with ThreadPoolExecutor(max_workers=min(SLICE_WORKERS, total)) as pool:
+        for done, item in enumerate(pool.map(one, range(total)), start=1):
+            results.append(item)
+            if on_progress:
+                try:
+                    on_progress(done, total)
+                except Exception:
+                    pass
+
+    segments = []
+    texts = []
+    for offset, payload in sorted(results, key=lambda pair: pair[0]):
+        segments.extend(_shift(payload.get("segments") or [], offset + offset_seconds))
+        piece = (payload.get("text") or "").strip()
+        if piece:
+            texts.append(piece)
+    return {"segments": segments, "text": " ".join(texts).strip()}
+
+
 def transcribe_media(file_key: str, duration_seconds: float, language: str | None = None, on_progress=None):
     """Transcribe a whole video through audio-only slices at the edge."""
     if not configured():

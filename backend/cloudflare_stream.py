@@ -202,12 +202,12 @@ def delete_video(uid: str) -> None:
 def clip(uid: str, start_seconds: int, duration_seconds: int, name: str) -> str:
     """Cut one part out of a long video and return its MP4 URL."""
     response = requests.post(
-        f"{STREAM_BASE}/{uid}/clip",
+        f"{STREAM_BASE}/clip",
         headers=_headers(),
         json={
-            "clippedFromUid": uid,
-            "startTimeMs": int(start_seconds * 1000),
-            "endTimeMs": int((start_seconds + duration_seconds) * 1000),
+            "clippedFromVideoUID": uid,
+            "startTimeSeconds": start_seconds,
+            "endTimeSeconds": start_seconds + duration_seconds,
             "meta": {"name": name[:100]},
         },
         timeout=120,
@@ -363,3 +363,64 @@ def transcribe_large_media(source_url: str, name: str = "chronomark", language: 
         # weight, so it is removed as soon as the transcript exists.
         if uid:
             delete_video(uid)
+
+def clip_audio_transcript(uid: str, duration_seconds: float, language=None, on_progress=None):
+    """Long video, entirely in the cloud.
+
+    Stream already holds the transcoded copy. It is cut into CLIP_SECONDS windows
+    there, and each clip's URL is handed to Media Transformations, which returns
+    sixty-second audio slices for Groq. Nothing is downloaded here.
+    """
+    import cloudflare_media
+
+    windows = []
+    cursor = 0.0
+    while cursor < max(1.0, duration_seconds):
+        windows.append((cursor, min(CLIP_SECONDS, duration_seconds - cursor)))
+        cursor += CLIP_SECONDS
+
+    print(f"[Stream] {uid}: {duration_seconds:.0f}s in {len(windows)} cloud clip(s)")
+    segments = []
+    texts = []
+
+    for index, (start, length) in enumerate(windows, start=1):
+        clip_uid = _make_clip(uid, start, length, f"chronomark-{int(start)}")
+        wait_ready(clip_uid)
+        try:
+            clip_url = download_url(clip_uid)
+            piece = cloudflare_media.audio_slices_transcript(
+                clip_url, length, language=language, offset_seconds=start
+            )
+            segments.extend(piece["segments"])
+            if piece["text"]:
+                texts.append(piece["text"])
+        finally:
+            delete_video(clip_uid)
+        if on_progress:
+            try:
+                on_progress(index, len(windows))
+            except Exception:
+                pass
+
+    if not segments and not texts:
+        raise RuntimeError("the cloud route returned no transcript")
+    return {"segments": segments, "text": " ".join(texts).strip(), "language": None}
+
+
+def _make_clip(uid: str, start_seconds: float, duration_seconds: float, name: str) -> str:
+    response = requests.post(
+        f"{STREAM_BASE}/clip",
+        headers=_headers(),
+        json={
+            "clippedFromVideoUID": uid,
+            "startTimeSeconds": start_seconds,
+            "endTimeSeconds": start_seconds + duration_seconds,
+            "meta": {"name": name[:100]},
+        },
+        timeout=120,
+    )
+    piece = _result(response, "stream clip") or {}
+    clip_uid = piece.get("uid")
+    if not clip_uid:
+        raise RuntimeError("stream clip returned no uid")
+    return clip_uid

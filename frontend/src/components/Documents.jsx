@@ -362,12 +362,6 @@ export default function Documents() {
               handleFile(event.dataTransfer.files?.[0])
             }}
           >
-            <div className="dl-stack" aria-hidden="true">
-              <span className="dl-leaf" />
-              <span className="dl-leaf" />
-              <span className="dl-leaf" />
-            </div>
-
             {uploading ? (
               <div className="dl-working">
                 <span className="dl-working-stage">
@@ -398,6 +392,11 @@ export default function Documents() {
               hidden
               onChange={(event) => handleFile(event.target.files?.[0])}
             />
+
+            <div className="dl-foot">
+              <span>40 MB ceiling</span>
+              <span>Page-anchored answers</span>
+            </div>
           </section>
 
           {error ? <p className="dl-error">{error}</p> : null}
