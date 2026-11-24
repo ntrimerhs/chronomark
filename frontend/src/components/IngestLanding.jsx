@@ -14,31 +14,37 @@ import '../styles/ingestLanding.css'
 
 const STEPS = ['INPUT', 'EXTRACT', 'INDEX', 'READY']
 
+/* The backend reports preparing -> extracting_audio -> downloading_from_r2 ->
+   processing_audio_and_frames -> transcribing_audio -> embedding_text -> finalizing
+   -> summarising -> completed. The four nodes fold those into INPUT, EXTRACT, INDEX
+   and READY. */
+const STAGE_NODE = {
+  idle: 0,
+  failed: 0,
+  preparing: 0,
+  queued: 0,
+  downloading: 0,
+  extracting_audio: 0,
+  downloading_from_r2: 0,
+  processing_audio_and_frames: 1,
+  transcribing_audio: 1,
+  chunking: 2,
+  reading_figures: 2,
+  embedding: 2,
+  embedding_text: 2,
+  finalizing: 2,
+  summarising: 2,
+  completed: 3,
+}
+
 function stageIndex(stage) {
-  switch (stage) {
-    case 'idle':
-    case 'failed':
-      return 0
-    case 'uploading':
-    case 'queued':
-    case 'downloading':
-    case 'extracting':
-    case 'transcribing':
-      return 1
-    case 'embedding':
-    case 'indexing':
-    case 'finalizing':
-      return 2
-    case 'completed':
-      return 3
-    default:
-      return 0
-  }
+  return STAGE_NODE[stage] ?? 0
 }
 
 export default function IngestLanding({
   file,
-  progress = 0,
+  uploadProgress = 0,
+  backendProgress = 0,
   stage = 'idle',
   isUploading = false,
   error = '',
@@ -54,14 +60,23 @@ export default function IngestLanding({
   const [dragging, setDragging] = useState(false)
 
   const active = stageIndex(stage)
-  const percent = Math.max(0, Math.min(100, Math.round(progress)))
+
+  /* The transfer and the backend are two counters, not one: the upload fills the
+     first tenth of the bar, then the backend's own percentage takes over, so the
+     number and the lit node always describe the same work. */
+  const percent = useMemo(() => {
+    if (stage === 'completed') return 100
+    if (backendProgress > 0) return Math.min(99, Math.round(backendProgress))
+    if (uploadProgress > 0) return Math.max(1, Math.round(uploadProgress * 0.1))
+    return 0
+  }, [backendProgress, stage, uploadProgress])
 
   const statusLabel = useMemo(() => {
-    if (stage === 'completed') return 'READY'
     if (stage === 'failed') return 'FAILED'
+    if (stage === 'completed') return 'READY'
     if (!isUploading && stage === 'idle') return 'READY'
-    return STEPS[Math.min(active + (active === 0 ? 1 : 0), STEPS.length - 1)]
-  }, [active, isUploading, stage])
+    return STEPS[stageIndex(stage)]
+  }, [isUploading, stage])
 
   const sizeLabel = file ? `${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)` : 'No file selected yet'
 

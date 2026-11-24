@@ -517,13 +517,12 @@ const Proxeiro = () => {
         player.play();
     }, []);
 
-    const progress = Math.max(uploadProgress, backendProgress);
-
     if (!uploadedFileURL) {
         return (
             <IngestLanding
                 file={file}
-                progress={progress}
+                uploadProgress={uploadProgress}
+                backendProgress={backendProgress}
                 stage={processingStage}
                 isUploading={isUploading}
                 error={uploadError}
