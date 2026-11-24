@@ -1,165 +1,284 @@
-/* Landing state for the documents page: the card shown before a document is
-   open. Kept separate from the reference workspace stylesheet, which only covers
-   the workspace itself. */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+/* The documents landing state, dressed like the rest of the site.
+
+   Same language as the ingestion screen: base #0B0B13 on a coordinate grid, the
+   slow astrolabe rings and one violet glow, Plus Jakarta Sans for the words with a
+   gradient italic accent, Space Mono for the readouts, brand #6F63D9 for the
+   interactive edges. Kept separate from the reference workspace stylesheet, which
+   only covers the workspace itself. */
 
 .docs-landing {
-  --docs-line: rgba(243, 244, 248, 0.12);
-  --docs-ink: #F3F4F8;
-  --docs-dim: rgba(243, 244, 248, 0.55);
+  --dl-base: #0b0b13;
+  --dl-card: #12121e;
+  --dl-dim: #0d0d18;
+  --dl-border: #28273e;
+  --dl-brand: #6f63d9;
+  --dl-300: #b8b3fc;
+  --dl-200: #d8d6ff;
+  --dl-ink: #e2e2f0;
+  --dl-slate: #94a3b8;
+  --dl-slate-dim: #64748b;
+
+  position: relative;
+  min-height: calc(100vh - 76px);
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  max-width: 880px;
+  gap: 28px;
+  align-items: stretch;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 110px 24px 80px;
+  padding: 96px 24px;
+  background-color: var(--dl-base);
+  color: var(--dl-ink);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  background-image:
+    radial-gradient(circle at center, rgba(111, 99, 217, 0.08) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 40px 40px, 120px 120px, 120px 120px;
+  isolation: isolate;
 }
+
+/* the astrolabe and its glow, as on the other screens */
+.docs-landing::before,
+.docs-landing::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.docs-landing::before {
+  top: 10%;
+  left: 50%;
+  width: 720px;
+  height: 720px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(90, 76, 199, 0.14);
+  filter: blur(140px);
+}
+
+.docs-landing::after {
+  top: 50%;
+  left: 58%;
+  width: 1300px;
+  height: 1300px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  opacity: 0.38;
+  background-image:
+    radial-gradient(circle, transparent 45.6%, rgba(111, 99, 217, 0.14) 45.7%, transparent 46.1%),
+    radial-gradient(circle, transparent 29.2%, rgba(111, 99, 217, 0.12) 29.3%, transparent 29.7%),
+    radial-gradient(circle, transparent 13.5%, rgba(111, 99, 217, 0.22) 13.6%, transparent 14%);
+  animation: dl-spin 140s linear infinite;
+}
+
+@keyframes dl-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* ── the words ── */
 
 .docs-breadcrumb {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 9.5px;
-  letter-spacing: 0.2em;
+  gap: 8px;
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(243, 244, 248, 0.42);
+  color: var(--dl-slate-dim);
 }
 
 .docs-breadcrumb i {
   font-style: normal;
-  color: rgba(243, 244, 248, 0.25);
+  color: rgba(148, 163, 184, 0.4);
 }
 
 .docs-breadcrumb strong {
-  font-weight: 600;
-  color: rgba(243, 244, 248, 0.82);
+  font-weight: 700;
+  color: var(--dl-300);
 }
 
 .docs-landing-head h1 {
-  margin: 14px 0 12px;
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
-  font-weight: 500;
-  letter-spacing: 0.03em;
-  line-height: 1.25;
-  color: var(--docs-ink);
+  margin: 16px 0 14px;
+  font-size: clamp(30px, 3.6vw, 46px);
+  font-weight: 400;
+  line-height: 1.14;
+  letter-spacing: -0.02em;
+  color: #fff;
 }
 
 .docs-landing-head h1 em {
-  font-family: Georgia, 'Times New Roman', serif;
   font-style: italic;
-  background-image: linear-gradient(96deg, #A8A2FF, #A8A2FF);
+  font-weight: 600;
+  background-image: linear-gradient(to right, var(--dl-200), var(--dl-300), #c7d2fe);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 0 22px rgba(111, 99, 217, 0.3));
 }
 
 .docs-landing-head p {
   margin: 0;
-  max-width: 620px;
-  font-size: 13.5px;
-  line-height: 1.8;
-  color: var(--docs-dim);
+  max-width: 40rem;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--dl-slate);
 }
 
+/* ── the drop card ── */
+
 .docs-landing-card {
-  padding: 16px;
-  border: 1px solid var(--docs-line);
+  position: relative;
+  padding: 22px;
   border-radius: 16px;
-  background: #0B0B12;
-  transition: border-color 0.18s ease;
+  border: 1px solid rgba(111, 99, 217, 0.2);
+  background: rgba(18, 18, 30, 0.75);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.3s ease;
+}
+
+/* the HUD brackets the ingestion capsule uses */
+.docs-landing-card::before,
+.docs-landing-card::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #8c82f2;
+  pointer-events: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.docs-landing-card::before {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.docs-landing-card::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.docs-landing-card:hover::before,
+.docs-landing-card:hover::after,
+.docs-landing-card.is-dragging::before,
+.docs-landing-card.is-dragging::after {
+  border-color: var(--dl-200);
+  box-shadow: 0 0 10px rgba(168, 162, 255, 0.4);
 }
 
 .docs-landing-card.is-dragging {
-  border-color: rgba(168, 162, 255, 0.55);
+  border-color: rgba(148, 136, 248, 0.6);
 }
 
 .docs-drop {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   width: 100%;
-  padding: 54px 24px;
-  border: 1px dashed rgba(243, 244, 248, 0.18);
+  padding: 56px 24px;
+  border: 2px dashed rgba(111, 99, 217, 0.3);
   border-radius: 12px;
-  background: rgba(243, 244, 248, 0.02);
-  color: var(--docs-dim);
+  background: rgba(13, 13, 24, 0.4);
+  color: var(--dl-slate);
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+  font-family: inherit;
+  transition: border-color 0.3s ease, background 0.3s ease;
 }
 
 .docs-drop:hover {
-  border-color: rgba(168, 162, 255, 0.5);
-  background: rgba(168, 162, 255, 0.05);
-  color: var(--docs-ink);
+  border-color: rgba(148, 136, 248, 0.6);
+  background: rgba(23, 23, 39, 0.4);
 }
 
 .docs-drop svg {
-  color: #A8A2FF;
+  width: 34px;
+  height: 34px;
+  color: var(--dl-300);
 }
 
 .docs-drop strong {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--docs-ink);
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
 }
 
 .docs-drop span {
-  max-width: 460px;
-  font-size: 12.5px;
-  line-height: 1.7;
+  max-width: 34rem;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--dl-slate);
 }
+
+/* progress while reading */
 
 .docs-uploading {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 48px 24px;
-  color: var(--docs-dim);
+  padding: 52px 24px;
+  color: var(--dl-slate);
+}
+
+.docs-uploading svg {
+  color: var(--dl-300);
 }
 
 .docs-uploading p {
   margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
-  letter-spacing: 0.2em;
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
+  color: var(--dl-slate);
 }
 
-.docs-uploading svg {
-  color: #A8A2FF;
+.docs-uploading small {
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--dl-300);
 }
 
 .docs-bar {
   width: min(100%, 380px);
-  height: 3px;
-  border-radius: 3px;
-  background: rgba(243, 244, 248, 0.1);
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(40, 39, 62, 0.9);
   overflow: hidden;
 }
 
 .docs-bar span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #A8A2FF, #A8A2FF);
-  transition: width 0.3s ease;
+  background: linear-gradient(to right, var(--dl-brand), var(--dl-300));
+  box-shadow: 0 0 10px rgba(111, 99, 217, 0.6);
+  transition: width 0.4s ease;
 }
 
-.docs-uploading small {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-}
-
-.docs-landing-error,
-.docs-workspace-error {
-  margin: 12px 0 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  color: #D8D6FF;
+.docs-landing-error {
+  margin: 0;
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: #fda4af;
 }
 
 .docs-spin {
@@ -169,5 +288,12 @@
 @keyframes docs-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs-landing::after,
+  .docs-spin {
+    animation: none !important;
   }
 }

@@ -220,7 +220,7 @@ def clip(uid: str, start_seconds: int, duration_seconds: int, name: str) -> str:
     return download_url(piece_uid)
 
 
-def transcribe_url(media_url: str, language: str | None = None) -> dict:
+def transcribe_url(media_url: str, language: str | None = None, timeout: int = 1800) -> dict:
     """Groq fetches the media itself; nothing passes through this machine."""
     # Groq wants multipart/form-data even for the url form: a JSON body or a
     # urlencoded form is rejected with "request Content-Type isn't
@@ -239,7 +239,7 @@ def transcribe_url(media_url: str, language: str | None = None) -> dict:
         GROQ_TRANSCRIBE_URL,
         headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
         files={key: (None, value) for key, value in fields.items()},
-        timeout=1800,
+        timeout=timeout,
     )
     if response.status_code >= 400:
         raise RuntimeError(f"groq url transcription: HTTP {response.status_code} {response.text[:200]}")
