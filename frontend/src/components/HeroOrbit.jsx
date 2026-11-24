@@ -1,27 +1,31 @@
 import { Link } from 'react-router-dom'
 import './heroOrbit.css'
 
-/* The homepage hero, to the supplied composition.
+/* The homepage hero, to the supplied composition, at the supplied measurements.
 
-   A single centred monument: the reticle (calibrated rings, tick notches, a
-   satellite dot and a pinging marker on the lower arc), the giant wordmark over
-   it, the tagline whose last word carries the accent, the two actions, then the
-   line of sources it works with.
+   Section 1024px tall with the 32px grid, the ambient core glow, the corner
+   telemetry, the 340 / 580 / 740px reticle, and the foreground block pulled back
+   over it by -260 / -420 / -490px so the wordmark sits on the dial rather than
+   under it.
 
-   The reticle is decorative and takes no pointer events; the rings rotate on CSS
-   only and stop under reduced motion. */
+   Only the nine palette colours are used and the layout is expressed in the same
+   pixel values as the reference; the reticle is decorative and takes no pointer
+   events, and its motion stops under reduced motion. */
 
-const LEFT_MARKS = ['Time', 'Data', 'Precision', 'Impact']
+const MARKS = ['TIME', 'DATA', 'PRECISION', 'IMPACT']
+const SOURCES = ['MIT OPENCOURSEWARE', 'STANFORD CS ARCHIVES', 'NEURIPS 2024', 'CERN SYMPOSIUMS']
 
 export default function HeroOrbit() {
   return (
     <section className="hero2" id="top">
-      <div className="hero2-glow" aria-hidden="true" />
-      <div className="hero2-wash" aria-hidden="true" />
+      <div className="hero2-ambient" aria-hidden="true">
+        <span className="hero2-core" />
+        <span className="hero2-wash" />
+      </div>
 
       <div className="hero2-marks" aria-hidden="true">
         <span className="hero2-rule" />
-        {LEFT_MARKS.map((mark) => (
+        {MARKS.map((mark) => (
           <span key={mark}>{mark}</span>
         ))}
       </div>
@@ -35,13 +39,13 @@ export default function HeroOrbit() {
       <div className="hero2-index" aria-hidden="true">
         <b>01</b>
         <span className="hero2-faint">/</span>
-        <span>∞</span>
+        <span className="hero2-ink">∞</span>
         <span className="hero2-rule-long" />
       </div>
 
       <div className="hero2-latency" aria-hidden="true">
         <b>///</b>
-        <span>System active · latency 4.2ms</span>
+        <span>SYSTEM ACTIVE • LATENCY 4.2ms</span>
       </div>
 
       <div className="hero2-reticle" aria-hidden="true">
@@ -72,22 +76,22 @@ export default function HeroOrbit() {
 
         <span className="hero2-arc">
           <i className="hero2-marker">
-            <b />
-            <b />
+            <b className="hero2-ping" />
+            <b className="hero2-dot" />
           </i>
         </span>
       </div>
 
       <div className="hero2-copy">
-        <h1 className="hero2-title">Chronomark</h1>
+        <h1 className="hero2-title">CHRONOMARK</h1>
 
         <p className="hero2-tagline">
           Hours of lecture. One exact <em>moment.</em>
         </p>
 
         <p className="hero2-lede">
-          The temporal engine that indexes a four-hour symposium, its phonemes and its board notes
-          down to the second, then hands you the moment you asked for.
+          The temporal intelligence engine that indexes 4-hour academic symposiums, audio phonemes,
+          and chalkboard equations down to the exact millisecond.
         </p>
 
         <div className="hero2-actions">
@@ -98,7 +102,9 @@ export default function HeroOrbit() {
 
           <a className="hero2-ghost" href="#features">
             <span className="hero2-play" aria-hidden="true">
-              ▶
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M5 3l14 9-14 9V3z" />
+              </svg>
             </span>
             <span>How it works</span>
             <span className="hero2-wave" aria-hidden="true">
@@ -111,11 +117,10 @@ export default function HeroOrbit() {
         </div>
 
         <div className="hero2-sources">
-          <span>Works with:</span>
-          <span>Lecture recordings</span>
-          <span>Course slides</span>
-          <span>Papers and notes</span>
-          <span>Documents</span>
+          <span>INDEXED REPOSITORIES:</span>
+          {SOURCES.map((source) => (
+            <span key={source}>{source}</span>
+          ))}
         </div>
       </div>
     </section>
