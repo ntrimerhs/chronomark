@@ -146,3 +146,10 @@ p {
   }
 }
 
+
+/* Buttons across the site take the accent, not a pastel gradient. */
+.btn-primary {
+  background: linear-gradient(90deg, #6F63D9 0%, #A8A2FF 100%);
+  color: #0B0B12;
+  box-shadow: 0 14px 40px rgba(111, 99, 217, 0.28);
+}

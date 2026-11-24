@@ -282,3 +282,15 @@
   padding: 12px 24px;
 }
 
+
+/* The nav call to action is the one accented control in the bar. */
+.main-header .cta {
+  background: #6F63D9;
+  color: #F3F4F8;
+  font-weight: 600;
+}
+
+.main-header .cta:hover {
+  background: #A8A2FF;
+  color: #0B0B12;
+}

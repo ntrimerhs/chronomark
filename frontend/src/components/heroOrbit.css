@@ -451,3 +451,20 @@
 .page-stepper-node {
   display: none;
 }
+
+/* Primary control: the accent carries the action. The palette sweep had turned the
+   old bright gradient into plain ink, which read as a secondary button. */
+.hx-primary {
+  background: #6F63D9;
+  color: #F3F4F8;
+  box-shadow: 0 14px 40px rgba(111, 99, 217, 0.32);
+}
+
+.hx-primary:hover {
+  box-shadow: 0 18px 48px rgba(111, 99, 217, 0.44);
+}
+
+.hx-arrow {
+  background: #A8A2FF;
+  color: #0B0B12;
+}
