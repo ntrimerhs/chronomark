@@ -182,6 +182,7 @@ def verify_token(token: str) -> dict:
 # "/api" inside the app: the same door has to be recognised either way.
 _PROTECTED = {
     "/consent",
+    "/videos",
     "/account",
     "/account/export",
     "/uploadfile",

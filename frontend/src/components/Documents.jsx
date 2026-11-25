@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { FileText, FileUp, Loader2, PanelLeft, Plus } from 'lucide-react'
+import { FileText, FileUp, Loader2, PanelLeft, Plus, Video } from 'lucide-react'
 import { API_BASE_URL } from '../config'
 import AppSidebar from './common/AppSidebar.jsx'
 import WorkspaceViewer from './documents/WorkspaceViewer.jsx'
 import WorkspaceChat from './documents/WorkspaceChat.jsx'
+import useLibrary from '../hooks/useLibrary.js'
 import '../styles/documentsReference.css'
 import '../styles/documentsLanding.css'
 
@@ -52,6 +53,9 @@ function readStored(key, fallback) {
 }
 
 export default function Documents() {
+  // One library for the whole page: every document and every recording, so the
+  // column says the same thing here as it does in the other two workspaces.
+  const library = useLibrary()
   const [current, setCurrent] = useState(null)
   const [chats, setChats] = useState([])
   const [chatId, setChatId] = useState(null)
@@ -158,6 +162,15 @@ export default function Documents() {
             setProgress(Math.min(15, Math.round((event.loaded / event.total) * 15)))
           },
         })
+
+        // The same file submitted twice comes back as the document it already
+        // became: nothing to queue, so nothing to poll.
+        if (data.duplicate) {
+          setProgress(100)
+          await openDocument(data.doc_id)
+          await library.refresh()
+          return
+        }
 
         setStage('parsing')
         const jobId = data.job_id
@@ -406,11 +419,30 @@ export default function Documents() {
     <div className="docs-app dark">
       <div className="app-layout">
         <AppSidebar
-          items={chats.map((chat) => ({
-            id: chat.id,
-            title: chat.title,
-            updated_at: chat.updated_at,
-          }))}
+          items={[
+            ...library.documents.map((doc) => ({
+              id: doc.doc_id,
+              title: doc.file_name || 'Untitled document',
+              updated_at: doc.created_at,
+              group: 'Library',
+              icon: FileText,
+              active: current?.doc_id === doc.doc_id,
+              deletable: false,
+            })),
+            ...library.videos.map((video) => ({
+              id: video.video_id,
+              title: video.title || 'Recording',
+              updated_at: video.created_at,
+              group: 'Library',
+              icon: Video,
+              deletable: false,
+            })),
+            ...chats.map((chat) => ({
+              id: chat.id,
+              title: chat.title,
+              updated_at: chat.updated_at,
+            })),
+          ]}
           activeId={chatId}
           collapsed={sidebarCollapsed}
           open={sidebarOpen}
@@ -430,9 +462,20 @@ export default function Documents() {
             },
           ]}
           search={{ placeholder: 'Search conversation history', label: 'Search chats' }}
-          emptyText="No conversations yet. Ask something to start one."
+          emptyText="Nothing yet. Upload a file to start one."
           onSelectItem={(id) => {
-            setChatId(id)
+            const key = String(id || '')
+            if (key.startsWith('doc_')) {
+              openDocument(key)
+              setSidebarOpen(false)
+              return
+            }
+            // A recording has its own workspace; the library is the way to it.
+            if (!key.startsWith('chat_')) {
+              window.location.assign('/upload')
+              return
+            }
+            setChatId(key)
             setMobilePane('chat')
             setSidebarOpen(false)
           }}

@@ -11,6 +11,8 @@ import {
     Plus,
     MessageCircle,
     ChevronRight,
+    FileText,
+    Video as VideoIcon,
     LoaderCircle,
     RefreshCw,
     Play,
@@ -32,6 +34,7 @@ const YtIcon = () => (
 import VideoJSPlayer from './VideoJSPlayer';
 import VideoChat from './VideoChat.jsx'
 import AppSidebar from './common/AppSidebar.jsx'
+import useLibrary from '../hooks/useLibrary.js'
 import splitMp4 from '../lib/mp4Split'
 
 /* What the pipeline is made of, and a meter that idles until a file arrives. */
@@ -69,6 +72,9 @@ const fileKeyFromUrl = (url) => {
 };
 
 const Proxeiro = () => {
+    // The same list the document workspace shows, so the column never pretends
+    // the other half of someone's work does not exist.
+    const library = useLibrary();
 
     const [file, setFile] = useState(null);
     const [uploadProgress, setUploadProgres] = useState(0);
@@ -720,7 +726,33 @@ const Proxeiro = () => {
                   onClick: handleReplaceClick,
                 },
               ]}
-              emptyText="One recording per workspace. “New video” starts another."
+              items={[
+                ...library.documents.map((doc) => ({
+                  id: doc.doc_id,
+                  title: doc.file_name || 'Untitled document',
+                  updated_at: doc.created_at,
+                  group: 'Library',
+                  icon: FileText,
+                  deletable: false,
+                })),
+                ...library.videos.map((video) => ({
+                  id: video.video_id,
+                  title: video.title || 'Recording',
+                  updated_at: video.created_at,
+                  group: 'Library',
+                  icon: VideoIcon,
+                  active: video.video_id === currentVideoId,
+                  deletable: false,
+                })),
+              ]}
+              onSelectItem={(id) => {
+                // Documents live in the other workspace; selecting the
+                // recording that is already open changes nothing.
+                if (String(id || '').startsWith('doc_')) {
+                  window.location.assign(`/documents?doc=${encodeURIComponent(id)}`)
+                }
+              }}
+              emptyText="Your documents and recordings appear here."
               footerLabel="Current video"
               footerIcon={
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">

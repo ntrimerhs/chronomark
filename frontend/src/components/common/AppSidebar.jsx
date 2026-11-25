@@ -70,11 +70,17 @@ export default function AppSidebar({
   const groups = useMemo(() => {
     const buckets = new Map()
     visible.forEach((item) => {
-      const key = groupFor(item.updated_at)
+      // An item may name its own group ("Library"); everything else falls back
+      // to the day it was last touched.
+      const key = item.group || groupFor(item.updated_at)
       if (!buckets.has(key)) buckets.set(key, [])
       buckets.get(key).push(item)
     })
-    return GROUP_ORDER.filter((key) => buckets.has(key)).map((key) => [key, buckets.get(key)])
+    const named = [...buckets.keys()].filter((key) => !GROUP_ORDER.includes(key))
+    return [...named, ...GROUP_ORDER.filter((key) => buckets.has(key))].map((key) => [
+      key,
+      buckets.get(key),
+    ])
   }, [visible])
 
   const showFooter = Boolean(footer || footerTitle || footerNote)
@@ -175,7 +181,7 @@ export default function AppSidebar({
                   return (
                     <div
                       key={item.id}
-                      className={`history-item${item.id === activeId ? ' active' : ''}`}
+                      className={`history-item${item.id === activeId || item.active ? ' active' : ''}`}
                     >
                       <button
                         type="button"

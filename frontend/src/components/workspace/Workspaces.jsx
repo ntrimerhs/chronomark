@@ -4,7 +4,7 @@ import axios from 'axios'
 import { API_BASE_URL } from '../../config'
 import useAuth from '../../hooks/useAuth'
 import { displayNameOf, supabase, AUTH_ENABLED } from '../../lib/supabaseClient'
-import { Plus } from 'lucide-react'
+import { Plus, Video } from 'lucide-react'
 import AppSidebar from '../common/AppSidebar.jsx'
 import '../../styles/workspaces.css'
 import { fetchConsents, saveConsent, exportAccount, deleteAccount } from '../../lib/consent'
@@ -133,6 +133,7 @@ export default function Workspaces() {
     }
   }
   const [documents, setDocuments] = useState([])
+  const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState('')
 
@@ -172,6 +173,16 @@ export default function Workspaces() {
         headers: await authHeaders(),
       })
       setDocuments(data.documents || [])
+      // Recordings live in their own registry; the workspace is where both
+      // halves of someone's work belong, so they are fetched together.
+      try {
+        const { data: videoData } = await axios.get(`${API_BASE_URL}/api/videos`, {
+          timeout: 30000,
+        })
+        setVideos(videoData.videos || [])
+      } catch {
+        setVideos([])
+      }
       setListError('')
     } catch (error) {
       setListError(error?.response?.data?.detail || 'Could not load your documents.')
@@ -226,6 +237,12 @@ export default function Workspaces() {
             setProgress(Math.min(12, Math.round((event.loaded / event.total) * 12)))
           },
         })
+
+        if (data.duplicate) {
+          await loadDocuments()
+          navigate(`/documents?doc=${encodeURIComponent(data.doc_id)}`)
+          return
+        }
 
         setStage('parsing')
         const pollHeaders = await authHeaders()
@@ -338,12 +355,27 @@ export default function Workspaces() {
           },
         ]}
         search={{ placeholder: 'Search your documents', label: 'Search documents' }}
-        items={documents.map((doc) => ({
-          id: doc.doc_id,
-          title: doc.file_name,
-          updated_at: doc.created_at,
-        }))}
-        onSelectItem={openDoc}
+        items={[
+          ...documents.map((doc) => ({
+            id: doc.doc_id,
+            title: doc.file_name,
+            updated_at: doc.created_at,
+          })),
+          ...videos.map((video) => ({
+            id: video.video_id,
+            title: video.title || 'Recording',
+            updated_at: video.created_at,
+            icon: Video,
+            deletable: false,
+          })),
+        ]}
+        onSelectItem={(id) => {
+          if (String(id || '').startsWith('doc_')) {
+            openDoc(id)
+            return
+          }
+          window.location.assign('/upload')
+        }}
         onDeleteItem={removeDocument}
         emptyText="No documents yet. Ask something to start one."
         footerLabel="Signed in"
@@ -666,6 +698,32 @@ export default function Workspaces() {
                   <p>{query ? 'Try a shorter word, or part of the file name.' : 'The first upload fills this page.'}</p>
                 </div>
               )}
+
+              {!query && videos.length ? (
+                <>
+                  <div className="wr-list-head wr-list-head-split">
+                    <h2>
+                      Recordings
+                      <span>{videos.length}</span>
+                    </h2>
+                  </div>
+                  <ul className="wr-rows">
+                    {videos.map((video) => (
+                      <li key={video.video_id}>
+                        <button
+                          type="button"
+                          className="wr-row"
+                          onClick={() => window.location.assign('/upload')}
+                        >
+                          <span className="wr-row-icon" aria-hidden="true">▷</span>
+                          <span className="wr-row-name">{video.title || 'Recording'}</span>
+                          <span className="wr-row-meta">video · {formatDate(video.created_at)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
             </section>
           ) : null}
 

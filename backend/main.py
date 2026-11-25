@@ -3381,6 +3381,32 @@ def _save_document(document: dict) -> None:
     tmp.replace(path)
 
 
+# How far back a re-upload counts as the same file. Ten minutes is longer
+# than any double submit and shorter than a reader's second look.
+_DUPLICATE_WINDOW_SECONDS = 600
+
+
+def _recent_duplicate(user_id: str, file_name: str) -> dict | None:
+    """The document this file already became, if it was uploaded moments ago."""
+    wanted = str(file_name or "").strip()
+    if not wanted:
+        return None
+    cutoff = time.time() - _DUPLICATE_WINDOW_SECONDS
+    for path in DOCS_DIR.glob("*.json"):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                document = json.load(handle)
+        except Exception:
+            continue
+        if str(document.get("owner_id") or "") != str(user_id):
+            continue
+        if str(document.get("file_name") or "").strip() != wanted:
+            continue
+        if float(document.get("created_at") or 0) >= cutoff:
+            return document
+    return None
+
+
 def _current_user(request) -> str:
     """The verified user id, or a 401 -- never an empty string.
 
@@ -3848,6 +3874,22 @@ async def api_upload_document(
             detail="Only PDF, PPTX and DOCX files are supported",
         )
 
+    # A second submit of the same file -- a double click, a retried fetch -- is
+    # not a second document, and used to become one: two doc_ids with the same
+    # name, two copies in R2, two rows in the library.
+    duplicate = _recent_duplicate(user_id, file_upload.filename)
+    if duplicate is not None:
+        print(f"[Upload] duplicate of {duplicate['doc_id']}: {file_upload.filename}")
+        return {
+            "job_id": None,
+            "doc_id": duplicate["doc_id"],
+            "status": "completed",
+            "stage": "completed",
+            "progress": 100,
+            "duplicate": True,
+            "file_name": duplicate.get("file_name"),
+        }
+
     start_time = time.perf_counter()
 
     # The temp copy lives in the shared uploads directory: the worker is a
@@ -4005,6 +4047,32 @@ def _authorise_media(request, document: dict, expires=None, sig: str = "") -> No
     if auth_guard.media_signature_valid(document.get("doc_id"), expires, sig):
         return
     raise HTTPException(status_code=401, detail="Sign in to use this feature.")
+
+
+@app.get("/api/videos")
+async def api_list_videos(request: Request):
+    """Every video this account has analysed, newest first.
+
+    The registry exists so a video_id can be proved to belong to someone; the
+    same records are the only list of videos that exists, which is why the
+    workspace had nothing to show before this endpoint.
+    """
+    user_id = _current_user(request)
+    items = []
+    for record in video_registry.records_for(user_id):
+        keys = record.get("file_keys") or []
+        original = r2_service.display_name_for_key(keys[-1]) if keys else ""
+        title = Path(original).stem if original else str(record.get("video_id") or "")
+        items.append(
+            {
+                "video_id": record.get("video_id"),
+                "title": title or "Video",
+                "created_at": record.get("created_at"),
+                "kind": "video",
+            }
+        )
+    items.sort(key=lambda item: item.get("created_at") or 0, reverse=True)
+    return {"videos": items}
 
 
 @app.get("/api/document/{doc_id}")
