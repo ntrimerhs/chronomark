@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { FileUp, Loader2, PanelLeft } from 'lucide-react'
+import { FileText, FileUp, Loader2, PanelLeft, Plus } from 'lucide-react'
 import { API_BASE_URL } from '../config'
-import WorkspaceSidebar from './documents/WorkspaceSidebar.jsx'
+import AppSidebar from './common/AppSidebar.jsx'
 import WorkspaceViewer from './documents/WorkspaceViewer.jsx'
 import WorkspaceChat from './documents/WorkspaceChat.jsx'
 import '../styles/documentsReference.css'
@@ -403,23 +403,44 @@ export default function Documents() {
   return (
     <div className="docs-app dark">
       <div className="app-layout">
-        <WorkspaceSidebar
-          chats={chats}
-          activeChatId={chatId}
+        <AppSidebar
+          items={chats.map((chat) => ({
+            id: chat.id,
+            title: chat.title,
+            updated_at: chat.updated_at,
+          }))}
+          activeId={chatId}
           collapsed={sidebarCollapsed}
           open={sidebarOpen}
           onToggle={() => setSidebarCollapsed((value) => !value)}
-          onNewChat={() => {
-            startNewWorkspace()
-            setSidebarOpen(false)
-          }}
-          onSelect={(id) => {
+          onClose={() => setSidebarOpen(false)}
+          actions={[
+            {
+              key: 'new',
+              icon: Plus,
+              label: 'New chat',
+              title: 'New chat (upload another document)',
+              primary: true,
+              onClick: () => {
+                startNewWorkspace()
+                setSidebarOpen(false)
+              },
+            },
+          ]}
+          search={{ placeholder: 'Search conversation history', label: 'Search chats' }}
+          emptyText="No conversations yet. Ask something to start one."
+          onSelectItem={(id) => {
             setChatId(id)
             setMobilePane('chat')
             setSidebarOpen(false)
           }}
-          onDelete={deleteChat}
-          onClose={() => setSidebarOpen(false)}
+          onDeleteItem={deleteChat}
+          footerLabel="Current document"
+          footerIcon={<FileText size={18} />}
+          footerTitle={current?.file_name || 'No document open'}
+          footerMeta={
+            current?.page_count ? `${current.page_count} pages indexed` : 'Upload a file to begin'
+          }
         />
 
         <main className="app-body">

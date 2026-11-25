@@ -31,6 +31,7 @@ const YtIcon = () => (
 //npm i video.js
 import VideoJSPlayer from './VideoJSPlayer';
 import VideoChat from './VideoChat.jsx'
+import AppSidebar from './common/AppSidebar.jsx'
 import splitMp4 from '../lib/mp4Split'
 
 /* What the pipeline is made of, and a meter that idles until a file arrives. */
@@ -675,28 +676,18 @@ const Proxeiro = () => {
 
         {uploadedFileURL ? (
           <div className="docs-app dark video-sidebar-host">
-            <aside className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
-              <div className="sidebar-top">
-                <a href="/" className="sidebar-brand" title="ChronoMark — home">
-                  <span className="sidebar-copy sidebar-brand-name">ChronoMark</span>
-                </a>
-                <button
-                  type="button"
-                  className="sidebar-icon"
-                  onClick={() => setSidebarCollapsed((value) => !value)}
-                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                  title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                >
-                  <PanelLeft size={18} />
-                </button>
-              </div>
-
-              <div className="sidebar-main-actions">
-                <button
-                  type="button"
-                  className="sidebar-action new-action"
-                  title="Start over with another video"
-                  onClick={() => {
+            <AppSidebar
+              collapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed((value) => !value)}
+              brandHref="/"
+              actions={[
+                {
+                  key: 'new',
+                  icon: Plus,
+                  label: 'New video',
+                  title: 'Start over with another video',
+                  primary: true,
+                  onClick: () => {
                     setUploadedFileURL(null);
                     setCurrentVideoId(null);
                     setCurrentFileKey(null);
@@ -707,65 +698,40 @@ const Proxeiro = () => {
                     setCurrentTime(0);
                     setDuration(0);
                     setIsPlaying(false);
-                  }}
-                >
-                  <span className="sidebar-action-icon">
-                    <Plus size={17} />
-                  </span>
-                  <span className="sidebar-copy">New video</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="sidebar-action"
-                  title="Import another recording from YouTube"
-                  onClick={() => {
+                  },
+                },
+                {
+                  key: 'youtube',
+                  icon: YtIcon,
+                  label: 'From YouTube',
+                  title: 'Import another recording from YouTube',
+                  disabled: isUploading,
+                  onClick: () => {
                     setShowYoutubeInput((previous) => !previous);
                     setYoutubeUrl('');
-                  }}
-                  disabled={isUploading}
-                >
-                  <span className="sidebar-action-icon">
-                    <YtIcon />
-                  </span>
-                  <span className="sidebar-copy">From YouTube</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="sidebar-action"
-                  title="Replace the file behind this workspace"
-                  onClick={handleReplaceClick}
-                >
-                  <span className="sidebar-action-icon">
-                    <RefreshCw size={16} />
-                  </span>
-                  <span className="sidebar-copy">Replace file</span>
-                </button>
-              </div>
-
-              <div className="sidebar-history">
-                <p className="history-placeholder">
-                  One recording per workspace. “New video” starts another.
-                </p>
-              </div>
-
-              <div className="sidebar-bottom">
-                <p className="sidebar-bottom-label sidebar-copy">Current video</p>
-                <div className="sidebar-document">
-                  <span className="sidebar-document-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
-                      <path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none" />
-                    </svg>
-                  </span>
-                  <span className="sidebar-document-text sidebar-copy">
-                    <strong title={file?.name || 'Loaded video'}>{file?.name || 'Loaded video'}</strong>
-                    <small>{formatTime(duration)} · transcribed</small>
-                  </span>
-                </div>
-              </div>
-            </aside>
+                  },
+                },
+                {
+                  key: 'replace',
+                  icon: RefreshCw,
+                  iconSize: 16,
+                  label: 'Replace file',
+                  title: 'Replace the file behind this workspace',
+                  onClick: handleReplaceClick,
+                },
+              ]}
+              emptyText="One recording per workspace. “New video” starts another."
+              footerLabel="Current video"
+              footerIcon={
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                  <path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none" />
+                </svg>
+              }
+              footerTitle={file?.name || 'Loaded video'}
+              footerMeta={`${formatTime(duration)} · transcribed`}
+              footerAction
+            />
           </div>
         ) : null}
 
