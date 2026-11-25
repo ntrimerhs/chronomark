@@ -55,6 +55,7 @@ import sys
 
 from services import r2_service
 from services import user_scope
+from services import video_registry
 import compliance
 from services.r2_service import (
     generate_presigned_download_url,
@@ -2123,7 +2124,8 @@ async def download_youtube(
     start_time = time.perf_counter()
 
     try:
-        video_prefix = user_scope.directory("videos", _current_user(request))
+        owner_id = _current_user(request)
+        video_prefix = user_scope.directory("videos", owner_id)
     except (ValueError, RuntimeError) as scope_error:
         raise HTTPException(status_code=503, detail=str(scope_error))
 
@@ -2158,7 +2160,8 @@ async def download_youtube(
 
             # The pipeline keys everything (audio WAV, frames, Qdrant points) by
             # video_id, and reads the video back from R2 -- never from disk.
-            video_id = f"yt_{uuid.uuid4().hex[:12]}"
+            video_id = video_registry.scoped_id(owner_id, f"yt_{uuid.uuid4().hex[:12]}")
+            video_registry.register(video_id, owner_id, imported["file_key"])
             display_name = f"{(imported.get('title') or video_id)[:120]}.mp4"
             print(f"[YouTube] {imported.get('reason')}: {imported['file_key']}")
             _set_job_status(job_id, stage="processing_audio_and_frames", progress=15)
@@ -2234,9 +2237,12 @@ async def create_upload_file(
     file_key = uploaded["file_key"]
     # A chunked upload sends its own video_id so every piece lands under the same
     # name; a single-file upload keeps deriving it from the filename.
-    video_id = (video_id or "").strip() or (
-        Path(r2_service.sanitize_file_name(file_upload.filename)).stem or "video"
+    video_id = video_registry.scoped_id(
+        user_id,
+        (video_id or "").strip()
+        or (Path(r2_service.sanitize_file_name(file_upload.filename)).stem or "video"),
     )
+    video_registry.register(video_id, user_id, file_key)
     print(f"[Upload] {file_upload.filename} -> R2 {file_key} ({uploaded['size'] / 1024 / 1024:.1f} MB)")
 
     job_id = str(uuid.uuid4())
@@ -2354,7 +2360,8 @@ async def api_process_video(
 
     display_name = r2_service.display_name_for_key(file_key)
     stem = r2_service.sanitize_file_name(display_name)
-    video_id = Path(stem).stem or "video"
+    video_id = video_registry.scoped_id(user_id, Path(stem).stem or "video")
+    video_registry.register(video_id, user_id, file_key)
 
     start_time = time.perf_counter()
     job_id = str(uuid.uuid4())
@@ -2840,7 +2847,11 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time, 
 
 
 @app.post("/ask")
-async def ask(req: Question):
+async def ask(req: Question, request: Request):
+    # A video is only ever answered for the account that analysed it.
+    user_id = _current_user(request)
+    if not req.video_id or not video_registry.is_owner(req.video_id, user_id):
+        raise HTTPException(status_code=404, detail="Video not found")
     # Blocking retrieval and model call: off the event loop, in a thread.
     return await run_in_threadpool(_ask_impl, req)
 
@@ -2851,7 +2862,7 @@ def _ask_impl(req: Question):
         requested_video_id = req.video_id
         history = (req.history or [])[-6:]
 
-        current_video_id = requested_video_id or CURRENT_VIDEO_ID
+        current_video_id = requested_video_id
 
         _ensure_text_artifacts(current_video_id)
 
@@ -4663,6 +4674,100 @@ def _derived_data_sweeper():
 threading.Thread(target=_derived_data_sweeper, name="derived-retention", daemon=True).start()
 
 
+def _purge_video(video_id: str) -> None:
+    """Remove everything derived from one analysed video."""
+    safe = re.sub(r"[^A-Za-z0-9_-]", "", str(video_id or ""))
+    if not safe:
+        return
+    for collection in (TEXT_COLLECTION, FRAME_COLLECTION):
+        try:
+            client.delete(
+                collection_name=collection,
+                points_selector=qmodels.FilterSelector(
+                    filter=qmodels.Filter(
+                        must=[
+                            qmodels.FieldCondition(
+                                key="video_id", match=qmodels.MatchValue(value=safe)
+                            )
+                        ]
+                    )
+                ),
+            )
+        except Exception as error:
+            print(f"[Purge] vectors for {safe} in {collection}: {error}")
+
+    for store in (TRANSCRIPTS_PATH, EMBEDDINGS_PATH):
+        try:
+            with _JSON_WRITE_LOCK:
+                if store.exists():
+                    with open(store, "r", encoding="utf-8") as handle:
+                        data = json.load(handle)
+                    if isinstance(data, dict) and safe in data:
+                        data.pop(safe, None)
+                        tmp = store.with_name(f"{store.name}.{uuid.uuid4().hex[:6]}.tmp")
+                        with open(tmp, "w", encoding="utf-8") as handle:
+                            json.dump(data, handle, indent=2, ensure_ascii=False)
+                        tmp.replace(store)
+        except Exception as error:
+            print(f"[Purge] transcript store for {safe}: {error}")
+
+    shutil.rmtree(FRAMES_DIR / safe, ignore_errors=True)
+    shutil.rmtree(CHUNKS_DIR / safe, ignore_errors=True)
+    try:
+        (AUDIO_DIR / f"{safe}.wav").unlink(missing_ok=True)
+    except OSError:
+        pass
+    try:
+        for path in UPLOAD_DIR.iterdir():
+            if path.is_file() and path.stem == safe:
+                path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+    record = video_registry.get(safe)
+    for key in (record or {}).get("file_keys", []):
+        try:
+            r2_service.delete_object(key)
+        except Exception as error:
+            print(f"[Purge] R2 object {key}: {error}")
+    video_registry.remove(safe)
+
+
+_SCOPED_VIDEO_RE = re.compile(r"^[0-9a-f]{12}_")
+
+
+def _video_sweeper():
+    while True:
+        time.sleep(R2_SWEEP_SECONDS)
+        if R2_MAX_AGE_HOURS <= 0:
+            continue
+        cutoff = time.time() - R2_MAX_AGE_HOURS * 3600
+        try:
+            known = set()
+            for record in video_registry.all_records():
+                known.add(record.get("video_id"))
+                if float(record.get("created_at") or 0) < cutoff:
+                    _purge_video(record["video_id"])
+                    print(f"[Purge] video {record['video_id']} past {R2_MAX_AGE_HOURS:g}h")
+            # Leftovers from before videos had owners: nobody can reach them.
+            leftovers = set()
+            for folder in FRAMES_DIR.iterdir():
+                if folder.is_dir() and folder.stat().st_mtime < cutoff:
+                    leftovers.add(folder.name)
+            for wav in AUDIO_DIR.glob("*.wav"):
+                if wav.stat().st_mtime < cutoff:
+                    leftovers.add(wav.stem)
+            for name in leftovers - known:
+                if not _SCOPED_VIDEO_RE.match(name):
+                    _purge_video(name)
+                    print(f"[Purge] legacy video artifacts {name}")
+        except Exception as error:
+            print(f"[Purge] video sweep skipped: {error}")
+
+
+threading.Thread(target=_video_sweeper, name="video-retention", daemon=True).start()
+
+
 @app.get("/api/consent")
 async def api_get_consent(request: Request):
     try:
@@ -4727,6 +4832,10 @@ async def api_account_export(request: Request):
             "account": {"id": user_id, "email": claims.get("email")},
             "consents": compliance.get_consents(user_id, fresh=True),
             "documents": documents,
+            "videos": [
+                {"video_id": r.get("video_id"), "created_at": r.get("created_at")}
+                for r in video_registry.records_for(user_id)
+            ],
             "note": "Uploaded files are deleted automatically; chat history is kept until you delete it.",
         }
 
@@ -4747,6 +4856,8 @@ async def api_account_delete(request: Request, req: AccountDeleteRequest):
         documents = _account_documents(user_id)
         for document in documents:
             _purge_document(document, drop_chats=True)
+        for record in video_registry.records_for(user_id):
+            _purge_video(record["video_id"])
         for kind in ("documents", "videos"):
             try:
                 prefix = user_scope.directory(kind, user_id)
