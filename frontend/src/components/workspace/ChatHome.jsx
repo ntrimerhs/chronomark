@@ -51,6 +51,37 @@ function youtubeLinkIn(text) {
   return link.startsWith('http') ? link : `https://${link}`
 }
 
+/* The stage the job reports is a machine word ("downloading_audio"); this is
+   what the reader is told instead. */
+const STAGE_LABELS = {
+  queued: 'Queued',
+  uploading: 'Uploading',
+  parsing: 'Reading the document',
+  reading_figures: 'Reading the figures',
+  embedding: 'Indexing the pages',
+  embedding_text: 'Indexing',
+  finalizing: 'Finishing',
+  completed: 'Ready',
+  reading_metadata: 'Reading metadata',
+  downloading: 'Downloading',
+  downloading_video: 'Downloading video',
+  downloading_audio: 'Downloading audio',
+  muxing: 'Muxing the streams',
+  extracting_audio: 'Extracting audio',
+  processing_audio_and_frames: 'Reading audio and frames',
+  transcribing: 'Transcribing',
+  transcribing_audio: 'Transcribing the audio',
+  importing: 'Importing from YouTube',
+}
+
+function stageLabel(stage) {
+  if (!stage) return 'Thinking'
+  const key = String(stage).trim().toLowerCase()
+  if (STAGE_LABELS[key]) return STAGE_LABELS[key]
+  const words = key.replace(/_/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
 function prettyBytes(bytes) {
   if (!bytes) return '0 MB'
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -752,12 +783,11 @@ export default function ChatHome() {
                     character pushed the text out of place when it arrived. */}
                 {busy || typing ? (
                   <div className="ch-thinking">
-                    <span className="ch-thinking-label">Thinking...</span>
-                    {busy && (status || progress) ? (
-                      <span className="ch-thinking-progress">
-                        {status ? String(status).replace(/_/g, ' ') : `${progress}%`}
-                      </span>
-                    ) : null}
+                    <span className="ch-thinking-label">
+                      {busy
+                        ? `${stageLabel(status)} (${Math.min(99, Math.round(progress || 0))}%)`
+                        : 'Thinking...'}
+                    </span>
                   </div>
                 ) : null}
               </div>

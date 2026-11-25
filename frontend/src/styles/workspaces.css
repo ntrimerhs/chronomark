@@ -2021,3 +2021,36 @@
   color: #A7ACBA;
 }
 .ch-markdown a { color: #A8A2FF; }
+
+/* ── the working line, in the product's own colour ───────────────────────────
+   It read as grey utility text. The palette's violet carries it now, with the
+   highlight pulled towards white so the sweep is a light travelling through the
+   words rather than a faint shimmer on top of them. */
+.ch-thinking-label {
+  background: linear-gradient(
+    90deg,
+    #6F63D9 0%,
+    #A8A2FF 28%,
+    #FFFFFF 48%,
+    #D8D6FF 60%,
+    #A8A2FF 80%,
+    #6F63D9 100%
+  );
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  animation: ch-shimmer 2.1s linear infinite;
+}
+@keyframes ch-shimmer {
+  from { background-position: 135% 0; }
+  to { background-position: -135% 0; }
+}
+.ch-thinking-progress {
+  color: #A8A2FF;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ch-thinking-label { animation: none; color: #A8A2FF; background: none; }
+}
