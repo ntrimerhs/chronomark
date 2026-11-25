@@ -173,13 +173,18 @@
 .ph-signin {
   display: none;
   align-items: center;
-  padding: 8px 16px;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 18px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(13, 13, 25, 0.6);
-  color: var(--ph-variant);
-  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(13, 13, 25, 0.62);
+  color: #d3d0e0;
+  font-size: 13px;
   font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
   text-decoration: none;
   -webkit-backdrop-filter: blur(40px);
   backdrop-filter: blur(40px);
@@ -196,14 +201,19 @@
 .ph-start {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  justify-content: center;
+  gap: 7px;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 18px;
   border-radius: 9999px;
   border: 1px solid rgba(168, 162, 255, 0.3);
   background: var(--ph-primary);
   color: var(--ph-on-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
   text-decoration: none;
   box-shadow: 0 0 24px rgba(168, 162, 255, 0.35);
   transition: background 0.3s ease, box-shadow 0.3s ease;
@@ -231,6 +241,9 @@
 
 .ph-start .material-symbols-outlined {
   font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
   transition: transform 0.2s ease;
 }
 

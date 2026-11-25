@@ -13,7 +13,7 @@ import '../styles/authDialog.css'
 /* ?next comes from the address bar, so it is not trusted: only a path on this
    site is a destination. Anything else would turn our own login page into a
    stepping stone to a stranger's site. */
-function safeNext(value, fallback = '/upload') {
+function safeNext(value, fallback = '/workspaces') {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback
   return value
 }
@@ -48,14 +48,12 @@ export default function AuthPage({ mode = 'signup' }) {
 
       <section className="auth-page-card">
         <div className="auth-head">
-          <span className="auth-mark" aria-hidden="true">
-            <span className="auth-mark-dot" />
-          </span>
-          <h2>{signup ? 'Create your account' : 'Welcome back'}</h2>
+          <img className="auth-mark" src="/cm-c-192.png" alt="" width="46" height="46" />
+          <h2>{signup ? 'Create your ChronoMark account' : 'Sign in to ChronoMark'}</h2>
           <p>
             {signup
               ? 'One account for every document and every recording you analyse.'
-              : 'Sign in to your workspaces.'}
+              : 'Your documents and recordings stay yours.'}
           </p>
         </div>
 

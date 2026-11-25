@@ -11,12 +11,16 @@ import '../styles/authDialog.css'
 
 const COPY = {
   signin: {
-    title: 'Welcome back',
-    sub: 'Sign in to your workspaces.',
+    title: 'Sign in to ChronoMark',
+    sub: 'Your documents and recordings stay yours.',
   },
   signup: {
-    title: 'Create your account',
-    sub: 'Your documents and recordings stay yours.',
+    title: 'Create your ChronoMark account',
+    sub: 'One account for every document and every recording.',
+  },
+  reset: {
+    title: 'Reset your password',
+    sub: 'We mail a link; the link brings you back here to set a new one.',
   },
 }
 
@@ -52,9 +56,7 @@ export default function AuthDialog({ open, mode = 'signin', onClose, onModeChang
         </button>
 
         <div className="auth-head">
-          <span className="auth-mark" aria-hidden="true">
-            <span className="auth-mark-dot" />
-          </span>
+          <img className="auth-mark" src="/cm-c-192.png" alt="" width="46" height="46" />
           <h2 id="auth-title">{copy.title}</h2>
           <p>{copy.sub}</p>
         </div>

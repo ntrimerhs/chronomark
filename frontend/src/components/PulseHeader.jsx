@@ -24,15 +24,21 @@ import './../styles/authDialog.css'
    about who is using the product. */
 
 const NAV = [
-  ['Platform', 'platform', true],
-  ['Technology', 'technology', false],
-  ['Pricing', 'pricing', false],
+  ['Platform', 'platform'],
+  ['Technology', 'technology'],
+  ['Pricing', 'pricing'],
 ]
+
+/* Where the reading position counts as "at" a section: just under the floating
+   bar, so a pill lights up when its heading reaches the top of the sheet rather
+   than when the section merely appears at the bottom edge. */
+const READING_LINE = 160
 
 export default function PulseHeader({ inline = false, reloadOnBrand = false }) {
   const { session, enabled, signOut } = useAuth()
   const [dialog, setDialog] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [current, setCurrent] = useState('platform')
   const accountRef = useRef(null)
 
   useEffect(() => {
@@ -45,6 +51,47 @@ export default function PulseHeader({ inline = false, reloadOnBrand = false }) {
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [menuOpen])
+
+  /* The pills follow the page, not the click: the section whose heading last
+     passed the reading line is the one lit. #root is the app's scroll container,
+     so the listener goes there as well as on the window. */
+  useEffect(() => {
+    const root = document.getElementById('root')
+
+    const read = () => {
+      let found = NAV[0][1]
+      NAV.forEach(([, id]) => {
+        const element = document.getElementById(id)
+        if (element && element.getBoundingClientRect().top <= READING_LINE) found = id
+      })
+      setCurrent(found)
+    }
+
+    read()
+    window.addEventListener('scroll', read, { passive: true })
+    window.addEventListener('resize', read)
+    root?.addEventListener('scroll', read, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', read)
+      window.removeEventListener('resize', read)
+      root?.removeEventListener('scroll', read)
+    }
+  }, [inline])
+
+  const goTo = (event, id) => {
+    const target = document.getElementById(id)
+    // A section only exists on the landing page; from a workspace the pill has
+    // to travel there first.
+    if (!target) return
+
+    event.preventDefault()
+    setCurrent(id)
+    window.history.replaceState(null, '', `#${id}`)
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+  }
 
   const name = displayNameOf(session)
   const initials = (name || session?.user?.email || '?').slice(0, 2)
@@ -77,8 +124,14 @@ export default function PulseHeader({ inline = false, reloadOnBrand = false }) {
           </div>
 
           <nav className="ph-nav" aria-label="Sections">
-            {NAV.map(([label, path, current]) => (
-              <a key={path} href={`#${path}`} className={current ? 'is-current' : undefined}>
+            {NAV.map(([label, id]) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                className={current === id ? 'is-current' : undefined}
+                aria-current={current === id ? 'true' : undefined}
+                onClick={(event) => goTo(event, id)}
+              >
                 {label}
               </a>
             ))}
@@ -122,7 +175,7 @@ export default function PulseHeader({ inline = false, reloadOnBrand = false }) {
               </div>
             )}
 
-            <a className="ph-start" href={session ? '/upload' : '/register'}>
+            <a className="ph-start" href={session ? '/workspaces' : '/register'}>
               <span>{session ? 'Workspaces' : 'Get Started'}</span>
               <span className="material-symbols-outlined">arrow_forward</span>
             </a>

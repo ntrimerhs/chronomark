@@ -1,0 +1,68 @@
+/* Back to top.
+
+   Vertical, letter-spaced, no plate behind it: the reference is a strip of
+   rotated type at the edge of the canvas, not a floating button. */
+
+.btt {
+  position: fixed;
+  right: 34px;
+  bottom: 26px;
+  z-index: 40;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 10px 6px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: rgba(226, 226, 240, 0.5);
+
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease, color 0.2s ease;
+}
+
+.btt[data-visible='true'] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.btt-label {
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.btt:hover,
+.btt:focus-visible {
+  color: #d8d6ff;
+}
+
+.btt:focus-visible {
+  outline: 2px solid #b8b3fc;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+@media (max-width: 720px) {
+  .btt {
+    right: 20px;
+    bottom: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btt {
+    transition: none;
+  }
+}

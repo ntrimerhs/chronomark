@@ -8,6 +8,8 @@ import PulseHeader from './components/PulseHeader.jsx';
 import AuthPage from './components/AuthPage.jsx';
 import AuthCallback from './components/AuthCallback.jsx';
 import RequireAuth from './components/RequireAuth.jsx';
+import Workspaces from './components/workspace/Workspaces.jsx';
+import BackToTop from './components/BackToTop.jsx';
 import useSmoothScroll from './hooks/useSmoothScroll.js';
 
 function App() {
@@ -15,10 +17,14 @@ function App() {
 
   return (
     <Router>
+      <BackToTop />
       <Routes>
         <Route path='/' element={<PulseLanding />}/>
         {/* Registration and sign-in are pages, not only the header dialog:
             Get Started has to land somewhere that can be linked to. */}
+        {/* The workspace is where signing in lands: the sidebar frame and the one
+            action a new account needs. */}
+        <Route path='/workspaces' element={<RequireAuth><Workspaces /></RequireAuth>}/>
         <Route path='/register' element={<AuthPage mode='signup' />}/>
         <Route path='/login' element={<AuthPage mode='signin' />}/>
         {/* Where Google and GitHub come back to: the session is already in

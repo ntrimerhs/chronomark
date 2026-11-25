@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import PulseHeader from './PulseHeader'
 import '../styles/landing-pulse.css'
+import '../styles/landingFooter.css'
 
 /* The landing page, transcribed from the supplied markup.
 
@@ -110,7 +111,7 @@ export default function PulseLanding() {
 
       <PulseHeader reloadOnBrand />
 
-      <main className="lv-main" id="platform">
+      <main className="lv-main">
         <div className="lv-shell">
           <section className="lv-hero" id="platform">
             <div className="lv-wordmark-wrap">
@@ -205,6 +206,45 @@ export default function PulseLanding() {
         </section>
         </div>
       </main>
+
+      <footer className="lv-foot">
+        <div className="lv-foot-top">
+          <div className="lv-foot-brand">
+            <div className="lv-foot-mark">
+              <img src="/cm-c-192.png" alt="" width="28" height="28" />
+              <span>CHRONOMARK</span>
+            </div>
+            <p className="lv-foot-tagline">Find the moments that matter.</p>
+            <p className="lv-foot-desc">
+              Upload a paper, a deck or a lecture recording. ChronoMark reads all of it and shows
+              you which page, slide or second an answer comes from.
+            </p>
+          </div>
+
+          <nav className="lv-foot-cols" aria-label="Footer">
+            <div className="lv-foot-col">
+              <h4>Platform</h4>
+              <a href="/upload">Video Analysis</a>
+              <a href="/documents">Document Analysis</a>
+              <a href="/workspaces">Workspace</a>
+            </div>
+            <div className="lv-foot-col">
+              <h4>Company</h4>
+              <a href="/#technology">About</a>
+              <a href="/#platform">Contact</a>
+            </div>
+            <div className="lv-foot-col">
+              <h4>Legal</h4>
+              <a href="/#pricing">Privacy Policy</a>
+              <a href="/#pricing">Terms of Service</a>
+            </div>
+          </nav>
+        </div>
+
+        <div className="lv-foot-base">
+          <span>© 2026 Chronomark. All rights reserved.</span>
+        </div>
+      </footer>
     </div>
   )
 }

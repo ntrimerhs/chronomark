@@ -2,14 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- The mark on transparency: a tiled square read as a boxy chip in the tab.
-         The .ico comes first for legacy tabs, the PNGs win in modern browsers. -->
+    <!-- Unique file names on purpose: browsers cache favicons by URL and ignore
+         the cache headers, so a fresh name is the only reliable replacement for a
+         mark that is already sitting in an open tab. The .ico comes first for
+         legacy tabs, the PNGs win in modern browsers. -->
         <link rel="preconnect" href="https://api.fontshare.com" />
     <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&amp;display=swap" />
-    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48 64x64" />
-    <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
-    <link rel="icon" type="image/png" href="/favicon-192.png" sizes="192x192" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- The workspace is set in the two families its reference uses: Plus Jakarta
+         Sans in six weights (the hero needs 300 for the subhead and 800 for the
+         headline) and JetBrains Mono for every measurement line. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;family=Instrument+Serif:ital@0;1&amp;display=swap"
+    />
+    <link rel="icon" href="/cm-c.ico" sizes="16x16 32x32 48x48 64x64" />
+    <link rel="icon" type="image/png" href="/cm-c-16.png" sizes="16x16" />
+    <link rel="icon" type="image/png" href="/cm-c-32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/cm-c-192.png" sizes="192x192" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/cm-c-180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ChronoMark</title>
   </head>

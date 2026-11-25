@@ -53,24 +53,22 @@
 
 .auth-head {
   margin-bottom: 22px;
+  text-align: center;
 }
 
+.auth-head .auth-mark {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* The mark itself, as GitHub puts its own above the heading: no frame, no
+   badge, just the artwork on the card. */
 .auth-mark {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #2a2c3b;
-  border-radius: 9px;
-  margin-bottom: 14px;
-}
-
-.auth-mark-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #a8a2ff;
-  box-shadow: 0 0 14px rgba(168, 162, 255, 0.7);
+  display: block;
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  margin-bottom: 16px;
 }
 
 .auth-head h2 {
@@ -146,23 +144,7 @@
   font-size: 12.5px;
 }
 
-.auth-submit {
-  height: 44px;
-  margin-top: 4px;
-  border: 0;
-  border-radius: 10px;
-  background: #a8a2ff;
-  color: #14122b;
-  font-size: 13.5px;
-  font-weight: 620;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  transition: filter 140ms ease, opacity 140ms ease;
-}
 
-.auth-submit:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
 
 .auth-submit:disabled {
   opacity: 0.6;
@@ -291,14 +273,39 @@
 }
 
 /* The header's two auth actions are buttons now, not anchors: they open the
-   dialog instead of jumping to an anchor. */
+   dialog instead of jumping to an anchor. They keep the shapes they had as
+   anchors -- Sign in is the hairline pill, Sign up is the filled action. */
 .ph-actions .ph-signin,
 .ph-actions .ph-signup {
-  border: 0;
-  background: none;
-  padding: 0;
-  font: inherit;
   cursor: pointer;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+.ph-actions .ph-signin {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(13, 13, 25, 0.6);
+  -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
+  color: #c8c4d5;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: color 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+}
+
+.ph-actions .ph-signin:hover {
+  color: #e3e0f2;
+  background: rgba(31, 30, 43, 0.7);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.ph-actions .ph-signin:focus-visible {
+  outline: 2px solid #c6bfff;
+  outline-offset: 3px;
 }
 
 .ph-actions .ph-signup {
@@ -307,6 +314,35 @@
 
 .ph-actions .ph-signup:hover {
   color: #d8d6ff;
+}
+
+/* One box for both actions: same height, same padding, same font metrics, so the
+   pair sits on a single baseline whatever the label inside is. */
+.ph-actions .ph-signin,
+.ph-actions .ph-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 9999px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ph-actions .ph-start {
+  gap: 7px;
+}
+
+.ph-actions .ph-start .material-symbols-outlined {
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* ── the register / sign-in page ────────────────────────────────────────── */
@@ -375,11 +411,7 @@
   height: 46px;
 }
 
-.auth-form.is-page .auth-submit {
-  height: 46px;
-  margin-top: 6px;
-}
-
+.auth-form.is-page 
 .auth-page-foot {
   position: relative;
   margin: 0;
@@ -409,6 +441,117 @@
     top: 20px;
     left: 20px;
   }
+}
+
+/* The page prints its own "no account yet" line under the card, so the copy inside
+   the form would be the same sentence twice. */
+.auth-page-card .auth-swap {
+  display: none;
+}
+
+.auth-submit {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background-image: linear-gradient(to right, #6f63d9, #8275eb);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(111, 99, 217, 0.35);
+  transition: background-image 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background-image: linear-gradient(to right, #7c70e3, #8f83f5);
+  box-shadow: 0 0 25px rgba(111, 99, 217, 0.55);
+}
+
+.auth-submit:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: 0 0 12px rgba(111, 99, 217, 0.2);
+}
+
+.auth-submit:focus-visible {
+  outline: 2px solid #c6bfff;
+  outline-offset: 2px;
+}
+
+/* the arrow leans forward on hover, 2px, no bounce */
+.auth-submit-arrow {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: rgba(255, 255, 255, 0.7);
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.auth-submit:hover:not(:disabled) .auth-submit-arrow {
+  color: #fff;
+  transform: translateX(2px);
+}
+
+/* The sign-in form's two extra lines: the quiet link that starts a reset, and the
+   confirmation that replaces the form once the mail is away. */
+.auth-forgot {
+  margin: -2px 0 0;
+  text-align: right;
+  font-size: 12px;
+}
+
+.auth-forgot button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: #c6bfff;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.auth-forgot button:hover {
+  color: #e3e0f2;
+}
+
+.auth-forgot button:focus-visible {
+  outline: 2px solid #c6bfff;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.auth-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(111, 99, 217, 0.35);
+  background: rgba(111, 99, 217, 0.12);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e3e0f2;
+}
+
+.auth-note strong {
+  color: #d8d6ff;
+  font-weight: 600;
+}
+
+/* The reset page renders this action as a link when the mail cannot be sent. */
+a.auth-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 
@@ -478,7 +621,8 @@
   color: #f3f4f8;
   font-size: 13.5px;
   font-weight: 500;
-  text-align: left;
+  justify-content: center;
+  text-align: center;
   cursor: pointer;
   transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
 }

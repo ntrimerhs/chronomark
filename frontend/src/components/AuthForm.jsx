@@ -3,32 +3,37 @@ import { API_BASE_URL } from '../config'
 import { supabase, toEmail, USERNAME_DOMAIN } from '../lib/supabaseClient'
 import OAuthButtons from './OAuthButtons'
 
-/* The two fields, either way they are shown.
+/* The two fields, in the three shapes they are shown.
 
    The dialog and the register page are the same form: same validation, same
    endpoint, same error text. Keeping them one component means a fix here is a
-   fix in both, which is the whole reason the login has two entry points.
+   fix in both, which is the whole reason the login has more than one entry point.
 
    Sign in goes straight to Supabase from the browser (the publishable key is
    public by design). Sign up goes through our own endpoint instead, because
    Supabase would otherwise mail a confirmation link and this project has no
-   mailer -- that endpoint creates the account already confirmed, so
-   registration ends in a session rather than in an inbox. */
+   mailer -- that endpoint creates the account already confirmed, so registration
+   ends in a session rather than in an inbox.
+
+   Reset asks for the address only and lets Supabase mail the link; the link
+   returns to /reset-password, which is where the new password is typed. */
 
 export default function AuthForm({
   mode = 'signin',
   onModeChange,
   onSuccess,
   compact = true,
-  oauthNext = '/upload',
+  oauthNext = '/workspaces',
 }) {
   const [name, setName] = useState('')
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [sentTo, setSentTo] = useState('')
 
   const signup = mode === 'signup'
+  const reset = mode === 'reset'
 
   const submit = async (event) => {
     event.preventDefault()
@@ -39,15 +44,26 @@ export default function AuthForm({
       setError('Enter an email or a username.')
       return
     }
-    if (password.length < 8) {
-      setError('The password needs at least 8 characters.')
-      return
-    }
 
     setBusy(true)
     setError('')
 
     try {
+      if (reset) {
+        if (!supabase) throw new Error('Sign in is not configured on this build.')
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        })
+        if (resetError) throw new Error(resetError.message)
+        setSentTo(email)
+        return
+      }
+
+      if (password.length < 8) {
+        setError('The password needs at least 8 characters.')
+        return
+      }
+
       if (signup) {
         const response = await fetch(`${API_BASE_URL}/auth/signup`, {
           method: 'POST',
@@ -79,6 +95,27 @@ export default function AuthForm({
     }
   }
 
+  if (reset && sentTo) {
+    return (
+      <div className={`auth-form${compact ? '' : ' is-page'}`}>
+        <p className="auth-note" role="status">
+          If that address has an account, a reset link is on its way to <strong>{sentTo}</strong>.
+          It opens a page where you set a new password.
+        </p>
+        <p className="auth-hint">
+          Nothing after a minute or two? Check the spam folder, then ask for it again.
+        </p>
+        {onModeChange ? (
+          <p className="auth-swap">
+            <button type="button" onClick={() => onModeChange('signin')}>
+              Back to sign in
+            </button>
+          </p>
+        ) : null}
+      </div>
+    )
+  }
+
   return (
     <form className={`auth-form${compact ? '' : ' is-page'}`} onSubmit={submit}>
       <OAuthButtons next={oauthNext} onError={setError} disabled={busy} />
@@ -98,7 +135,7 @@ export default function AuthForm({
       )}
 
       <label className="auth-field">
-        <span>Email or username</span>
+        <span>{reset ? 'Email' : 'Email or username'}</span>
         <input
           type="text"
           value={account}
@@ -110,20 +147,35 @@ export default function AuthForm({
           autoFocus={!signup}
         />
       </label>
-      <p className="auth-hint">
-        A bare username signs in as <code>&lt;name&gt;{USERNAME_DOMAIN}</code>.
-      </p>
 
-      <label className="auth-field">
-        <span>Password</span>
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="At least 8 characters"
-          autoComplete={signup ? 'new-password' : 'current-password'}
-        />
-      </label>
+      {!reset && (
+        <p className="auth-hint">
+          A bare username signs in as <code>&lt;name&gt;{USERNAME_DOMAIN}</code>.
+        </p>
+      )}
+
+      {!reset && (
+        <>
+          <label className="auth-field">
+            <span>Password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="At least 8 characters"
+              autoComplete={signup ? 'new-password' : 'current-password'}
+            />
+          </label>
+
+          {!signup && onModeChange ? (
+            <p className="auth-forgot">
+              <button type="button" onClick={() => onModeChange('reset')}>
+                Forgot password?
+              </button>
+            </p>
+          ) : null}
+        </>
+      )}
 
       {error ? (
         <p className="auth-error" role="alert">
@@ -132,15 +184,36 @@ export default function AuthForm({
       ) : null}
 
       <button type="submit" className="auth-submit" disabled={busy}>
-        {busy ? 'Working…' : signup ? 'Create account' : 'Sign in'}
+        <span>{busy ? 'Working…' : reset ? 'Send reset link' : signup ? 'Create account' : 'Sign in'}</span>
+        <svg
+          className="auth-submit-arrow"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
       </button>
 
       {onModeChange ? (
         <p className="auth-swap">
-          {signup ? 'Already have an account?' : 'No account yet?'}{' '}
-          <button type="button" onClick={() => onModeChange(signup ? 'signin' : 'signup')}>
-            {signup ? 'Sign in' : 'Create one'}
-          </button>
+          {reset ? (
+            <button type="button" onClick={() => onModeChange('signin')}>
+              Back to sign in
+            </button>
+          ) : (
+            <>
+              {signup ? 'Already have an account?' : 'No account yet?'}{' '}
+              <button type="button" onClick={() => onModeChange(signup ? 'signin' : 'signup')}>
+                {signup ? 'Sign in' : 'Create one'}
+              </button>
+            </>
+          )}
         </p>
       ) : null}
     </form>

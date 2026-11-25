@@ -31,7 +31,7 @@ function errorFromUrl() {
 /* ?next comes from the address bar, so it is not trusted: only a path on this
    site is a destination. Anything else would turn our own login page into a
    stepping stone to a stranger's site. */
-function safeNext(value, fallback = '/upload') {
+function safeNext(value, fallback = '/workspaces') {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback
   return value
 }

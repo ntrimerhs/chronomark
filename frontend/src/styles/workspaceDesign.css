@@ -1,0 +1,260 @@
+/* The workspace redesign layer.
+
+   Imported after workspaces.css, so it refines the frame without rewriting it:
+   the real mark instead of a letter tile, a solid drop sheet instead of the
+   dashed capsule, an editorial accent under the headline, and provenance rows
+   for recent documents. */
+
+/* ── the mark ────────────────────────────────────────────────────────────── */
+
+.wr-tile {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.wr-tile img {
+  display: block;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 14px rgba(111, 99, 217, 0.45));
+  transition: transform 200ms ease, filter 200ms ease;
+}
+
+.wr-tile:hover img {
+  transform: scale(1.06);
+  filter: drop-shadow(0 0 18px rgba(111, 99, 217, 0.65));
+}
+
+.wr-tile > span {
+  display: none;
+}
+
+.wr-brand-name {
+  letter-spacing: 0.16em;
+  font-size: 12.5px;
+}
+
+/* ── hero ────────────────────────────────────────────────────────────────── */
+
+.wr-hero h1 {
+  font-size: clamp(28px, 3vw, 44px);
+  letter-spacing: -0.03em;
+}
+
+.wr-hero-accent {
+  margin: 6px auto 0;
+  max-width: none;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-size: clamp(20px, 2vw, 26px);
+  font-weight: 400;
+  line-height: 1.2;
+  color: #a8a2ff;
+}
+
+.wr-hero p + p {
+  margin-top: 12px;
+}
+
+/* ── the drop sheet ──────────────────────────────────────────────────────── */
+
+.wr-dropglow {
+  display: none;
+}
+
+.wr-dropcard {
+  padding: 0 0 28px;
+  border: 1px solid #2a2c3b;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(27, 27, 43, 0.55), rgba(16, 16, 25, 0.9)),
+    #101019;
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+
+.wr-dropwrap:hover .wr-dropcard {
+  border-color: rgba(111, 99, 217, 0.55);
+}
+
+.wr-dropwrap.is-dragging .wr-dropcard {
+  border-color: #a8a2ff;
+  box-shadow: 0 0 0 3px rgba(111, 99, 217, 0.18), 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+}
+
+.wr-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 26px;
+  padding: 13px 20px;
+  border-bottom: 1px solid rgba(42, 44, 59, 0.8);
+  background: rgba(11, 11, 18, 0.4);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(167, 172, 186, 0.66);
+}
+
+.wr-sheet-head span:last-child {
+  color: rgba(168, 162, 255, 0.85);
+}
+
+.wr-tile-drop {
+  width: 54px;
+  height: 54px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: rgba(27, 27, 43, 0.9);
+}
+
+.wr-tile-drop svg {
+  width: 24px;
+  height: 24px;
+}
+
+.wr-dropcard h2 {
+  font-size: 17px;
+}
+
+.wr-badges {
+  margin-bottom: 26px;
+}
+
+.wr-actions {
+  width: 100%;
+  margin-top: 2px;
+  padding: 18px 20px 0;
+  border-top: 1px solid rgba(42, 44, 59, 0.6);
+}
+
+.wr-uploading {
+  padding: 28px 24px 0;
+}
+
+/* ── recent documents as provenance rows ─────────────────────────────────── */
+
+.wr-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wr-card {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 34px 12px 14px;
+  border: 0;
+  border-bottom: 1px solid rgba(42, 44, 59, 0.55);
+  border-radius: 8px;
+  background: none;
+  transition: background 160ms ease, padding 160ms ease;
+}
+
+.wr-card::after {
+  content: '↗';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(167, 172, 186, 0.5);
+  font-size: 12px;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.wr-card:hover {
+  background: rgba(27, 27, 43, 0.6);
+  border-color: rgba(42, 44, 59, 0.9);
+  transform: none;
+  box-shadow: none;
+}
+
+.wr-card:hover::after {
+  color: #a8a2ff;
+  transform: translate(2px, -50%);
+}
+
+.wr-card-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.wr-card-meta {
+  flex: 0 0 auto;
+}
+
+.wr-recent-head h3 {
+  letter-spacing: 0.14em;
+}
+
+/* ── sidebar rhythm ──────────────────────────────────────────────────────── */
+
+.wr-side {
+  width: 264px;
+}
+
+.wr-brand-meta {
+  padding-left: 12px;
+}
+
+.wr-nav {
+  gap: 1px;
+}
+
+.wr-nav-item {
+  border-radius: 9px;
+}
+
+.wr-storage-note {
+  font-size: 11px;
+}
+
+/* ── responsive ──────────────────────────────────────────────────────────── */
+
+@media (min-width: 640px) {
+  .wr-dropcard {
+    padding: 0 0 32px;
+  }
+
+  .wr-actions {
+    padding: 20px 32px 0;
+  }
+
+  .wr-uploading {
+    padding: 36px 32px 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .wr-side {
+    width: 264px;
+  }
+
+  .wref.is-collapsed .wr-side {
+    width: 78px;
+  }
+
+  .wr-hero-accent {
+    font-size: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wr-tile img,
+  .wr-card,
+  .wr-card::after {
+    transition: none;
+  }
+}
