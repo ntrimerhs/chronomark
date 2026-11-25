@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Link } from 'react-router-dom'
-import policy from '../content/privacy.el.md?raw'
+import policy from '../content/privacy.en.md?raw'
 
 export default function PrivacyPage() {
   return (
