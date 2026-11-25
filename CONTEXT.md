@@ -1,4 +1,4 @@
-# Ctrl + Vid — context for a new session
+# ChronoMark — context for a new session
 
 Everything below is the state of the project after the migration to
 `ntrimerhs/chronomark`. Read this first; it saves re-deriving decisions that
@@ -13,9 +13,8 @@ indexes, and answers questions about the video with clickable timestamps.
 
 - **Backend** — FastAPI + uvicorn, Qdrant in local file mode, ffmpeg
 - **Frontend** — React 19, Vite, video.js, `react-markdown`
-- **Working directory** — `C:\Users\xrisa\Desktop\ai-video-tool`
-- **Repos** — `fork` = `ntrimerhs/chronomark` (active), `upstream` =
-  `ChristinaBezante/ai-video-tool` (frozen, to be archived — never push to it)
+- **Working directory** — the local checkout of `ntrimerhs/chronomark`
+- **Repo** — `ntrimerhs/chronomark`
 
 ---
 
