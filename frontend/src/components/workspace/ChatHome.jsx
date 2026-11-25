@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { ChevronLeft, ChevronRight, Loader2, Paperclip, Plus, Send, Video } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Paperclip, Plus, Send, Video } from 'lucide-react'
 import { API_BASE_URL } from '../../config'
 import AppSidebar from '../common/AppSidebar.jsx'
 import useLibrary from '../../hooks/useLibrary.js'
@@ -62,11 +62,13 @@ export default function ChatHome() {
   const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [thinking, setThinking] = useState('')
   const [collapsed, setCollapsed] = useState(false)
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
 
   const fileRef = useRef(null)
+  const typeRef = useRef(null)
   const pollRef = useRef(null)
   const threadRef = useRef(null)
   const chatRef = useRef(null)
@@ -85,6 +87,131 @@ export default function ChatHome() {
       ...list,
       { id: `${role}-${list.length}-${Date.now()}`, role, text },
     ])
+  }, [])
+
+  /* Answers arrive faster than anyone wants to read them. This drains the
+     incoming text on requestAnimationFrame -- one batch per frame, so the paint
+     is tied to the display instead of to a timer -- and the batch grows with
+     what is still queued. A short answer types like a person; a long one does
+     not crawl, and neither one jumps. */
+  const beginStream = useCallback(() => {
+    const id = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    setMessages((list) => [...list, { id, role: 'assistant', text: '', streaming: true }])
+    const state = {
+      id,
+      shown: '',
+      pending: '',
+      carry: 0,
+      last: performance.now(),
+      raf: 0,
+      done: false,
+      resolve: null,
+    }
+    const finished = new Promise((resolve) => {
+      state.resolve = resolve
+    })
+
+    const pump = () => {
+      const now = performance.now()
+      // A tab that slept should not dump half an answer in one frame.
+      const dt = Math.min(0.05, (now - state.last) / 1000)
+      state.last = now
+
+      if (state.pending) {
+        const speed = Math.max(26, Math.min(220, 70 + state.pending.length * 2.2))
+        state.carry += dt * speed
+        const take = Math.floor(state.carry)
+        if (take > 0) {
+          state.shown += state.pending.slice(0, take)
+          state.pending = state.pending.slice(take)
+          state.carry -= take
+          setMessages((list) =>
+            list.map((message) =>
+              message.id === state.id ? { ...message, text: state.shown } : message,
+            ),
+          )
+        }
+      } else if (state.done) {
+        setMessages((list) =>
+          list.map((message) =>
+            message.id === state.id ? { ...message, streaming: false } : message,
+          ),
+        )
+        state.resolve?.()
+        return
+      }
+      state.raf = requestAnimationFrame(pump)
+    }
+    state.raf = requestAnimationFrame(pump)
+
+    typeRef.current = {
+      push(chunk) {
+        if (chunk) state.pending += chunk
+      },
+      finish() {
+        state.done = true
+      },
+      finished,
+    }
+    return typeRef.current
+  }, [])
+
+  /* The document answers are already streamed token by token; this reads that
+     stream and hands each delta to the typewriter, so the two smooth each other
+     out instead of one fighting the other. */
+  const readStream = useCallback(async (path, body, onDelta) => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!response.ok || !response.body) {
+      let detail = `HTTP ${response.status}`
+      try {
+        const data = await response.json()
+        detail = data.detail || detail
+      } catch {
+        /* the status is the message */
+      }
+      throw new Error(detail)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let finalPayload = null
+
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      let split = buffer.indexOf('\n\n')
+      while (split !== -1) {
+        const frame = buffer.slice(0, split)
+        buffer = buffer.slice(split + 2)
+        split = buffer.indexOf('\n\n')
+
+        let event = 'message'
+        let data = ''
+        frame.split('\n').forEach((line) => {
+          if (line.startsWith('event:')) event = line.slice(6).trim()
+          else if (line.startsWith('data:')) data += line.slice(5).trim()
+        })
+        if (!data) continue
+
+        let payload = null
+        try {
+          payload = JSON.parse(data)
+        } catch {
+          continue
+        }
+        if (event === 'delta') onDelta(payload.text || '')
+        else if (event === 'final') finalPayload = payload
+        else if (event === 'error') throw new Error(payload.message || 'The answer failed.')
+      }
+    }
+    return finalPayload
   }, [])
 
   const reset = useCallback(() => {
@@ -258,12 +385,22 @@ export default function ChatHome() {
     if (!text || busy) return
     say('user', text)
     setDraft('')
+    setBusy(true)
+    setThinking('Deep Diving')
 
-    if (!matter) {
-      // Nothing to read: the model answers the message anyway, so it can respond
-      // to what was actually said instead of printing the same sentence again.
-      setBusy(true)
-      try {
+    const stream = beginStream()
+    let pushed = 0
+    const push = (chunk) => {
+      if (!chunk) return
+      pushed += chunk.length
+      setThinking('')
+      stream.push(chunk)
+    }
+
+    try {
+      if (!matter) {
+        // Nothing to read: the model answers the message anyway, so it can
+        // respond to what was actually said instead of printing one sentence.
         const history = messages.map((message) => ({
           role: message.role,
           content: message.text,
@@ -273,22 +410,8 @@ export default function ChatHome() {
           { question: text, history },
           { timeout: 120000 },
         )
-        say('assistant', data.answer || '')
-      } catch (error) {
-        say(
-          'assistant',
-          error?.response?.data?.detail ||
-            'I have nothing to read yet. Send a PDF, PPTX or DOCX, or a recording, and ask again.',
-        )
-      } finally {
-        setBusy(false)
-      }
-      return
-    }
-
-    setBusy(true)
-    try {
-      if (matter.kind === 'document') {
+        push(data.answer || '')
+      } else if (matter.kind === 'document') {
         let chatId = chatRef.current
         if (!chatId) {
           const { data } = await axios.post(
@@ -299,12 +422,16 @@ export default function ChatHome() {
           chatId = data.id
           chatRef.current = chatId
         }
-        const { data } = await axios.post(
-          `${API_BASE_URL}/api/document/ask`,
+        const finalPayload = await readStream(
+          '/api/document/ask/stream',
           { doc_id: matter.id, question: text, chat_id: chatId },
-          { timeout: 300000 },
+          push,
         )
-        say('assistant', data.answer || '')
+        // The final frame carries the tidied answer: anything the deltas did
+        // not include (a repaired citation, for instance) is appended here.
+        if (finalPayload?.answer && finalPayload.answer.length > pushed) {
+          push(finalPayload.answer.slice(pushed))
+        }
         library.refresh()
       } else {
         const history = messages.map((message) => ({
@@ -316,15 +443,17 @@ export default function ChatHome() {
           { question: text, video_id: matter.id, history },
           { timeout: 300000 },
         )
-        say('assistant', data.answer || '')
+        push(data.answer || '')
       }
     } catch (error) {
       const detail = error?.response?.data?.detail || error?.message || 'The answer failed.'
-      say('assistant', `I could not answer that: ${detail}`)
+      push(`I could not answer that: ${detail}`)
     } finally {
+      stream.finish()
       setBusy(false)
+      setThinking('')
     }
-  }, [busy, draft, library, matter, messages, say])
+  }, [beginStream, busy, draft, library, matter, messages, readStream, say])
 
   const onDrop = (event) => {
     event.preventDefault()
@@ -488,19 +617,29 @@ export default function ChatHome() {
                       <span className="ch-who">
                         {message.role === 'user' ? 'You' : 'ChronoMark'}
                       </span>
-                      <p>{message.text}</p>
+                      <p>
+                        {message.text}
+                        {message.streaming ? <span className="ch-caret" aria-hidden="true" /> : null}
+                      </p>
                     </div>
                   ))
                 )}
 
                 {busy ? (
                   <div className="ch-turn ch-turn-assistant">
-                    <span className="ch-who">
-                      <Loader2 size={13} className="ch-spin" /> ChronoMark
+                    <span className="ch-who">ChronoMark</span>
+                    <span className="ch-thinking">
+                      <span className="ch-thinking-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                      <span className="ch-thinking-label">
+                        {status && status !== 'thinking' && status !== 'Deep Diving'
+                          ? `${thinking || 'Working'} · ${status}`
+                          : 'Deep Diving'}
+                      </span>
                     </span>
-                    <p>
-                      {status || 'thinking'} · {progress}%
-                    </p>
                     {progress ? (
                       <div className="ch-bar">
                         <span style={{ width: `${progress}%` }} />
