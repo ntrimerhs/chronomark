@@ -114,9 +114,7 @@ export default function PulseHeader({ inline = false, reloadOnBrand = false }) {
                   : undefined
               }
             >
-              {/* The mark instead of the letters and the dot: the same logo
-                  the sidebar carries, so the two never disagree. */}
-              <img className="ph-brand-mark" src="/cm-mark-192.png" alt="Chronomark" />
+              <span className="ph-brand-label">CHRONOMARK</span>
             </a>
             <span className="ph-brand-divider" aria-hidden="true" />
             <div className="ph-search-slot">

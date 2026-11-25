@@ -96,7 +96,6 @@ export default function AppSidebar({
       <aside className={`sidebar${collapsed ? ' collapsed' : ''}${open ? ' mobile-open' : ''}`}>
         <div className="sidebar-top">
           <a href={brandHref} className="sidebar-brand" title={`${brandLabel} — home`}>
-            <img className="sidebar-brand-mark" src="/cm-mark-192.png" alt="" />
             <span className="sidebar-copy sidebar-brand-name">{brandLabel}</span>
           </a>
           <button

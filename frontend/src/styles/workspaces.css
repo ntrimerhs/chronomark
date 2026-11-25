@@ -2089,3 +2089,13 @@
   display: block;
   background: transparent;
 }
+
+/* The clock, in white: the one number on this page that means something to the
+   reader while they wait. */
+.ch-thinking-timer {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #FFFFFF;
+  font-variant-numeric: tabular-nums;
+}

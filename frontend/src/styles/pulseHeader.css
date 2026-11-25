@@ -276,19 +276,3 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 }
-
-/* The mark in place of the wordmark and its dot. The image is square with its
-   own dark field, so it is rounded and sized to sit on the bar's own line. */
-.ph-brand-mark {
-  display: block;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  object-fit: contain;
-  filter: drop-shadow(0 0 10px rgba(111, 99, 217, 0.35));
-  transition: filter 200ms ease, transform 200ms ease;
-}
-.ph-brand:hover .ph-brand-mark {
-  filter: drop-shadow(0 0 14px rgba(168, 162, 255, 0.55));
-  transform: scale(1.04);
-}

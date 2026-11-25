@@ -82,6 +82,13 @@ function stageLabel(stage) {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
+function elapsedLabel(seconds) {
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  return `${minutes}m ${String(rest).padStart(2, '0')}s`
+}
+
 function prettyBytes(bytes) {
   if (!bytes) return '0 MB'
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -112,6 +119,9 @@ export default function ChatHome() {
     return Number.isFinite(stored) && stored >= 25 && stored <= 80 ? stored : 50
   })
   const [resizing, setResizing] = useState(false)
+  // How long the reader has been waiting. A percentage said how much of some
+  // unknown total was done; a clock says the one thing they can act on.
+  const [elapsed, setElapsed] = useState(0)
   // True from the moment an answer starts arriving until the last character has
   // been written out, which is later than the request finishing.
   const [typing, setTyping] = useState(false)
@@ -120,6 +130,7 @@ export default function ChatHome() {
   const [page, setPage] = useState(1)
 
   const fileRef = useRef(null)
+  const startedRef = useRef(0)
   const typeRef = useRef(null)
   const pollRef = useRef(null)
   const threadRef = useRef(null)
@@ -129,6 +140,15 @@ export default function ChatHome() {
   useEffect(() => () => {
     if (pollRef.current) window.clearInterval(pollRef.current)
   }, [])
+
+  useEffect(() => {
+    if (!busy && !typing) return undefined
+    setElapsed(0)
+    const timer = window.setInterval(() => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - startedRef.current) / 1000)))
+    }, 250)
+    return () => window.clearInterval(timer)
+  }, [busy, typing])
 
   useEffect(() => {
     const node = threadRef.current
@@ -378,6 +398,7 @@ export default function ChatHome() {
       }
 
       say('user', `${file.name} · ${prettyBytes(file.size)}`)
+      startedRef.current = Date.now()
       setBusy(true)
       setProgress(0)
       setStatus('uploading')
@@ -438,6 +459,7 @@ export default function ChatHome() {
     if (!text || busy) return
     say('user', text)
     setDraft('')
+    startedRef.current = Date.now()
     setBusy(true)
 
     const stream = beginStream()
@@ -787,10 +809,9 @@ export default function ChatHome() {
                 {busy || typing ? (
                   <div className="ch-thinking">
                     <span className="ch-thinking-label">
-                      {busy
-                        ? `${stageLabel(status)} (${Math.min(99, Math.round(progress || 0))}%)`
-                        : 'Thinking...'}
+                      {busy ? stageLabel(status) : 'Thinking...'}
                     </span>
+                    <span className="ch-thinking-timer">{elapsedLabel(elapsed)}</span>
                   </div>
                 ) : null}
               </div>

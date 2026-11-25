@@ -1146,17 +1146,3 @@
   line-height: 1.65;
   color: var(--muted);
 }
-
-/* The same mark beside the name, so the header and the sidebar are one brand.
-   It collapses with the rest of the copy in the rail. */
-.docs-app .sidebar-brand-mark {
-  width: 22px;
-  height: 22px;
-  margin-right: 8px;
-  border-radius: 6px;
-  object-fit: contain;
-  flex: none;
-}
-.docs-app .sidebar.collapsed .sidebar-brand-mark {
-  margin-right: 0;
-}
