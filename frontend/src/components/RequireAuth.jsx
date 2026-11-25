@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom'
+import ConsentGate from './ConsentGate'
 import useAuth from '../hooks/useAuth'
 import '../styles/authDialog.css'
 
@@ -36,5 +37,5 @@ export default function RequireAuth({ children }) {
     return <Navigate to={`/register?next=${encodeURIComponent(wanted)}`} replace />
   }
 
-  return children
+  return <ConsentGate>{children}</ConsentGate>
 }

@@ -7,6 +7,7 @@ import { displayNameOf, supabase, AUTH_ENABLED } from '../../lib/supabaseClient'
 import { Plus } from 'lucide-react'
 import AppSidebar from '../common/AppSidebar.jsx'
 import '../../styles/workspaces.css'
+import { fetchConsents, saveConsent, exportAccount, deleteAccount } from '../../lib/consent'
 import '../../styles/workspaceDesign.css'
 
 /* axios does not go through the fetch wrapper that attaches the session token,
@@ -105,6 +106,32 @@ export default function Workspaces() {
   const { session, signOut } = useAuth()
 
   const [view, setView] = useState('dashboard')
+  const [consents, setConsents] = useState({})
+  useEffect(() => {
+    fetchConsents().then(setConsents).catch(() => {})
+  }, [])
+
+  async function updateConsent(kind, granted) {
+    try {
+      setConsents(await saveConsent(kind, granted))
+    } catch {
+      window.alert('Could not save your choice. Please try again.')
+    }
+  }
+
+  async function removeAccount() {
+    const typed = window.prompt(
+      'This permanently deletes your account, your files and your chat history. Type DELETE to confirm.',
+    )
+    if ((typed || '').trim() !== 'DELETE') return
+    try {
+      await deleteAccount()
+      await signOut()
+      navigate('/')
+    } catch {
+      window.alert('Could not delete the account. Please contact drimeris@0digital.xyz.')
+    }
+  }
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState('')
@@ -713,6 +740,44 @@ export default function Workspaces() {
               </div>
 
               <div className="wr-panel">
+                <h3>Privacy &amp; data</h3>
+                <p className="wr-panel-copy">
+                  Uploaded files are deleted automatically 3 hours after upload. Only your chat history is kept,
+                  until you delete it. <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
+                </p>
+                <label className="wr-switch">
+                  <span>
+                    <span className="wr-switch-label">Allow sending my files and questions to DeepSeek (China)</span>
+                    <span className="wr-switch-note">Needed to analyse files and answer questions. Turn off to withdraw consent.</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={!!consents.china_transfer}
+                    onChange={(event) => updateConsent('china_transfer', event.target.checked)}
+                  />
+                </label>
+                <label className="wr-switch">
+                  <span>
+                    <span className="wr-switch-label">Product news and offers by email</span>
+                    <span className="wr-switch-note">Optional. You can change this at any time.</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={!!consents.marketing}
+                    onChange={(event) => updateConsent('marketing', event.target.checked)}
+                  />
+                </label>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+                  <button type="button" className="wr-btn-ghost is-solid" onClick={() => exportAccount().catch(() => window.alert('Export failed'))}>
+                    Download my data
+                  </button>
+                  <button type="button" className="wr-btn-ghost" onClick={removeAccount}>
+                    Delete my account
+                  </button>
+                </div>
+              </div>
+
+              <div className="wr-panel">
                 <h3>Session</h3>
                 <p className="wr-panel-copy">
                   Signing out ends the session on this device only. Your documents stay indexed.
@@ -727,7 +792,7 @@ export default function Workspaces() {
 
         <footer className="wr-footer">
           <div>{loading ? '' : `${documents.length} indexed`}</div>
-          <div>{busy ? STAGE_COPY[stage] || 'Working' : 'PDF · DOCX · PPTX · MP4 · MKV · M4A'}</div>
+          <div>{busy ? STAGE_COPY[stage] || 'Working' : 'PDF · DOCX · PPTX · MP4 · MKV · M4A · files deleted after 3 hours'}</div>
         </footer>
       </main>
     </div>

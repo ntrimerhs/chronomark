@@ -183,6 +183,13 @@ export default function AuthForm({
         </p>
       ) : null}
 
+      {signup && (
+        <p style={{ fontSize: 12, lineHeight: 1.5, color: '#a7acba', margin: '4px 0 0' }}>
+          By creating an account you agree to our <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
+          Uploaded files are deleted after 3 hours.
+        </p>
+      )}
+
       <button type="submit" className="auth-submit" disabled={busy}>
         <span>{busy ? 'Working…' : reset ? 'Send reset link' : signup ? 'Create account' : 'Sign in'}</span>
         <svg
