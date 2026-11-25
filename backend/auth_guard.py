@@ -16,10 +16,13 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import threading
 import time
 
 import requests
+
+import compliance
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
@@ -192,6 +195,41 @@ _PROTECTED = {
     "/document/notes",
 }
 
+# Whole families of routes that are always for a signed-in account: the
+# document library and its conversations, the consent ledger and the account
+# itself (export, deletion).
+_PROTECTED_PREFIXES = (
+    "/document/",
+    "/documents",
+    "/consent",
+    "/account",
+)
+
+# Everything that sends a user's content to a provider outside the EU. Without
+# the user's explicit consent to that transfer (privacy policy, section 5) these
+# answer 403 with code=consent_required and the app shows the consent dialog.
+_CONSENT_REQUIRED = {
+    "/uploadfile",
+    "/download-youtube",
+    "/ask",
+    "/get-upload-url",
+    "/upload-document",
+    "/process-video",
+    "/document/ask",
+    "/document/ask/stream",
+    "/document/quiz",
+    "/document/flashcards",
+    "/document/notes",
+}
+
+# /document/<doc_id>/... carries the id in the path, so ownership is checked
+# here, for every method. The body-borne ids (ask, quiz, ...) are checked in the
+# route itself.
+_DOC_PATH_RE = re.compile(r"^/document/([A-Za-z0-9._-]+)(?:/|$)")
+_NOT_DOC_IDS = {"ask", "quiz", "flashcards", "notes"}
+
+_DEBUG_ENABLED = os.getenv("ENABLE_DEBUG_ENDPOINTS", "").strip() == "1"
+
 # Media elements load these straight into a <video> or an <a download>, where a
 # JS-added Authorization header is not an option, so they stay open. They are
 # guarded by unguessable keys instead -- and by not costing anything to serve.
@@ -221,11 +259,16 @@ def _is_protected(method: str, path: str) -> bool:
         return False
     if any(path.startswith(prefix) for prefix in _OPEN_PREFIXES):
         return False
-    return _normalise(path) in _PROTECTED
+    normalised = _normalise(path)
+    return normalised in _PROTECTED or any(normalised.startswith(p) for p in _PROTECTED_PREFIXES)
 
 
 class AuthGateMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        # Diagnostic routes dump transcripts and vector counts for every user.
+        if _normalise(request.url.path).startswith("/debug") and not _DEBUG_ENABLED:
+            return JSONResponse({"detail": "Not found"}, status_code=404)
+
         if not _is_protected(request.method, request.url.path):
             return await call_next(request)
 
@@ -248,4 +291,31 @@ class AuthGateMiddleware(BaseHTTPMiddleware):
 
         request.state.user = claims
         request.state.user_id = claims.get("sub")
+        normalised = _normalise(request.url.path)
+
+        if request.method != "OPTIONS":
+            match = _DOC_PATH_RE.match(normalised)
+            if match and match.group(1) not in _NOT_DOC_IDS:
+                if not compliance.is_owner(match.group(1), request.state.user_id):
+                    return JSONResponse({"detail": "Not found"}, status_code=404)
+
+            if normalised in _CONSENT_REQUIRED:
+                try:
+                    allowed = await run_in_threadpool(
+                        compliance.has_transfer_consent, request.state.user_id
+                    )
+                except compliance.ConsentUnavailable:
+                    return JSONResponse(
+                        {"detail": "Consent service is unavailable. Try again shortly."},
+                        status_code=503,
+                    )
+                if not allowed:
+                    return JSONResponse(
+                        {
+                            "detail": "Your consent is needed before your files can be processed.",
+                            "code": "consent_required",
+                        },
+                        status_code=403,
+                    )
+
         return await call_next(request)

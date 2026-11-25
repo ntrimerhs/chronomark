@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, BackgroundTasks, Form, HTTPException
+from fastapi import FastAPI, UploadFile, BackgroundTasks, Form, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -34,6 +34,7 @@ from qdrant_store import client, TEXT_COLLECTION, FRAME_COLLECTION, search_text,
 from qdrant_client import models as qmodels
 import metrics
 import auth_guard
+import compliance
 
 from llama import (
     ask_llama,
@@ -2109,7 +2110,7 @@ async def auth_signup(req: SignupRequest):
 
 
 @app.post('/download-youtube/')
-async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTasks):
+async def download_youtube(request: Request, req: YoutubeRequest, background_tasks: BackgroundTasks):
     """Download a YouTube video via yt-dlp, push it to R2, then process it
     through the same R2 pipeline as every other video."""
     import re as _re
@@ -2125,6 +2126,7 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
     if not _re.search(r"(youtube\.com|youtu\.be)", url):
         raise HTTPException(status_code=400, detail="URL does not look like a YouTube link")
 
+    owner_id = request.state.user_id
     job_id = str(uuid.uuid4())
     JOBS[job_id] = {
         "job_id": job_id,
@@ -2149,6 +2151,7 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
             # The pipeline keys everything (audio WAV, frames, Qdrant points) by
             # video_id, and reads the video back from R2 -- never from disk.
             video_id = f"yt_{uuid.uuid4().hex[:12]}"
+            compliance.register(video_id, owner_id, "video", file_key=imported["file_key"])
             display_name = f"{(imported.get('title') or video_id)[:120]}.mp4"
             print(f"[YouTube] {imported.get('reason')}: {imported['file_key']}")
             _set_job_status(job_id, stage="processing_audio_and_frames", progress=15)
@@ -2175,6 +2178,7 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
 
 @app.post('/uploadfile/')
 async def create_upload_file(
+    request: Request,
     background_tasks: BackgroundTasks,
     file_upload: UploadFile,
     video_id: str | None = Form(None),
@@ -2217,6 +2221,10 @@ async def create_upload_file(
         Path(r2_service.sanitize_file_name(file_upload.filename)).stem or "video"
     )
     print(f"[Upload] {file_upload.filename} -> R2 {file_key} ({uploaded['size'] / 1024 / 1024:.1f} MB)")
+    # The id keys the transcript, frames and vectors, so it carries the owner's
+    # prefix: two accounts uploading "lecture.mp4" never share one.
+    video_id = compliance.scope_video_id(request.state.user_id, video_id)
+    compliance.register(video_id, request.state.user_id, "video", file_key=file_key)
 
     job_id = str(uuid.uuid4())
     job_store.create(
@@ -2300,7 +2308,7 @@ async def api_get_upload_url(file_name: str, content_type: str = "video/mp4"):
 
 
 @app.post('/api/process-video')
-async def api_process_video(req: ProcessVideoRequest, background_tasks: BackgroundTasks):
+async def api_process_video(request: Request, req: ProcessVideoRequest, background_tasks: BackgroundTasks):
     """Kick off analysis for a video that already sits in R2.
 
     The pipeline reads the file straight from a presigned URL with ffmpeg, so
@@ -2319,7 +2327,8 @@ async def api_process_video(req: ProcessVideoRequest, background_tasks: Backgrou
     # Reuse a uuid-style split: the object key is videos/<uuid32>-<name>.
     display_name = original_name.split("-", 1)[1] if "-" in original_name else original_name
     stem = r2_service.sanitize_file_name(display_name)
-    video_id = Path(stem).stem or "video"
+    video_id = compliance.scope_video_id(request.state.user_id, Path(stem).stem or "video")
+    compliance.register(video_id, request.state.user_id, "video", file_key=file_key)
 
     start_time = time.perf_counter()
     job_id = str(uuid.uuid4())
@@ -2726,7 +2735,10 @@ def _process_r2_video_job(job_id, file_key, display_name, video_id, start_time, 
 
 
 @app.post("/ask")
-async def ask(req: Question):
+async def ask(request: Request, req: Question):
+    target_video = req.video_id or CURRENT_VIDEO_ID
+    if target_video:
+        compliance.require_owner(request, target_video)
     # Blocking retrieval and model call: off the event loop, in a thread.
     return await run_in_threadpool(_ask_impl, req)
 
@@ -3653,7 +3665,7 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
 
 
 @app.post("/api/upload-document")
-async def api_upload_document(background_tasks: BackgroundTasks, file_upload: UploadFile):
+async def api_upload_document(request: Request, background_tasks: BackgroundTasks, file_upload: UploadFile):
     """Accept a PDF/PPTX/DOCX, store it in R2, then parse and index it."""
     if not file_upload.filename:
         raise HTTPException(status_code=400, detail="Missing uploaded filename")
@@ -3720,6 +3732,7 @@ async def api_upload_document(background_tasks: BackgroundTasks, file_upload: Up
             pass
 
     doc_id = f"doc_{uuid.uuid4().hex[:10]}"
+    compliance.register(doc_id, request.state.user_id, "document", file_key=uploaded["file_key"])
     job_id = str(uuid.uuid4())
     job_store.create(
         job_id,
@@ -3763,7 +3776,7 @@ async def api_upload_document(background_tasks: BackgroundTasks, file_upload: Up
 
 
 @app.get("/api/documents")
-async def api_list_documents():
+async def api_list_documents(request: Request):
     """Every indexed document, newest first, without the page texts."""
     items = []
     for path in DOCS_DIR.glob("*.json"):
@@ -3771,6 +3784,8 @@ async def api_list_documents():
             with open(path, "r", encoding="utf-8") as handle:
                 document = json.load(handle)
         except Exception:
+            continue
+        if not compliance.is_owner(document.get("doc_id"), request.state.user_id):
             continue
         items.append(
             {
@@ -3896,6 +3911,8 @@ async def api_delete_document(doc_id: str):
             print(f"[Docs] R2 cleanup failed: {error}")
 
     _document_meta_path(doc_id).unlink(missing_ok=True)
+    # The conversations stay (they are the user's to delete); the file is gone.
+    compliance.mark_purged(doc_id)
     return {"deleted": doc_id}
 
 
@@ -3971,7 +3988,6 @@ def _document_context_chunks(doc_id: str) -> list:
 @app.get("/api/document/{doc_id}/chats")
 async def api_document_chats(doc_id: str):
     """The conversations held about this document, newest first."""
-    _load_document(doc_id)
     data = _load_chats(doc_id)
     chats = sorted(
         data.get("chats") or [], key=lambda item: item.get("updated_at") or 0, reverse=True
@@ -3992,7 +4008,6 @@ async def api_document_chats(doc_id: str):
 @app.post("/api/document/{doc_id}/chats")
 async def api_document_chat_create(doc_id: str, req: ChatCreate | None = None):
     """Start a conversation. The title becomes the first question's text."""
-    _load_document(doc_id)
     with _CHAT_LOCK:
         data = _load_chats(doc_id)
         chat = {
@@ -4009,7 +4024,6 @@ async def api_document_chat_create(doc_id: str, req: ChatCreate | None = None):
 
 @app.get("/api/document/{doc_id}/chats/{chat_id}")
 async def api_document_chat(doc_id: str, chat_id: str):
-    _load_document(doc_id)
     data = _load_chats(doc_id)
     chat = _find_chat(data, chat_id)
     if chat is None:
@@ -4023,7 +4037,6 @@ async def api_document_chat(doc_id: str, chat_id: str):
 
 @app.delete("/api/document/{doc_id}/chats/{chat_id}")
 async def api_document_chat_delete(doc_id: str, chat_id: str):
-    _load_document(doc_id)
     with _CHAT_LOCK:
         data = _load_chats(doc_id)
         before = len(data.get("chats") or [])
@@ -4033,7 +4046,8 @@ async def api_document_chat_delete(doc_id: str, chat_id: str):
 
 
 @app.post("/api/document/ask")
-async def api_document_ask(req: DocumentQuestion):
+async def api_document_ask(request: Request, req: DocumentQuestion):
+    compliance.require_owner(request, req.doc_id)
     # Everything below is blocking -- Qdrant, the embedding call, the model round
     # trip. On the event loop it froze the whole API for the length of an answer:
     # five questions took five times as long as one, and a healthcheck during the
@@ -4297,7 +4311,8 @@ def _study_context(chunks: list, limit: int) -> str:
 
 
 @app.post("/api/document/ask/stream")
-async def api_document_ask_stream(req: DocumentQuestion):
+async def api_document_ask_stream(request: Request, req: DocumentQuestion):
+    compliance.require_owner(request, req.doc_id)
     """The same answer as /api/document/ask, delivered as it is written.
 
     The work is blocking and HTTP-bound, so it runs in a thread and hands its
@@ -4338,7 +4353,8 @@ async def api_document_ask_stream(req: DocumentQuestion):
 
 
 @app.post("/api/document/quiz")
-async def api_document_quiz(req: DocumentStudyRequest):
+async def api_document_quiz(request: Request, req: DocumentStudyRequest):
+    compliance.require_owner(request, req.doc_id)
     document = _load_document(req.doc_id)
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
@@ -4358,7 +4374,8 @@ async def api_document_quiz(req: DocumentStudyRequest):
 
 
 @app.post("/api/document/flashcards")
-async def api_document_flashcards(req: DocumentStudyRequest):
+async def api_document_flashcards(request: Request, req: DocumentStudyRequest):
+    compliance.require_owner(request, req.doc_id)
     document = _load_document(req.doc_id)
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
@@ -4370,7 +4387,8 @@ async def api_document_flashcards(req: DocumentStudyRequest):
 
 
 @app.post("/api/document/notes")
-async def api_document_notes(req: DocumentStudyRequest):
+async def api_document_notes(request: Request, req: DocumentStudyRequest):
+    compliance.require_owner(request, req.doc_id)
     document = _load_document(req.doc_id)
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
@@ -4379,3 +4397,228 @@ async def api_document_notes(req: DocumentStudyRequest):
     context = _study_context(chunks, 120)
     notes, notes_truncated = document_notes(context, language=language)
     return {"doc_id": req.doc_id, "notes": notes, "truncated": notes_truncated}
+
+
+# ── Consent, account data and retention ──────────────────────────────────────
+# The privacy policy promises three things, and this is where they are kept:
+# nothing is sent to DeepSeek without the user's consent, uploaded content is
+# deleted RETENTION_HOURS after it arrives, and an account can be exported and
+# deleted by its owner. Conversations are the only content that stays.
+
+class ConsentUpdate(BaseModel):
+    china_transfer: bool | None = None
+    marketing: bool | None = None
+
+
+class AccountDeleteRequest(BaseModel):
+    confirm: str
+
+
+@app.get("/api/consent")
+async def api_get_consent(request: Request):
+    try:
+        return await run_in_threadpool(
+            compliance.get_consents, request.state.user_id, fresh=True
+        )
+    except compliance.ConsentUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+@app.post("/api/consent")
+async def api_set_consent(request: Request, req: ConsentUpdate):
+    user_id = request.state.user_id
+    try:
+        for kind in ("china_transfer", "marketing"):
+            value = getattr(req, kind)
+            if value is not None:
+                await run_in_threadpool(compliance.record_consent, user_id, kind, value)
+        return await run_in_threadpool(compliance.get_consents, user_id, fresh=True)
+    except compliance.ConsentUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+def _purge_resource(record: dict, *, drop_chats: bool = False) -> None:
+    """Delete everything derived from one upload: vectors, the object in R2,
+    the extracted text, frames and audio. Conversations only go with drop_chats."""
+    resource_id = str(record.get("id") or "")
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", resource_id)
+    if not safe:
+        return
+    file_keys = list(record.get("file_keys") or [])
+
+    collections = (TEXT_COLLECTION,) if record.get("kind") == "document" else (
+        TEXT_COLLECTION,
+        FRAME_COLLECTION,
+    )
+    for collection in collections:
+        try:
+            client.delete(
+                collection_name=collection,
+                points_selector=qmodels.FilterSelector(
+                    filter=qmodels.Filter(
+                        must=[
+                            qmodels.FieldCondition(
+                                key="video_id", match=qmodels.MatchValue(value=safe)
+                            )
+                        ]
+                    )
+                ),
+            )
+        except Exception as error:
+            print(f"[Retention] vectors for {safe} in {collection}: {error}")
+
+    if record.get("kind") == "document":
+        try:
+            meta = _document_meta_path(safe)
+            if meta.exists():
+                with open(meta, "r", encoding="utf-8") as handle:
+                    key = (json.load(handle) or {}).get("file_key")
+                if key and key not in file_keys:
+                    file_keys.append(key)
+                meta.unlink(missing_ok=True)
+        except Exception as error:
+            print(f"[Retention] metadata for {safe}: {error}")
+        try:
+            _summary_path(safe).unlink(missing_ok=True)
+            with _SUMMARY_LOCK:
+                _SUMMARY_CACHE.pop(safe, None)
+        except Exception:
+            pass
+    else:
+        shutil.rmtree(FRAMES_DIR / safe, ignore_errors=True)
+        shutil.rmtree(CHUNKS_DIR / safe, ignore_errors=True)
+        try:
+            (AUDIO_DIR / f"{safe}.wav").unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    for key in file_keys:
+        try:
+            r2_service.delete_object(key)
+        except Exception as error:
+            print(f"[Retention] R2 object {key}: {error}")
+
+    if drop_chats:
+        try:
+            _chats_path(safe).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _retention_sweep() -> int:
+    """Purge every upload older than RETENTION_HOURS. Returns how many."""
+    cutoff = time.time() - compliance.RETENTION_HOURS * 3600
+    purged = 0
+    known = set()
+
+    for record in compliance.all_records():
+        known.add(record.get("id"))
+        if record.get("purged_at") or (record.get("created_at") or 0) > cutoff:
+            continue
+        _purge_resource(record)
+        if _chats_path(record["id"]).exists():
+            compliance.mark_purged(record["id"])
+        else:
+            compliance.remove(record["id"])
+        purged += 1
+
+    # Documents from before ownership existed have no registry entry.
+    for path in DOCS_DIR.glob("*.json"):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                document = json.load(handle)
+        except Exception:
+            continue
+        doc_id = document.get("doc_id")
+        if not doc_id or doc_id in known or compliance.get_record(doc_id):
+            continue
+        if (document.get("created_at") or 0) < cutoff:
+            _purge_resource({"id": doc_id, "kind": "document"})
+            purged += 1
+
+    if purged:
+        print(f"[Retention] purged {purged} upload(s) older than {compliance.RETENTION_HOURS:g} h")
+    return purged
+
+
+@app.on_event("startup")
+async def _start_retention_loop():
+    if os.getenv("PURGE_ENABLED", "1") != "1":
+        print("[Retention] disabled (PURGE_ENABLED != 1)")
+        return
+
+    async def _loop():
+        await asyncio.sleep(30)
+        while True:
+            try:
+                await run_in_threadpool(_retention_sweep)
+            except Exception as error:
+                print(f"[Retention] sweep failed: {error}")
+            await asyncio.sleep(600)
+
+    asyncio.create_task(_loop())
+
+
+@app.get("/api/account/export")
+async def api_account_export(request: Request):
+    """Everything this service holds about the caller, as one JSON file."""
+    from fastapi.responses import JSONResponse
+
+    user_id = request.state.user_id
+    claims = getattr(request.state, "user", {}) or {}
+    try:
+        consents = await run_in_threadpool(compliance.get_consents, user_id, fresh=True)
+    except compliance.ConsentUnavailable:
+        consents = None
+
+    resources = []
+    for record in compliance.records_for(user_id):
+        chats = _load_chats(record["id"]).get("chats") or []
+        resources.append(
+            {
+                "id": record["id"],
+                "kind": record.get("kind"),
+                "uploaded_at": record.get("created_at"),
+                "files_deleted_at": record.get("purged_at"),
+                "conversations": chats,
+            }
+        )
+
+    body = {
+        "exported_at": time.time(),
+        "account": {"id": user_id, "email": claims.get("email")},
+        "consents": consents,
+        "retention": {
+            "uploaded_files_hours": compliance.RETENTION_HOURS,
+            "note": "Uploaded files and everything derived from them are deleted automatically. Conversations stay until you delete them.",
+        },
+        "resources": resources,
+    }
+    return JSONResponse(
+        body,
+        headers={"Content-Disposition": 'attachment; filename="chronomark-export.json"'},
+    )
+
+
+@app.delete("/api/account")
+async def api_account_delete(request: Request, req: AccountDeleteRequest):
+    """Delete the caller's uploads, conversations and account."""
+    if (req.confirm or "").strip() != "DELETE":
+        raise HTTPException(status_code=400, detail='Type DELETE to confirm')
+
+    user_id = request.state.user_id
+    records = compliance.records_for(user_id)
+
+    def _erase():
+        for record in records:
+            _purge_resource(record, drop_chats=True)
+            compliance.remove(record["id"])
+        compliance.delete_auth_user(user_id)
+
+    try:
+        await run_in_threadpool(_erase)
+    except compliance.ConsentUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+    return {"deleted": True, "uploads": len(records)}

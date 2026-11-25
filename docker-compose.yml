@@ -35,6 +35,7 @@ services:
       - ./backend/documents:/app/documents
       # Conversation history per document, so chats survive a rebuild.
       - ./backend/chats:/app/chats
+      - ./backend/ownership:/app/ownership
       # Hugging Face model cache (MiniLM, CLIP): downloaded once, reused across
       # rebuilds. ~2 GB -- on a 4 GB VPS keep an eye on disk.
       - ./cookies.txt:/app/cookies.txt
@@ -71,6 +72,7 @@ services:
       - ./backend/frames:/app/frames
       - ./backend/documents:/app/documents
       - ./backend/chats:/app/chats
+      - ./backend/ownership:/app/ownership
       - ./cookies.txt:/app/cookies.txt
       - ./backend/secrets:/app/secrets:ro
       - hf_cache:/cache/huggingface
