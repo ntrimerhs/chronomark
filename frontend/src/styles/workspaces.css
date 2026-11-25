@@ -1756,3 +1756,22 @@
   .ch-thread { padding-top: 72px; }
   .ch-empty h1 { font-size: 26px; }
 }
+
+/* The reader's own turns are messages, not paragraphs: a bubble that hugs the
+   left edge and stops before the column does, so the shape of the conversation
+   reads at a glance. ChronoMark answers stay as plain text -- a wall of quoted
+   speech in a rounded box would be harder to read, not friendlier. */
+.ch-turn-user {
+  align-self: flex-start;
+  max-width: 78%;
+}
+.ch-turn-user p {
+  padding: 10px 14px;
+  border-radius: 14px 14px 14px 4px;
+  background: rgba(111, 99, 217, 0.16);
+  border: 1px solid rgba(168, 162, 255, 0.26);
+  color: #F3F4F8;
+}
+.ch-turn-assistant {
+  align-self: stretch;
+}
