@@ -1056,9 +1056,16 @@ app.mount(
      name="frames"
 ) 
 
+def _require_debug() -> None:
+    """Debug routes dump other people's transcripts: off unless explicitly enabled."""
+    if os.getenv("ENABLE_DEBUG_ENDPOINTS", "").strip() != "1":
+        raise HTTPException(status_code=404, detail="Not found")
+
+
 @app.get('/debug/segments')
 def debug_segments(video_id: str | None = None):
     """Dump the indexed segments so retrieval can be inspected directly."""
+    _require_debug()
     target = video_id or CURRENT_VIDEO_ID
     try:
         points = scroll_all_text(target)
@@ -1080,6 +1087,7 @@ def debug_segments(video_id: str | None = None):
 
 @app.get('/debug/qdrant-counts')
 async def debug_qdrant_counts():
+    _require_debug()
     return {
         "text_points": client.count(collection_name=TEXT_COLLECTION).count,
         "frame_points": client.count(collection_name=FRAME_COLLECTION).count,
