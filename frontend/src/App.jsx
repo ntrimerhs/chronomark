@@ -6,6 +6,7 @@ import Documents from './components/Documents.jsx'
 import Form from './components/Form.jsx';
 import PulseHeader from './components/PulseHeader.jsx';
 import AuthPage from './components/AuthPage.jsx';
+import AuthCallback from './components/AuthCallback.jsx';
 import RequireAuth from './components/RequireAuth.jsx';
 import useSmoothScroll from './hooks/useSmoothScroll.js';
 
@@ -20,6 +21,9 @@ function App() {
             Get Started has to land somewhere that can be linked to. */}
         <Route path='/register' element={<AuthPage mode='signup' />}/>
         <Route path='/login' element={<AuthPage mode='signin' />}/>
+        {/* Where Google and GitHub come back to: the session is already in
+            localStorage by the time this renders, it only forwards to ?next. */}
+        <Route path='/auth/callback' element={<AuthCallback />}/>
         {/* The two chat workspaces carry no footer: video and documents both end
             in a conversation, and a footer under it only pushes the composer up.
             Both are behind RequireAuth -- an account is what pays for the OCR,

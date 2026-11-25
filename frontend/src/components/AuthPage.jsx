@@ -10,13 +10,21 @@ import '../styles/authDialog.css'
    Started sends someone, so it has to stand on its own -- the header, a line
    about what the account is for, and the form. */
 
+/* ?next comes from the address bar, so it is not trusted: only a path on this
+   site is a destination. Anything else would turn our own login page into a
+   stepping stone to a stranger's site. */
+function safeNext(value, fallback = '/upload') {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback
+  return value
+}
+
 export default function AuthPage({ mode = 'signup' }) {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { session, ready } = useAuth()
   const [variant, setVariant] = useState(mode)
 
-  const next = params.get('next') || '/upload'
+  const next = safeNext(params.get('next'))
 
   useEffect(() => {
     setVariant(mode)
@@ -54,6 +62,7 @@ export default function AuthPage({ mode = 'signup' }) {
         <AuthForm
           mode={variant}
           compact={false}
+          oauthNext={next}
           onModeChange={(next) => {
             setVariant(next)
             navigate(next === 'signup' ? '/register' : '/login', { replace: true })

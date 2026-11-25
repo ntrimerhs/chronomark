@@ -59,7 +59,12 @@ export default function AuthDialog({ open, mode = 'signin', onClose, onModeChang
           <p>{copy.sub}</p>
         </div>
 
-        <AuthForm mode={mode} onModeChange={onModeChange} onSuccess={onClose} />
+        <AuthForm
+          mode={mode}
+          onModeChange={onModeChange}
+          onSuccess={onClose}
+          oauthNext="/upload"
+        />
       </div>
     </div>
   )

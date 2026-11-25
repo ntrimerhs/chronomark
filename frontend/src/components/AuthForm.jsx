@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { API_BASE_URL } from '../config'
 import { supabase, toEmail, USERNAME_DOMAIN } from '../lib/supabaseClient'
+import OAuthButtons from './OAuthButtons'
 
 /* The two fields, either way they are shown.
 
@@ -14,7 +15,13 @@ import { supabase, toEmail, USERNAME_DOMAIN } from '../lib/supabaseClient'
    mailer -- that endpoint creates the account already confirmed, so
    registration ends in a session rather than in an inbox. */
 
-export default function AuthForm({ mode = 'signin', onModeChange, onSuccess, compact = true }) {
+export default function AuthForm({
+  mode = 'signin',
+  onModeChange,
+  onSuccess,
+  compact = true,
+  oauthNext = '/upload',
+}) {
   const [name, setName] = useState('')
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
@@ -74,6 +81,8 @@ export default function AuthForm({ mode = 'signin', onModeChange, onSuccess, com
 
   return (
     <form className={`auth-form${compact ? '' : ' is-page'}`} onSubmit={submit}>
+      <OAuthButtons next={oauthNext} onError={setError} disabled={busy} />
+
       {signup && (
         <label className="auth-field">
           <span>Name</span>
