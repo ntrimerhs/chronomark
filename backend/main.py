@@ -38,6 +38,7 @@ import auth_guard
 from llama import (
     ask_llama,
     ask_document,
+    complete_with_continuation,
     describe_figure,
     digest_segment,
     document_flashcards,
@@ -3254,6 +3255,29 @@ _DOCUMENT_CONTENT_TYPES = {
 }
 
 
+class ChatRequest(BaseModel):
+    question: str
+    history: list[dict] | None = None
+
+
+# What the model is told when the composer has no material behind it. The point
+# is that it answers *the reader*, not a template: it can apologise, ask which
+# file they meant, or point out that a phrase is not a file -- but it must never
+# answer a content question from thin air.
+_NO_MATERIAL_PROMPT = (
+    "You are ChronoMark, a reading assistant for uploaded study material.\n\n"
+    "In this conversation nothing has been uploaded yet: there is no document and no "
+    "recording for you to read. You therefore cannot answer questions about content, "
+    "and you must not invent facts, sources or page numbers.\n\n"
+    "What you can do is help the reader get started. Reply to what they actually said, "
+    "in the language they used, in at most two sentences: tell them plainly that you "
+    "have nothing to read yet, ask for the file, and mention what you accept -- PDF, "
+    "PPTX or DOCX to read as pages, or MP4, MKV, MOV, WEBM, MP3, M4A or WAV to read as "
+    "audio and frames. Vary your wording; never repeat a fixed sentence. If the message "
+    "is not in a recognisable language -- a typo, random characters -- answer in English."
+)
+
+
 class DocumentQuestion(BaseModel):
     question: str
     doc_id: str
@@ -4047,6 +4071,45 @@ def _authorise_media(request, document: dict, expires=None, sig: str = "") -> No
     if auth_guard.media_signature_valid(document.get("doc_id"), expires, sig):
         return
     raise HTTPException(status_code=401, detail="Sign in to use this feature.")
+
+
+@app.post("/api/chat")
+async def api_chat(req: ChatRequest, request: Request):
+    """Reply to a message that has no file behind it.
+
+    One canned sentence answered every message before a file was loaded, which
+    ignored what the reader wrote and said the same thing again and again. The
+    model answers now, under instructions that keep it honest about having
+    nothing to read.
+    """
+    _current_user(request)
+    question = (req.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+
+    messages = [{"role": "system", "content": _NO_MATERIAL_PROMPT}]
+    for turn in (req.history or [])[-8:]:
+        if not isinstance(turn, dict):
+            continue
+        text = str(turn.get("content") or "").strip()
+        if not text:
+            continue
+        role = "assistant" if turn.get("role") == "assistant" else "user"
+        messages.append({"role": role, "content": text})
+    messages.append({"role": "user", "content": question})
+
+    try:
+        # complete_with_continuation returns (text, truncated) -- the truncation
+        # flag matters to a cited answer, not to a two-sentence greeting.
+        result = await run_in_threadpool(complete_with_continuation, messages, 320, 0.5)
+        answer = result[0] if isinstance(result, tuple) else result
+    except Exception as error:  # noqa: BLE001 - a dead model must not dead-end the page
+        print(f"[Chat] no-material reply failed: {error}")
+        answer = (
+            "I have nothing to read yet, so I cannot answer that. Send a PDF, PPTX or "
+            "DOCX, or a recording (MP4, MKV, MOV, WEBM, M4A, MP3) and ask me again."
+        )
+    return {"answer": (answer or "").strip()}
 
 
 @app.get("/api/videos")

@@ -260,12 +260,29 @@ export default function ChatHome() {
     setDraft('')
 
     if (!matter) {
-      say(
-        'assistant',
-        'I have nothing to read yet. Send me a PDF, PPTX or DOCX to analyse as pages, ' +
-          'or a recording (MP4, MKV, MOV, WEBM, M4A, MP3) to analyse as audio and frames — ' +
-          'the paperclip, or drop the file on this window. Then ask me anything about it.',
-      )
+      // Nothing to read: the model answers the message anyway, so it can respond
+      // to what was actually said instead of printing the same sentence again.
+      setBusy(true)
+      try {
+        const history = messages.map((message) => ({
+          role: message.role,
+          content: message.text,
+        }))
+        const { data } = await axios.post(
+          `${API_BASE_URL}/api/chat`,
+          { question: text, history },
+          { timeout: 120000 },
+        )
+        say('assistant', data.answer || '')
+      } catch (error) {
+        say(
+          'assistant',
+          error?.response?.data?.detail ||
+            'I have nothing to read yet. Send a PDF, PPTX or DOCX, or a recording, and ask again.',
+        )
+      } finally {
+        setBusy(false)
+      }
       return
     }
 
