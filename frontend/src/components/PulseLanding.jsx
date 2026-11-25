@@ -235,7 +235,9 @@ export default function PulseLanding() {
             </div>
             <div className="lv-foot-col">
               <h4>Legal</h4>
-              <a href="/#pricing">Privacy Policy</a>
+              <a href="/privacy">Privacy Policy</a>
+              {/* Terms has no page yet: better an honest anchor than a link
+                  that promises a document we do not have. */}
               <a href="/#pricing">Terms of Service</a>
             </div>
           </nav>
