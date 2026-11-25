@@ -94,6 +94,34 @@ const Proxeiro = () => {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
 
+    // /workspaces?video=<id> opens a recording that was analysed earlier: the
+    // chat home sends it here after an upload, and the library sends it here
+    // when someone picks one out of the list.
+    const requestedVideo = new URLSearchParams(window.location.search).get('video');
+    React.useEffect(() => {
+        if (!requestedVideo) return undefined;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await axios.get(`${API_BASE_URL}/api/videos`);
+                const found = (data.videos || []).find((item) => item.video_id === requestedVideo);
+                if (cancelled || !found || !found.file_key) return;
+                setCurrentVideoId(found.video_id);
+                setCurrentFileKey(found.file_key);
+                setUploadedFileURL(
+                    `${API_BASE_URL}/api/video-stream/${found.file_key}?t=${Date.now()}`,
+                );
+                setProcessingStage('completed');
+                setBackendProgress(100);
+            } catch (error) {
+                console.error('[Video] could not open the requested recording', error);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [requestedVideo]);
+
     const playerRef = React.useRef(null);
     const uploadInputRef = useRef(null);
     const replaceInputRef = useRef(null);
@@ -749,7 +777,7 @@ const Proxeiro = () => {
                 // Documents live in the other workspace; selecting the
                 // recording that is already open changes nothing.
                 if (String(id || '').startsWith('doc_')) {
-                  window.location.assign(`/documents?doc=${encodeURIComponent(id)}`)
+                  window.location.assign(`/workspaces?doc=${encodeURIComponent(id)}`)
                 }
               }}
               emptyText="Your documents and recordings appear here."

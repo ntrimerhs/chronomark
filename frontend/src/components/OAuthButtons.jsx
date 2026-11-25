@@ -58,7 +58,7 @@ function GitHubMark() {
 
 const MARKS = { google: GoogleMark, github: GitHubMark }
 
-export default function OAuthButtons({ next = '/upload', onError, disabled = false }) {
+export default function OAuthButtons({ next = '/workspaces', onError, disabled = false }) {
   const [pending, setPending] = useState(null)
   const [failure, setFailure] = useState('')
 

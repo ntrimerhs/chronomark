@@ -488,7 +488,7 @@ function MainPage() {
 
   const navToUpload = (event) => {
     event.preventDefault()
-    navigate("/upload")
+    navigate("/workspaces")
   }
 
   return (

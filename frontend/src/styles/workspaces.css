@@ -1623,3 +1623,136 @@
     display: none;
   }
 }
+
+/* ── the way in: one conversation ────────────────────────────────────────────
+   The workspace used to open on a dashboard that had to explain itself. It now
+   opens on an empty conversation: one composer, one paperclip, and the file the
+   reader brings decides which workspace it becomes. */
+.ch-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 0 16px;
+}
+.ch-file { display: none; }
+
+.ch-thread {
+  flex: 1;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 96px 8px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.ch-empty { margin: auto 0; text-align: center; }
+.ch-empty h1 {
+  margin: 0 0 14px;
+  font-size: 32px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #F3F4F8;
+}
+.ch-empty p {
+  margin: 0 auto;
+  max-width: 48ch;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #A7ACBA;
+}
+
+.ch-turn { display: flex; flex-direction: column; gap: 6px; }
+.ch-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #6F63D9;
+}
+.ch-turn p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #E7E8F0;
+  white-space: pre-wrap;
+}
+.ch-turn-user p { color: #F3F4F8; }
+
+.ch-bar { height: 2px; background: #1B1B2B; border-radius: 2px; overflow: hidden; }
+.ch-bar span { display: block; height: 100%; background: #A8A2FF; transition: width 300ms ease; }
+
+.ch-composer {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto 28px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid #2A2C3B;
+  border-radius: 16px;
+  background: #141420;
+}
+
+.ch-attach,
+.ch-send {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #A7ACBA;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.ch-attach:hover:not(:disabled) { background: #1B1B2B; color: #F3F4F8; }
+.ch-send { background: #6F63D9; color: #0B0B12; }
+.ch-send:disabled { opacity: 0.35; cursor: default; }
+
+.ch-input {
+  flex: 1;
+  min-width: 0;
+  max-height: 160px;
+  padding: 7px 4px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #F3F4F8;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ch-drop {
+  position: absolute;
+  inset: 12px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #6F63D9;
+  border-radius: 18px;
+  background: rgba(11, 11, 18, 0.78);
+  color: #A8A2FF;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.ch-spin { animation: ch-spin 1s linear infinite; }
+@keyframes ch-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) {
+  .ch-thread { padding-top: 72px; }
+  .ch-empty h1 { font-size: 26px; }
+}

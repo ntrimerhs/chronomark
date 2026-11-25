@@ -4068,6 +4068,10 @@ async def api_list_videos(request: Request):
                 "video_id": record.get("video_id"),
                 "title": title or "Video",
                 "created_at": record.get("created_at"),
+                # The player needs the key to build its stream URL; it is the
+                # caller's own key, and the retention sweeper deletes it after
+                # three hours, so this is also how the client learns it is gone.
+                "file_key": keys[-1] if keys else None,
                 "kind": "video",
             }
         )

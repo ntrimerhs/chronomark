@@ -24,7 +24,7 @@ const CommandPalette = () => {
       description: 'Upload and analyze a video file',
       icon: Upload,
       action: () => {
-        window.location.href = '/upload';
+        window.location.href = '/workspaces';
         setIsOpen(false);
       },
     },
@@ -34,7 +34,7 @@ const CommandPalette = () => {
       description: 'Upload and analyze a PDF, PowerPoint or Word file',
       icon: FileText,
       action: () => {
-        window.location.href = '/documents';
+        window.location.href = '/workspaces';
         setIsOpen(false);
       },
     },
@@ -44,7 +44,7 @@ const CommandPalette = () => {
       description: 'Search through your uploaded videos',
       icon: Search,
       action: () => {
-        window.location.href = '/upload';
+        window.location.href = '/workspaces';
         setIsOpen(false);
       },
     },

@@ -472,7 +472,7 @@ export default function Documents() {
             }
             // A recording has its own workspace; the library is the way to it.
             if (!key.startsWith('chat_')) {
-              window.location.assign('/upload')
+              window.location.assign('/workspaces')
               return
             }
             setChatId(key)

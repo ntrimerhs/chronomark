@@ -36,14 +36,14 @@ const NAV = [
 const CARDS = [
   {
     id: 'video',
-    href: '/upload',
+    href: '/workspaces',
     icon: 'smart_display',
     title: 'Video Analysis',
     subtitle: 'Audio phonemes & frames',
   },
   {
     id: 'document',
-    href: '/documents',
+    href: '/workspaces',
     icon: 'description',
     title: 'Document Analysis',
     subtitle: 'PDFs, slides & equations',
@@ -224,8 +224,8 @@ export default function PulseLanding() {
           <nav className="lv-foot-cols" aria-label="Footer">
             <div className="lv-foot-col">
               <h4>Platform</h4>
-              <a href="/upload">Video Analysis</a>
-              <a href="/documents">Document Analysis</a>
+              <a href="/workspaces">Video Analysis</a>
+              <a href="/workspaces">Document Analysis</a>
               <a href="/workspaces">Workspace</a>
             </div>
             <div className="lv-foot-col">

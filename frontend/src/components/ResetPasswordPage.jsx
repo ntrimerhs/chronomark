@@ -23,7 +23,7 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     if (!done) return undefined
-    const timer = setTimeout(() => navigate('/upload', { replace: true }), 1600)
+    const timer = setTimeout(() => navigate('/workspaces', { replace: true }), 1600)
     return () => clearTimeout(timer)
   }, [done, navigate])
 

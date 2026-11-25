@@ -48,7 +48,7 @@ export default function Header() {
 
           <CommandPalette />
 
-          <a href="/upload" className="cta">
+          <a href="/workspaces" className="cta">
             try now
             <ArrowUpRight />
           </a>
