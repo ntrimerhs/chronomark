@@ -1045,3 +1045,35 @@ html {
 .lv-section {
   scroll-margin-top: 104px;
 }
+
+/* ── centred sections ─────────────────────────────────────────────────────────
+   The hero is centred; everything under it was not, so a page that reads as one
+   column went quietly left-aligned from the Technology heading down. The block
+   was already centred as a box -- only the text inside it was ragged, and the
+   stack rows kept their 96px key gutter on the left. */
+.lv-section {
+  text-align: center;
+}
+
+.lv-section-sub,
+.lv-section-note {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.lv-stack-row {
+  /* key, value and note in one centred column instead of a gutter on the left */
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.lv-stack-key {
+  grid-row: auto;
+  padding-top: 0;
+}
+
+.lv-pending {
+  text-align: center;
+}
