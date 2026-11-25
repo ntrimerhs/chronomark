@@ -299,7 +299,7 @@ export default function Workspaces() {
         open={drawerOpen}
         onToggle={() => setCollapsed((value) => !value)}
         onClose={() => setDrawerOpen(false)}
-        brandHref="/workspaces"
+        brandHref="/"
         actions={[
           {
             key: 'new',
