@@ -81,7 +81,7 @@ export default function AuthForm({ mode = 'signin', onModeChange, onSuccess, com
             type="text"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Marios"
+            placeholder="Your First Name"
             autoComplete="name"
             autoFocus
           />

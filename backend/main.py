@@ -33,6 +33,7 @@ from qdrant_store import ensure_collections, store_text_embeddings, clear_collec
 from qdrant_store import client, TEXT_COLLECTION, FRAME_COLLECTION, search_text, scroll_all_text
 from qdrant_client import models as qmodels
 import metrics
+import auth_guard
 
 from llama import (
     ask_llama,
@@ -1008,6 +1009,11 @@ def _warm_models():
 # was slow. Paying it before the server binds makes startup honest: when the
 # log says ready, it is ready.
 _warm_models()
+
+# Registered before CORS on purpose: the last middleware added ends up
+# outermost, and a 401 has to carry CORS headers too or the browser reports a
+# network failure instead of "sign in first".
+app.add_middleware(auth_guard.AuthGateMiddleware)
 
 # CORS is open here to simplify local frontend/backend integration.
 # In production this should be restricted to known frontend origins.
