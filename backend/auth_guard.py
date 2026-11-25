@@ -216,35 +216,100 @@ def _normalise(path: str) -> str:
     return path
 
 
+# Whole families, so a /document/... route added next month is not born
+# unprotected. "/documents" is the library listing; "/document/..." is one
+# document, its chats, its questions and its deletion.
+_PROTECTED_PREFIXES = ("/document",)
+
+
 def _is_protected(method: str, path: str) -> bool:
     if method == "OPTIONS":
         return False
     if any(path.startswith(prefix) for prefix in _OPEN_PREFIXES):
         return False
-    return _normalise(path) in _PROTECTED
+    normalised = _normalise(path)
+    if normalised in _PROTECTED:
+        return True
+    # startswith without a separator: "/documents" (the library) and
+    # "/document/<id>" (one document) share the stem, and a trailing-slash
+    # comparison would have let the library through unprotected.
+    return any(normalised.startswith(prefix) for prefix in _PROTECTED_PREFIXES)
+
+
+# --- media URLs the browser loads on its own --------------------------------
+# An <iframe src> or a <video src> cannot carry an Authorization header, so the
+# document proxy has to accept something else. The file_url handed to the viewer
+# is minted by an authenticated request and carries an expiring signature: the
+# URL proves the server issued it to a real account, and it stops working in a
+# few hours. A header, when there is one, still wins -- the signature is the
+# exception for the one case that cannot send headers, not a second door.
+MEDIA_URL_TTL = 6 * 3600
+
+
+def _media_secret() -> bytes:
+    value = (os.getenv("R2_SCOPE_SECRET") or "").strip() or (
+        os.getenv("SUPABASE_SECRET_KEY") or ""
+    ).strip()
+    return value.encode("utf-8")
+
+
+def _media_sig(doc_id: str, expires: int) -> str:
+    message = f"media:{doc_id}:{int(expires)}".encode("utf-8")
+    return hmac.new(_media_secret(), message, hashlib.sha256).hexdigest()[:32]
+
+
+def sign_media(doc_id: str, ttl: int = MEDIA_URL_TTL) -> str:
+    """The query fragment that makes one document URL loadable without headers."""
+    expires = int(time.time()) + int(ttl)
+    return f"expires={expires}&sig={_media_sig(doc_id, expires)}"
+
+
+def media_signature_valid(doc_id: str, expires, sig: str) -> bool:
+    if not doc_id or not sig:
+        return False
+    try:
+        expires = int(expires)
+    except (TypeError, ValueError):
+        return False
+    if expires < time.time():
+        return False
+    return hmac.compare_digest(_media_sig(doc_id, expires), str(sig).strip().lower())
+
+
+def _reject(detail: str) -> JSONResponse:
+    return JSONResponse(
+        {"detail": detail},
+        status_code=401,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 class AuthGateMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        if not _is_protected(request.method, request.url.path):
+        if request.method == "OPTIONS":
             return await call_next(request)
 
+        protected = _is_protected(request.method, request.url.path)
         header = request.headers.get("authorization", "")
-        if not header.lower().startswith("bearer "):
-            return JSONResponse(
-                {"detail": "Sign in to use this feature."},
-                status_code=401,
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        offered = header.lower().startswith("bearer ")
+
+        if not protected and not offered:
+            return await call_next(request)
+
+        if not offered:
+            # Only a protected route can get here: an open one without a token
+            # is none of this middleware's business.
+            return _reject("Sign in to use this feature.")
 
         try:
             claims = await run_in_threadpool(verify_token, header[7:].strip())
         except AuthError as exc:
-            return JSONResponse(
-                {"detail": str(exc)},
-                status_code=401,
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            if not protected:
+                # An open route with a stale token still serves: the token is
+                # not what protects it, and refusing here would break playback
+                # in a tab whose session quietly expired.
+                return await call_next(request)
+            return _reject(str(exc))
 
         request.state.user = claims
         request.state.user_id = claims.get("sub")

@@ -31,14 +31,20 @@ R2_ACCESS_KEY_ID = (os.getenv("R2_ACCESS_KEY_ID") or "").strip()
 R2_SECRET_ACCESS_KEY = (os.getenv("R2_SECRET_ACCESS_KEY") or "").strip()
 R2_BUCKET_NAME = (os.getenv("R2_BUCKET_NAME") or "").strip()
 
-# Every video lives under this prefix, which is also what the processing
-# endpoints require -- a key outside it is not one of ours.
+# Every object lives under one of these two roots, and under a directory named
+# for its owner (see services/user_scope.py): videos/<dir>/<uuid>-<name>.
 UPLOAD_KEY_PREFIX = "videos/"
 
 # Uploaded study documents (PDF / PPTX / DOCX) live beside the videos, in their
 # own prefix so the video retention sweeper never deletes a handout.
 DOCUMENT_KEY_PREFIX = "documents/"
 _ALLOWED_PREFIXES = (UPLOAD_KEY_PREFIX, DOCUMENT_KEY_PREFIX)
+
+# A key is root + optional owner directory + one flat file name. The directory
+# is optional only so objects uploaded before scoping existed still validate;
+# nothing new is written without one.
+_KEY_RE = re.compile(r"^(?:videos|documents)/(?:[a-f0-9]{16,64}/)?[A-Za-z0-9._\-]+$")
+_PREFIX_RE = re.compile(r"^(?:videos|documents)/(?:[a-f0-9]{16,64}/)?$")
 
 # Signing-only module: no bucket calls happen here, but the same client also
 # serves the fallback download, so the timeout keeps a stuck connection from
@@ -105,23 +111,44 @@ def sanitize_file_name(file_name: str) -> str:
 
 
 def validate_file_key(file_key: str) -> str:
-    """Accept only keys this module issued (videos/<hash>-<name>), unchanged."""
+    """Accept only keys this module issued, unchanged.
+
+    Shapes: ``videos/<uuid>-<name>`` and ``documents/<uuid>-<name>`` for objects
+    from before scoping, and ``videos/<dir>/<uuid>-<name>`` /
+    ``documents/<dir>/<uuid>-<name>`` for everything since, where <dir> is the
+    owner's directory from services/user_scope.py.
+    """
     key = str(file_key or "").strip()
-    prefix = next((item for item in _ALLOWED_PREFIXES if key.startswith(item)), None)
-    if not prefix:
+    if not key.startswith(_ALLOWED_PREFIXES):
         raise ValueError("file_key must start with 'videos/' or 'documents/'")
-    rest = key[len(prefix):]
-    if not rest or "/" in rest or "\\" in rest or ".." in rest:
+    if ".." in key or not _KEY_RE.fullmatch(key):
         raise ValueError("file_key contains invalid path characters")
-    if not re.fullmatch(r"[A-Za-z0-9._\-]+", rest):
-        raise ValueError("file_key contains unsupported characters")
     if len(key) > 250:
         raise ValueError("file_key too long")
     return key
 
 
+def validate_prefix(prefix: str) -> str:
+    """A directory new keys are written into: 'videos/' or 'documents/<dir>/'."""
+    value = str(prefix or "").strip()
+    if not value.endswith("/"):
+        value += "/"
+    if not _PREFIX_RE.fullmatch(value):
+        raise ValueError(f"unsupported key prefix: {prefix}")
+    return value
+
+
+def display_name_for_key(file_key: str) -> str:
+    """The original file name stored in a key: <root>/<dir>/<uuid>-<name>."""
+    name = str(file_key or "").rsplit("/", 1)[-1]
+    return name.split("-", 1)[1] if "-" in name else name
+
+
 def generate_presigned_upload_url(
-    file_name: str, content_type: str = "video/mp4", expires_in: int = 900
+    file_name: str,
+    content_type: str = "video/mp4",
+    expires_in: int = 900,
+    prefix: str = UPLOAD_KEY_PREFIX,
 ):
     """A PUT URL the browser uploads the video to, straight to R2.
 
@@ -135,7 +162,7 @@ def generate_presigned_upload_url(
     if not 1 <= int(expires_in) <= 86400:
         raise ValueError("expires_in must be between 1 and 86400 seconds")
 
-    file_key = f"{UPLOAD_KEY_PREFIX}{uuid.uuid4().hex}-{sanitize_file_name(file_name)}"
+    file_key = f"{validate_prefix(prefix)}{uuid.uuid4().hex}-{sanitize_file_name(file_name)}"
 
     try:
         upload_url = _get_client().generate_presigned_url(
@@ -243,8 +270,7 @@ def upload_stream(
     only supports forward reads (an in-progress upload) can go straight to R2.
     Never seeks the input. Returns {"file_key", "size"}.
     """
-    if prefix not in _ALLOWED_PREFIXES:
-        raise ValueError(f"unsupported key prefix: {prefix}")
+    prefix = validate_prefix(prefix)
     if not 8 * 1024 * 1024 <= int(part_size) <= 1024 * 1024 * 1024:
         # S3 requires every part but the last to be at least 5 MiB; 8 MiB leaves
         # headroom and keeps the in-memory buffer predictable.
@@ -253,7 +279,7 @@ def upload_stream(
     allowed = (
         content_type.startswith("video/")
         or content_type == "application/octet-stream"
-        or (prefix == DOCUMENT_KEY_PREFIX and content_type in DOCUMENT_CONTENT_TYPES)
+        or (prefix.startswith(DOCUMENT_KEY_PREFIX) and content_type in DOCUMENT_CONTENT_TYPES)
     )
     if not allowed:
         raise ValueError(f"unsupported content_type: {content_type}")

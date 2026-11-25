@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, BackgroundTasks, Form, HTTPException
+from fastapi import FastAPI, Request, UploadFile, BackgroundTasks, Form, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -54,6 +54,7 @@ from pydantic import BaseModel
 import sys
 
 from services import r2_service
+from services import user_scope
 from services.r2_service import (
     generate_presigned_download_url,
     generate_presigned_upload_url,
@@ -2109,7 +2110,9 @@ async def auth_signup(req: SignupRequest):
 
 
 @app.post('/download-youtube/')
-async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTasks):
+async def download_youtube(
+    req: YoutubeRequest, request: Request, background_tasks: BackgroundTasks
+):
     """Download a YouTube video via yt-dlp, push it to R2, then process it
     through the same R2 pipeline as every other video."""
     import re as _re
@@ -2117,6 +2120,11 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
     import sys
 
     start_time = time.perf_counter()
+
+    try:
+        video_prefix = user_scope.directory("videos", _current_user(request))
+    except (ValueError, RuntimeError) as scope_error:
+        raise HTTPException(status_code=503, detail=str(scope_error))
 
     url = (req.url or "").strip()
     if not url:
@@ -2144,6 +2152,7 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
                 url,
                 on_status=lambda stage=None, progress=None, error=None, **_:
                     _set_job_status(job_id, stage=stage, progress=progress, error=error),
+                prefix=video_prefix,
             )
 
             # The pipeline keys everything (audio WAV, frames, Qdrant points) by
@@ -2175,6 +2184,7 @@ async def download_youtube(req: YoutubeRequest, background_tasks: BackgroundTask
 
 @app.post('/uploadfile/')
 async def create_upload_file(
+    request: Request,
     background_tasks: BackgroundTasks,
     file_upload: UploadFile,
     video_id: str | None = Form(None),
@@ -2192,18 +2202,28 @@ async def create_upload_file(
     global CURRENT_VIDEO_ID
 
     start_time = time.perf_counter()
+    user_id = _current_user(request)
 
     if not file_upload.filename:
         raise HTTPException(status_code=400, detail="Missing uploaded filename")
 
     content_type = (file_upload.content_type or "video/mp4").lower()
+    try:
+        video_prefix = user_scope.directory("videos", user_id)
+    except (ValueError, RuntimeError) as scope_error:
+        raise HTTPException(status_code=503, detail=str(scope_error))
 
     try:
         # FastAPI has fully spooled the multipart body by the time this runs,
         # so the underlying file object is complete and readable.
         file_upload.file.seek(0)
         uploaded = await run_in_threadpool(
-            r2_service.upload_stream, file_upload.file, file_upload.filename, content_type
+            r2_service.upload_stream,
+            file_upload.file,
+            file_upload.filename,
+            content_type,
+            8 * 1024 * 1024,
+            video_prefix,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
@@ -2239,6 +2259,7 @@ async def create_upload_file(
         {
             "kind": "video",
             "job_id": job_id,
+            "owner_id": user_id,
             "file_key": file_key,
             "display_name": file_upload.filename,
             "video_id": video_id,
@@ -2289,10 +2310,16 @@ class ProcessVideoRequest(BaseModel):
 
 
 @app.get('/api/get-upload-url')
-async def api_get_upload_url(file_name: str, content_type: str = "video/mp4"):
+async def api_get_upload_url(
+    request: Request, file_name: str, content_type: str = "video/mp4"
+):
     """A one-time PUT URL the frontend uploads the video to, straight to R2."""
     try:
-        return generate_presigned_upload_url(file_name, content_type)
+        return generate_presigned_upload_url(
+            file_name,
+            content_type,
+            prefix=user_scope.directory("videos", _current_user(request)),
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     except RuntimeError as error:
@@ -2300,7 +2327,9 @@ async def api_get_upload_url(file_name: str, content_type: str = "video/mp4"):
 
 
 @app.post('/api/process-video')
-async def api_process_video(req: ProcessVideoRequest, background_tasks: BackgroundTasks):
+async def api_process_video(
+    req: ProcessVideoRequest, request: Request, background_tasks: BackgroundTasks
+):
     """Kick off analysis for a video that already sits in R2.
 
     The pipeline reads the file straight from a presigned URL with ffmpeg, so
@@ -2310,14 +2339,19 @@ async def api_process_video(req: ProcessVideoRequest, background_tasks: Backgrou
     """
     global CURRENT_VIDEO_ID
 
+    user_id = _current_user(request)
+
     try:
         file_key = r2_service.validate_file_key(req.file_key)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
-    original_name = file_key[len(r2_service.UPLOAD_KEY_PREFIX):]
-    # Reuse a uuid-style split: the object key is videos/<uuid32>-<name>.
-    display_name = original_name.split("-", 1)[1] if "-" in original_name else original_name
+    # An upload URL is issued to one account. Processing a key from another
+    # account's directory would read a file this user cannot even see.
+    if not user_scope.owns("videos", user_id, file_key):
+        raise HTTPException(status_code=403, detail="That file is not in your library")
+
+    display_name = r2_service.display_name_for_key(file_key)
     stem = r2_service.sanitize_file_name(display_name)
     video_id = Path(stem).stem or "video"
 
@@ -3248,6 +3282,33 @@ def _save_document(document: dict) -> None:
     tmp.replace(path)
 
 
+def _current_user(request) -> str:
+    """The verified user id, or a 401 -- never an empty string.
+
+    The gate middleware already refused a tokenless request on every guarded
+    route; this is the other half. The route has to know *whose* library it is
+    looking at, and a missing subject here means the middleware let something
+    through that it should not have.
+    """
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Sign in to use this feature.")
+    return str(user_id)
+
+
+def _owned_document(doc_id: str, user_id: str) -> dict:
+    """The document, but only if this account uploaded it.
+
+    Someone else's document answers exactly like a document that does not
+    exist: 404, not 403. A 403 would confirm the id is real, which is the one
+    bit an enumerating client is after.
+    """
+    document = _load_document(doc_id)
+    if str(document.get("owner_id") or "") != str(user_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document
+
+
 # --- pre-analysed study summary ----------------------------------------------
 # The summary is the one question every reader asks, and it is also the most
 # expensive one: the whole handout goes into the model at once. So it is
@@ -3490,7 +3551,15 @@ def _ocr_page_bytes(data: bytes, mime: str) -> str:
     return transcribe_image(f"data:{mime};base64,{encoded}")
 
 
-def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: str, file_key: str, start_time: float):
+def _process_document_job(
+    job_id: str,
+    doc_id: str,
+    temp_path: str,
+    file_name: str,
+    file_key: str,
+    start_time: float,
+    owner_id: str = "",
+):
     """Parse a document, chunk it, embed the chunks and index them by page."""
     # Waits for a slot rather than starting a third heavy job: a queued upload
     # that finishes slowly is better than three that all thrash the box.
@@ -3596,6 +3665,8 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
         _set_job_status(job_id, status="processing", stage="finalizing", progress=90)
         document = {
             "doc_id": doc_id,
+            # Whose library this belongs to. Every read is checked against it.
+            "owner_id": owner_id,
             "file_name": file_name,
             "file_key": file_key,
             "kind": extracted["kind"],
@@ -3653,8 +3724,16 @@ def _process_document_job(job_id: str, doc_id: str, temp_path: str, file_name: s
 
 
 @app.post("/api/upload-document")
-async def api_upload_document(background_tasks: BackgroundTasks, file_upload: UploadFile):
+async def api_upload_document(
+    request: Request, background_tasks: BackgroundTasks, file_upload: UploadFile
+):
     """Accept a PDF/PPTX/DOCX, store it in R2, then parse and index it."""
+    user_id = _current_user(request)
+    try:
+        document_prefix = user_scope.directory("documents", user_id)
+    except (ValueError, RuntimeError) as scope_error:
+        raise HTTPException(status_code=503, detail=str(scope_error))
+
     if not file_upload.filename:
         raise HTTPException(status_code=400, detail="Missing uploaded filename")
 
@@ -3697,7 +3776,7 @@ async def api_upload_document(background_tasks: BackgroundTasks, file_upload: Up
                     file_upload.filename,
                     _DOCUMENT_CONTENT_TYPES[suffix],
                     8 * 1024 * 1024,
-                    r2_service.DOCUMENT_KEY_PREFIX,
+                    document_prefix,
                 )
             except (ValueError, RuntimeError) as error:
                 raise HTTPException(status_code=502, detail=f"Document storage failed: {error}")
@@ -3743,6 +3822,7 @@ async def api_upload_document(background_tasks: BackgroundTasks, file_upload: Up
             "kind": "document",
             "job_id": job_id,
             "doc_id": doc_id,
+            "owner_id": user_id,
             "temp_path": str(temp_path),
             "file_name": file_upload.filename,
             "file_key": uploaded["file_key"],
@@ -3763,14 +3843,17 @@ async def api_upload_document(background_tasks: BackgroundTasks, file_upload: Up
 
 
 @app.get("/api/documents")
-async def api_list_documents():
-    """Every indexed document, newest first, without the page texts."""
+async def api_list_documents(request: Request):
+    """This account's documents, newest first, without the page texts."""
+    user_id = _current_user(request)
     items = []
     for path in DOCS_DIR.glob("*.json"):
         try:
             with open(path, "r", encoding="utf-8") as handle:
                 document = json.load(handle)
         except Exception:
+            continue
+        if str(document.get("owner_id") or "") != user_id:
             continue
         items.append(
             {
@@ -3786,9 +3869,40 @@ async def api_list_documents():
     return {"documents": items}
 
 
+def _document_file_url(document: dict) -> str:
+    """Where the viewer iframe reads the PDF from.
+
+    Straight from R2 when the bucket allows this origin, relayed by the API
+    otherwise. The relay is a fallback for the bucket, not for the reader: an
+    iframe sends no Authorization header, so the relayed URL carries the
+    expiring signature this authenticated request just minted.
+    """
+    if _document_cors_available():
+        return f"/api/document-stream/{document.get('file_key')}"
+    return (
+        f"/api/document-file/{document['doc_id']}"
+        f"?{auth_guard.sign_media(document['doc_id'])}"
+    )
+
+
+def _authorise_media(request, document: dict, expires=None, sig: str = "") -> None:
+    """A header proves the account; a signature proves the URL came from us.
+
+    Either one is enough. A document belonging to someone else is a 401 here
+    rather than a 404: the caller already named the document, so there is no id
+    left to hide.
+    """
+    user_id = getattr(request.state, "user_id", None)
+    if user_id and str(document.get("owner_id") or "") == str(user_id):
+        return
+    if auth_guard.media_signature_valid(document.get("doc_id"), expires, sig):
+        return
+    raise HTTPException(status_code=401, detail="Sign in to use this feature.")
+
+
 @app.get("/api/document/{doc_id}")
-async def api_get_document(doc_id: str):
-    document = _load_document(doc_id)
+async def api_get_document(doc_id: str, request: Request):
+    document = _owned_document(doc_id, _current_user(request))
     return {
         "doc_id": document["doc_id"],
         "file_name": document.get("file_name"),
@@ -3802,11 +3916,7 @@ async def api_get_document(doc_id: str):
         "language": _document_language(document),
         # Direct from R2 when the bucket allows this origin, relayed by the API
         # otherwise. The relay works everywhere but every byte crosses the VPS.
-        "file_url": (
-            f"/api/document-stream/{document.get('file_key')}"
-            if _document_cors_available()
-            else f"/api/document-file/{document['doc_id']}"
-        ),
+        "file_url": _document_file_url(document),
     }
 
 
@@ -3826,7 +3936,9 @@ async def api_document_stream(file_key: str):
 
 
 @app.get("/api/document-file/{doc_id}")
-async def api_document_file(doc_id: str):
+async def api_document_file(
+    doc_id: str, request: Request, expires: int | None = None, sig: str = ""
+):
     """Stream the original file through this API, same-origin.
 
     A presigned R2 URL would be cross-origin, and the browser's fetch of it
@@ -3835,6 +3947,7 @@ async def api_document_file(doc_id: str):
     instead: one origin, no CORS, and the credentials never leave the server.
     """
     document = _load_document(doc_id)
+    _authorise_media(request, document, expires, sig)
     file_key = document.get("file_key")
     if not file_key:
         raise HTTPException(status_code=404, detail="Document has no stored file")
@@ -3869,9 +3982,9 @@ async def api_document_file(doc_id: str):
 
 
 @app.delete("/api/document/{doc_id}")
-async def api_delete_document(doc_id: str):
+async def api_delete_document(doc_id: str, request: Request):
     """Forget a document: its points, its R2 object and its metadata."""
-    document = _load_document(doc_id)
+    document = _owned_document(doc_id, _current_user(request))
     try:
         client.delete(
             collection_name=TEXT_COLLECTION,
@@ -3969,9 +4082,9 @@ def _document_context_chunks(doc_id: str) -> list:
 
 
 @app.get("/api/document/{doc_id}/chats")
-async def api_document_chats(doc_id: str):
+async def api_document_chats(doc_id: str, request: Request):
     """The conversations held about this document, newest first."""
-    _load_document(doc_id)
+    _owned_document(doc_id, _current_user(request))
     data = _load_chats(doc_id)
     chats = sorted(
         data.get("chats") or [], key=lambda item: item.get("updated_at") or 0, reverse=True
@@ -3990,9 +4103,11 @@ async def api_document_chats(doc_id: str):
 
 
 @app.post("/api/document/{doc_id}/chats")
-async def api_document_chat_create(doc_id: str, req: ChatCreate | None = None):
+async def api_document_chat_create(
+    doc_id: str, request: Request, req: ChatCreate | None = None
+):
     """Start a conversation. The title becomes the first question's text."""
-    _load_document(doc_id)
+    _owned_document(doc_id, _current_user(request))
     with _CHAT_LOCK:
         data = _load_chats(doc_id)
         chat = {
@@ -4008,8 +4123,8 @@ async def api_document_chat_create(doc_id: str, req: ChatCreate | None = None):
 
 
 @app.get("/api/document/{doc_id}/chats/{chat_id}")
-async def api_document_chat(doc_id: str, chat_id: str):
-    _load_document(doc_id)
+async def api_document_chat(doc_id: str, chat_id: str, request: Request):
+    _owned_document(doc_id, _current_user(request))
     data = _load_chats(doc_id)
     chat = _find_chat(data, chat_id)
     if chat is None:
@@ -4022,8 +4137,8 @@ async def api_document_chat(doc_id: str, chat_id: str):
 
 
 @app.delete("/api/document/{doc_id}/chats/{chat_id}")
-async def api_document_chat_delete(doc_id: str, chat_id: str):
-    _load_document(doc_id)
+async def api_document_chat_delete(doc_id: str, chat_id: str, request: Request):
+    _owned_document(doc_id, _current_user(request))
     with _CHAT_LOCK:
         data = _load_chats(doc_id)
         before = len(data.get("chats") or [])
@@ -4033,21 +4148,21 @@ async def api_document_chat_delete(doc_id: str, chat_id: str):
 
 
 @app.post("/api/document/ask")
-async def api_document_ask(req: DocumentQuestion):
+async def api_document_ask(req: DocumentQuestion, request: Request):
     # Everything below is blocking -- Qdrant, the embedding call, the model round
     # trip. On the event loop it froze the whole API for the length of an answer:
     # five questions took five times as long as one, and a healthcheck during the
     # burst waited 22 seconds. In a thread they run side by side.
-    return await run_in_threadpool(_document_ask_impl, req)
+    return await run_in_threadpool(_document_ask_impl, req, None, _current_user(request))
 
 
-def _document_ask_impl(req: DocumentQuestion, emit=None):
+def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
     """Ask about a document: retrieve pages, answer, cite `p. N`."""
     question = (req.question or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="question is required")
 
-    document = _load_document(req.doc_id)
+    document = _owned_document(req.doc_id, str(user_id))
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
@@ -4297,13 +4412,14 @@ def _study_context(chunks: list, limit: int) -> str:
 
 
 @app.post("/api/document/ask/stream")
-async def api_document_ask_stream(req: DocumentQuestion):
+async def api_document_ask_stream(req: DocumentQuestion, request: Request):
     """The same answer as /api/document/ask, delivered as it is written.
 
     The work is blocking and HTTP-bound, so it runs in a thread and hands its
     tokens to this event loop through a queue: the response starts in
     milliseconds, and a second reader is not queued behind the first.
     """
+    user_id = _current_user(request)
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
 
@@ -4312,7 +4428,7 @@ async def api_document_ask_stream(req: DocumentQuestion):
 
     def work():
         try:
-            _document_ask_impl(req, emit)
+            _document_ask_impl(req, emit, user_id)
         except HTTPException as error:
             emit("error", {"message": str(error.detail)})
         except Exception as error:  # noqa: BLE001 - the client gets the reason
@@ -4338,8 +4454,8 @@ async def api_document_ask_stream(req: DocumentQuestion):
 
 
 @app.post("/api/document/quiz")
-async def api_document_quiz(req: DocumentStudyRequest):
-    document = _load_document(req.doc_id)
+async def api_document_quiz(req: DocumentStudyRequest, request: Request):
+    document = _owned_document(req.doc_id, _current_user(request))
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
@@ -4358,8 +4474,8 @@ async def api_document_quiz(req: DocumentStudyRequest):
 
 
 @app.post("/api/document/flashcards")
-async def api_document_flashcards(req: DocumentStudyRequest):
-    document = _load_document(req.doc_id)
+async def api_document_flashcards(req: DocumentStudyRequest, request: Request):
+    document = _owned_document(req.doc_id, _current_user(request))
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
@@ -4370,8 +4486,8 @@ async def api_document_flashcards(req: DocumentStudyRequest):
 
 
 @app.post("/api/document/notes")
-async def api_document_notes(req: DocumentStudyRequest):
-    document = _load_document(req.doc_id)
+async def api_document_notes(req: DocumentStudyRequest, request: Request):
+    document = _owned_document(req.doc_id, _current_user(request))
     chunks = _document_context_chunks(req.doc_id)
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")

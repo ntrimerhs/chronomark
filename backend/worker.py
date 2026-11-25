@@ -36,6 +36,7 @@ def _run_document(backend, job):
         job["file_name"],
         job.get("file_key") or "",
         time.perf_counter(),
+        job.get("owner_id") or "",
     )
 
 

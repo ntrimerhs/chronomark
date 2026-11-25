@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AuthForm from './AuthForm'
 import '../styles/authDialog.css'
 
@@ -26,6 +27,7 @@ const COPY = {
 
 export default function AuthDialog({ open, mode = 'signin', onClose, onModeChange }) {
   const copy = COPY[mode] || COPY.signin
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!open) return undefined
@@ -64,8 +66,13 @@ export default function AuthDialog({ open, mode = 'signin', onClose, onModeChang
         <AuthForm
           mode={mode}
           onModeChange={onModeChange}
-          onSuccess={onClose}
-          oauthNext="/upload"
+          // Signing in is not a place to stay: the account is worth nothing on
+          // the marketing page, so the dialog hands over to the workspace.
+          onSuccess={() => {
+            onClose()
+            navigate('/workspaces')
+          }}
+          oauthNext="/workspaces"
         />
       </div>
     </div>

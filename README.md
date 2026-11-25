@@ -137,17 +137,58 @@ while the session is read so the workspace never flashes first. A redirect is a
 courtesy though, not a wall — anyone can POST to the API directly. So
 `backend/auth_guard.py` verifies the Supabase access token against the project's
 JWKS (ES256/RS256; `cryptography` is already in the image, no PyJWT) and answers
-`401` on the endpoints that cost money.
+`401` on the endpoints that cost money — and on the whole `/document…` prefix,
+not a list of routes, so a route added next month is not born unprotected.
 
-| Protected | Open — a `<video>` or an `<a download>` cannot send a header |
+| Protected | Open — a `<video>` or an `<iframe>` cannot send a header |
 |---|---|
 | `/uploadfile`, `/download-youtube`, `/ask` | `/api/video-stream/*`, `/api/document-stream/*` |
-| `/api/upload-document`, `/api/process-video`, `/api/get-upload-url` | `/api/document-file/*`, `/video-frames/*`, `/uploads`, `/audio`, `/frames` |
-| `/api/document/ask`, `/ask/stream`, `/quiz`, `/flashcards`, `/notes` | `/health` |
+| `/api/upload-document`, `/api/process-video`, `/api/get-upload-url` | `/video-frames/*`, `/uploads`, `/audio`, `/frames`, `/health` |
+| `/api/documents` and every `/api/document/*` route | |
+| `/api/document-file/*` — by header, or by the signature in its `file_url` | |
 
 Every browser call carries the token because `src/lib/authFetch.js` wraps `fetch`
-once and adds `Authorization: Bearer …` for our own API only — so a call written
-next month is authenticated too.
+and `src/lib/authAxios.js` wraps axios, each once, adding `Authorization: Bearer …`
+for our own API only — so a call written next month is authenticated too. Both are
+needed: axios talks XHR and never touches `window.fetch`, which is exactly how a
+signed-in visitor used to get "please sign in" from the upload page.
+
+### One directory per account
+
+The bucket is not shared any more. Every object an account uploads lands under
+`documents/<dir>/…` or `videos/<dir>/…`, where `<dir>` is an HMAC of the user id
+keyed by `R2_SCOPE_SECRET` (`backend/services/user_scope.py`):
+
+```
+documents/776dcd4730995730467f89d1/9af3f568…-01_graphsintro.pdf   ← admin
+documents/876eb8f91f87dc6be8a78834/bd9368bd…-theme-showcase.pdf   ← xrysa
+```
+
+The directory is a hash, not the id. A UUID in a key would tell anyone who sees a
+URL exactly who owns the file, and the id is the one value an attacker already
+holds — it is in their own token — so it must not be the thing that protects the
+folder. Twenty-four hex characters, stable per account, impossible to enumerate.
+
+The wall itself is `owner_id`: written on the document record by the worker that
+indexed it (the API passes it through the job file), checked on every read.
+Someone else's document answers `404`, exactly like one that does not exist — a
+`403` would confirm the id is real, which is the one bit an enumerating client is
+after. `_owned_document()` is the only function that decides, and the video side
+refuses a `file_key` outside the caller's directory on `/api/process-video`.
+
+Objects uploaded before scoping are moved into their owner's directory by
+`backend/scripts/migrate_scopes.py`: copy, `HEAD` the copy to confirm the size,
+then delete the old key — so an interrupted run leaves a duplicate, never a hole.
+
+```bash
+docker compose exec -T backend python scripts/migrate_scopes.py --owner <user-id> --dry-run
+```
+
+An `<iframe>` cannot send a header, so the document `file_url` is not a bare
+route: the authenticated request that returns it mints an expiring signature
+(`?expires=…&sig=…`, six hours) and `/api/document-file` accepts either that
+signature or a header. A tampered or expired one is a `401`.
+
 
 ### The frontend
 
@@ -228,6 +269,7 @@ psql "$DATABASE_URL" -f backend/sql/001_users.sql
 | `GROQ_API_KEY` | speech to text, figure vision |
 | `QDRANT_URL`, `QDRANT_API_KEY` | vector store |
 | `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | object storage |
+| `R2_SCOPE_SECRET` | any long random string; turns a user id into that account's bucket directory and signs the document `file_url`s. **Rotating it orphans every object uploaded before the rotation** |
 | `EMBEDDING_API_KEY` | OpenAI key for embeddings (falls back to `OPENAI_API_KEY`) |
 
 **Accounts**
@@ -371,11 +413,14 @@ backend/            FastAPI app, workers and the pipelines
   cloudflare_media.py  optional edge audio route (audio-only M4A slices)
   cloudflare_stream.py  optional transcode route (whole video, long inputs)
   qdrant_store.py   collections and search
+  services/user_scope.py  user id → that account's R2 directory (HMAC)
+  scripts/migrate_scopes.py  move pre-scoping objects into their owner's directory
   sql/001_users.sql schema, trigger and RLS policies
 frontend/           React 19 + Vite SPA
   src/components/common/AppSidebar.jsx     the one sidebar
   src/components/RequireAuth.jsx           the redirect
-  src/lib/authFetch.js                     the bearer token, added once
+  src/lib/authFetch.js                     the bearer token, added once for fetch
+  src/lib/authAxios.js                     ... and once for axios
   src/lib/supabaseClient.js                the client and the username mapping
   src/components/workspace/Workspaces.jsx  dashboard, list, history, settings
 docker-compose.yml  api, worker (x2), frontend, WARP egress
@@ -394,13 +439,15 @@ docker-compose.yml  api, worker (x2), frontend, WARP egress
   endpoint takes at most 15 pages per request (hence the 14-page split).
 - **Frame/visual search is off by default**; turn on `FRAME_EMBEDDINGS=1` and the
   box pays for CLIP again.
-- **Workspaces are not yet written to Postgres** — the tables, the trigger and the
-  RLS policies exist and are tested, but uploads still live in the file store, so
-  every signed-in account sees the same library. Wiring `workspaces`/`messages`
-  into the pipeline is the next step; until then the gate proves *who* you are,
-  not *whose* document it is.
-- **The media endpoints are open by design** — a `<video>` cannot send a header, so
-  they are protected by unguessable keys instead. Signed URLs would be stronger.
+- **The library is per account, but it is still the file store, not Postgres** —
+  `owner_id` and the per-account bucket directory isolate every document and video,
+  while the `workspaces`/`messages` tables (with their RLS policies) remain unused.
+  Moving the records into them is the next step, and the ownership model is already
+  the shape those tables expect.
+- **Video playback is protected by an unguessable key, not a signature** — a
+  `<video src>` cannot send a header, so `/api/video-stream/<key>` stays open, and
+  the key carries the owner's directory hash. Documents get a signed `file_url`
+  instead; videos would get the same treatment if they were worth the round trip.
 - The queue is filesystem-based on purpose: it survives restarts and needs no
   extra service, but it is single-host. Multi-host would want Redis behind the
   same interface.
@@ -421,6 +468,9 @@ docker-compose.yml  api, worker (x2), frontend, WARP egress
 | YouTube → R2, muxed 360p | 27.2 MB in **21s**, `/tmp` untouched |
 | YouTube → R2, adaptive 1080p | 245.7 + 29.3 MB → 275.4 MB muxed in **94s**, `/tmp` empty after |
 | Auth gate | the costly endpoints answer `401` without a token, `422`/`200` with one |
+| Per-account isolation | admin sees 1 document, xrysa 1 — each list empty of the other's; the other's `doc_id` answers `404` on read, chats, quiz, ask and delete; an upload lands in `documents/<hash-of-the-uploader>/` |
+| Signed media URL | owner's `file_url` → `200`, no header and no signature → `401`, tampered signature → `401`, another account's document → `401` |
+| Video scoping | a 29 KB 2-second clip went to `videos/<xrysa-hash>/…`; admin's `/api/process-video` on that key → `403` |
 | Sign-up without a mailer | account created already confirmed; the profile row is made by the trigger |
 | Sidebar | one component in all three workspaces; no second implementation left to drift |
 
@@ -431,14 +481,15 @@ stretched.
 
 ### Where this is going
 
-1. **Ownership**: write `workspaces`/`messages` per account so `/api/documents`
-   returns only the caller's library.
+1. **Move the records into Postgres**: `workspaces`/`messages` rows per account,
+   with `owner_id` and the bucket directory already the shape they expect — the
+   file store is what runs today.
 2. `pipelines/` package with a single `select_route()` that encodes each route's
    preconditions, so the four video routes stop being a chain of `except`
    fallbacks, and the worker imports `pipelines` instead of `main`.
 3. One writer for job status (monotonic progress), plus `route_used` and per-stage
    timings in the job record.
-4. Signed URLs for the media endpoints.
+4. Signed URLs for video playback too, not only for documents.
 5. Tests for route selection and transcript merging; `make verify` runs them in
    seconds.
 

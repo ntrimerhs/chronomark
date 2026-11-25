@@ -142,6 +142,7 @@ def _stream_to_r2(
     file_name: str,
     content_type: str,
     on_status=None,
+    prefix: str = r2_service.UPLOAD_KEY_PREFIX,
 ) -> dict:
     """Pipe one yt-dlp output stream straight into R2. No local file."""
     if on_status:
@@ -162,7 +163,9 @@ def _stream_to_r2(
 
     uploaded = None
     try:
-        uploaded = r2_service.upload_stream(process.stdout, file_name, content_type)
+        uploaded = r2_service.upload_stream(
+            process.stdout, file_name, content_type, prefix=prefix
+        )
     except Exception as error:
         process.kill()
         process.wait()
@@ -287,7 +290,12 @@ def _required_mb(info: dict) -> float:
 # ── the mux path (the only one that writes a file) ──────────────────────────
 
 
-def _mux_to_r2(video_key: str, audio_key: str, file_name: str) -> dict:
+def _mux_to_r2(
+    video_key: str,
+    audio_key: str,
+    file_name: str,
+    prefix: str = r2_service.UPLOAD_KEY_PREFIX,
+) -> dict:
     video_url = r2_service.generate_presigned_download_url(video_key, expires_in=3600)
     audio_url = r2_service.generate_presigned_download_url(audio_key, expires_in=3600)
 
@@ -317,7 +325,9 @@ def _mux_to_r2(video_key: str, audio_key: str, file_name: str) -> dict:
         if result.returncode != 0 or not out_path.exists() or out_path.stat().st_size == 0:
             raise YouTubeIngestError(f"ffmpeg could not mux the streams: {_tail(result.stderr)}")
         with open(out_path, "rb") as handle:
-            return r2_service.upload_stream(handle, file_name, "video/mp4")
+            return r2_service.upload_stream(
+                handle, file_name, "video/mp4", prefix=prefix
+            )
     finally:
         # The muxed file must not survive the upload, whatever happened.
         try:
@@ -326,20 +336,26 @@ def _mux_to_r2(video_key: str, audio_key: str, file_name: str) -> dict:
             pass
 
 
-def _import_dash(url: str, plan: dict, stem: str, on_status) -> dict:
+def _import_dash(
+    url: str, plan: dict, stem: str, on_status, prefix: str = r2_service.UPLOAD_KEY_PREFIX
+) -> dict:
     if on_status:
         on_status(stage="downloading_video", progress=6)
-    video = _stream_to_r2(url, plan["video_selector"], f"{stem}-video.mp4", "application/octet-stream")
+    video = _stream_to_r2(
+        url, plan["video_selector"], f"{stem}-video.mp4", "application/octet-stream", prefix=prefix
+    )
 
     audio = None
     try:
         if on_status:
             on_status(stage="downloading_audio", progress=10)
-        audio = _stream_to_r2(url, plan["audio_selector"], f"{stem}-audio.m4a", "application/octet-stream")
+        audio = _stream_to_r2(
+            url, plan["audio_selector"], f"{stem}-audio.m4a", "application/octet-stream", prefix=prefix
+        )
 
         if on_status:
             on_status(stage="muxing", progress=13)
-        return _mux_to_r2(video["file_key"], audio["file_key"], f"{stem}.mp4")
+        return _mux_to_r2(video["file_key"], audio["file_key"], f"{stem}.mp4", prefix=prefix)
     finally:
         for uploaded in (video, audio):
             if not uploaded:
@@ -353,7 +369,9 @@ def _import_dash(url: str, plan: dict, stem: str, on_status) -> dict:
 # ── entry point ─────────────────────────────────────────────────────────────
 
 
-def import_to_r2(url: str, on_status=None) -> dict:
+def import_to_r2(
+    url: str, on_status=None, prefix: str = r2_service.UPLOAD_KEY_PREFIX
+) -> dict:
     """Bring a YouTube video into R2 and return {"file_key", "size", ...}."""
     info = probe(url)
     if info.get("is_live"):
@@ -385,11 +403,13 @@ def import_to_r2(url: str, on_status=None) -> dict:
 
     if mode == "muxed":
         height = plan["muxed_height"]
-        uploaded = _stream_to_r2(url, plan["muxed_selector"], f"{stem}.mp4", "video/mp4", on_status)
+        uploaded = _stream_to_r2(
+            url, plan["muxed_selector"], f"{stem}.mp4", "video/mp4", on_status, prefix=prefix
+        )
         reason = f"muxed {height}p, nothing written to disk"
     else:
         height = plan["dash_height"]
-        uploaded = _import_dash(url, plan, stem, on_status)
+        uploaded = _import_dash(url, plan, stem, on_status, prefix=prefix)
         reason = f"dash {height}p, two streams muxed and the temp file deleted"
 
     uploaded["mode"] = mode
