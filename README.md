@@ -441,3 +441,22 @@ stretched.
 4. Signed URLs for the media endpoints.
 5. Tests for route selection and transcript merging; `make verify` runs them in
    seconds.
+
+---
+
+## License
+
+ChronoMark is source-available under the
+[Functional Source License, Version 1.1, ALv2 Future License](LICENSE)
+(FSL-1.1-ALv2).
+
+- You may run it yourself, locally or on your own servers, with your own API keys,
+  and you may read, modify and redistribute the code for any purpose other than a
+  competing commercial product or service.
+- You may not offer ChronoMark, or a substantially similar product built from it,
+  as a hosted or commercial service that competes with ours.
+- Two years after each version is released, that version becomes available under
+  the Apache License, Version 2.0.
+
+A managed, hosted version with no setup is available at
+[chronomark.0digital.xyz](https://chronomark.0digital.xyz).
