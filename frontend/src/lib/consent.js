@@ -21,7 +21,7 @@ export async function fetchConsents() {
 export async function saveConsent(kind, granted) {
   const { data } = await axios.post(
     `${API_BASE_URL}/api/consent`,
-    { kind, granted },
+    { [kind]: !!granted },
     { headers: await headers() },
   )
   return data
