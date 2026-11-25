@@ -123,7 +123,7 @@ export default function PulseHeader({ inline = false, reloadOnBrand = false }) {
             )}
 
             <a className="ph-start" href={session ? '/upload' : '/register'}>
-              <span>{session ? 'Workspaces' : 'Sign up'}</span>
+              <span>{session ? 'Workspaces' : 'Get Started'}</span>
               <span className="material-symbols-outlined">arrow_forward</span>
             </a>
           </div>

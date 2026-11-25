@@ -12,9 +12,9 @@
 .ph {
   --ph-ink: #e3e0f2;
   --ph-variant: #c8c4d5;
-  --ph-primary: #c6bfff;
-  --ph-primary-fixed: #e4dfff;
-  --ph-on-primary: #291193;
+  --ph-primary: #a8a2ff;
+  --ph-primary-fixed: #d8d6ff;
+  --ph-on-primary: #0b0b12;
 
   position: fixed;
   top: 0;
@@ -81,7 +81,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--ph-primary);
-  box-shadow: 0 0 8px rgba(198, 191, 255, 0.65);
+  box-shadow: 0 0 8px rgba(168, 162, 255, 0.65);
 }
 
 .ph-brand-divider {
@@ -121,7 +121,7 @@
 
 .ph-search-slot .cell-search:hover {
   color: var(--ph-ink);
-  border-color: rgba(198, 191, 255, 0.4);
+  border-color: rgba(168, 162, 255, 0.4);
 }
 
 .ph-nav {
@@ -159,7 +159,7 @@
   color: var(--ph-ink);
   background: rgba(41, 41, 54, 0.8);
   border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 14px rgba(198, 191, 255, 0.15);
+  box-shadow: 0 0 14px rgba(168, 162, 255, 0.15);
 }
 
 .ph-actions {
@@ -199,19 +199,19 @@
   gap: 8px;
   padding: 8px 16px;
   border-radius: 9999px;
-  border: 1px solid rgba(198, 191, 255, 0.3);
+  border: 1px solid rgba(168, 162, 255, 0.3);
   background: var(--ph-primary);
   color: var(--ph-on-primary);
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
-  box-shadow: 0 0 24px rgba(198, 191, 255, 0.35);
+  box-shadow: 0 0 24px rgba(168, 162, 255, 0.35);
   transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
 .ph-start:hover {
   background: var(--ph-primary-fixed);
-  box-shadow: 0 0 32px rgba(198, 191, 255, 0.6);
+  box-shadow: 0 0 32px rgba(168, 162, 255, 0.6);
 }
 
 .ph .material-symbols-outlined {
