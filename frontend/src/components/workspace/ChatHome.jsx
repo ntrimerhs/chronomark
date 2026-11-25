@@ -63,6 +63,13 @@ export default function ChatHome() {
   const [status, setStatus] = useState('')
   const [dragging, setDragging] = useState(false)
   const [thinking, setThinking] = useState('')
+  // How much of the window the analysis gets. Remembered, because a reader who
+  // widens the pages once means it for every document after that.
+  const [split, setSplit] = useState(() => {
+    const stored = Number(window.localStorage.getItem('cm.chat.split'))
+    return Number.isFinite(stored) && stored >= 25 && stored <= 80 ? stored : 50
+  })
+  const [resizing, setResizing] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
@@ -71,6 +78,7 @@ export default function ChatHome() {
   const typeRef = useRef(null)
   const pollRef = useRef(null)
   const threadRef = useRef(null)
+  const splitRef = useRef(null)
   const chatRef = useRef(null)
 
   useEffect(() => () => {
@@ -455,6 +463,40 @@ export default function ChatHome() {
     }
   }, [beginStream, busy, draft, library, matter, messages, readStream, say])
 
+  useEffect(() => {
+    window.localStorage.setItem('cm.chat.split', String(Math.round(split)))
+  }, [split])
+
+  /* Dragging the divider. Pointer events so a trackpad, a pen and a finger all
+     work; the listeners live on the window so the drag survives leaving the
+     handle, and the body cursor is pinned so it does not flicker. */
+  const startResize = useCallback((event) => {
+    event.preventDefault()
+    const container = splitRef.current
+    if (!container) return
+    setResizing(true)
+    const previousCursor = document.body.style.cursor
+    const previousSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const move = (moveEvent) => {
+      const rect = container.getBoundingClientRect()
+      if (!rect.width) return
+      const percent = ((moveEvent.clientX - rect.left) / rect.width) * 100
+      setSplit(Math.min(80, Math.max(25, percent)))
+    }
+    const stop = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', stop)
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousSelect
+      setResizing(false)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', stop)
+  }, [])
+
   const onDrop = (event) => {
     event.preventDefault()
     setDragging(false)
@@ -542,9 +584,12 @@ export default function ChatHome() {
             onChange={(event) => takeFile(event.target.files?.[0])}
           />
 
-          <div className={`ch-split${matter ? ' has-analysis' : ''}`}>
+          <div
+            className={`ch-split${matter ? ' has-analysis' : ''}${resizing ? ' is-resizing' : ''}`}
+            ref={splitRef}
+          >
             {matter ? (
-              <section className="ch-analysis">
+              <section className="ch-analysis" style={{ flex: `0 0 ${split}%` }}>
                 <div className="ch-analysis-head">
                   <span className="ch-analysis-title" title={matter.document?.file_name || matter.video?.title}>
                     {matter.kind === 'document'
@@ -602,6 +647,24 @@ export default function ChatHome() {
                   </div>
                 )}
               </section>
+            ) : null}
+
+            {matter ? (
+              <div
+                className={`ch-splitter${resizing ? ' is-active' : ''}`}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize the analysis"
+                aria-valuenow={Math.round(split)}
+                aria-valuemin={25}
+                aria-valuemax={80}
+                tabIndex={0}
+                onPointerDown={startResize}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowLeft') setSplit((value) => Math.max(25, value - 4))
+                  if (event.key === 'ArrowRight') setSplit((value) => Math.min(80, value + 4))
+                }}
+              />
             ) : null}
 
             <section className="ch-conversation">

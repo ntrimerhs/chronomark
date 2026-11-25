@@ -1903,3 +1903,38 @@
   .ch-thinking-label { animation: none; }
   .ch-thinking-label { color: #F3F4F8; background: none; }
 }
+
+/* ── the divider ─────────────────────────────────────────────────────────────
+   The panes had a fixed 50/50 and no way to argue with it. This is the handle:
+   a hairline that lights up under the pointer, a full-height hit area, and it
+   disappears when the panes stack instead of sitting side by side. */
+.ch-splitter {
+  flex: 0 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.ch-splitter::before {
+  content: '';
+  width: 2px;
+  height: 44px;
+  border-radius: 2px;
+  background: #2a2c3b;
+  transition: background 160ms ease, height 160ms ease;
+}
+.ch-splitter:hover::before,
+.ch-splitter:focus-visible::before,
+.ch-splitter.is-active::before {
+  background: #6f63d9;
+  height: 72px;
+}
+.ch-split.is-resizing { cursor: col-resize; }
+.ch-split.is-resizing .ch-analysis,
+.ch-split.is-resizing .ch-conversation { pointer-events: none; }
+
+@media (max-width: 900px) {
+  .ch-splitter { display: none; }
+}

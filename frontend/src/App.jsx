@@ -20,14 +20,23 @@ function WorkspaceRoute() {
 }
 import PrivacyPage from './components/PrivacyPage.jsx';
 import BackToTop from './components/BackToTop.jsx';
+import { useLocation } from 'react-router-dom';
 import useSmoothScroll from './hooks/useSmoothScroll.js';
+
+/* The analysis scrolls inside its own panels, and a floating button sat over
+   the composer of every chat. The marketing pages still get one. */
+function BackToTopForRoute() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/workspaces')) return null;
+  return <BackToTop />;
+}
 
 function App() {
   useSmoothScroll();
 
   return (
     <Router>
-      <BackToTop />
+      <BackToTopForRoute />
       <Routes>
         <Route path='/' element={<PulseLanding />}/>
         {/* Registration and sign-in are pages, not only the header dialog:
