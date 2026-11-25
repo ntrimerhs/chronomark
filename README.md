@@ -10,6 +10,11 @@ box itself only orchestrates. The API answers an upload in **under a second**, a
 fleet of workers does the indexing, and a long video can be transcribed without
 ever being downloaded.
 
+Accounts are the front door: both workspaces and every endpoint that costs money
+sit behind a signed-in user, and registration works without a mail server — either
+through Google/GitHub, or through an endpoint that creates the account already
+confirmed.
+
 ---
 
 ## Architecture
@@ -71,6 +76,98 @@ Frame extraction and CLIP embeddings are gated by `FRAME_EMBEDDINGS` (off by
 default): the most expensive thing the box used to do, and the answers are
 transcript-backed anyway.
 
+### YouTube — imported without touching the disk
+
+`/download-youtube/` no longer downloads to `/tmp` and then uploads. `yt-dlp`
+writes to **stdout** (`-o -`) and that pipe goes straight into
+`r2_service.upload_stream()`, so a recording becomes an R2 object without ever
+existing as a file. For adaptive streams the video-only and audio-only tracks are
+streamed to R2 separately and muxed there (`ffmpeg -c copy`, presigned inputs),
+which keeps every byte off the container's disk.
+
+The picker prefers a muxed MP4 when one is at least `YT_DLP_MIN_MUXED_HEIGHT`
+(720p), otherwise the best adaptive pair under `YT_DLP_MAX_HEIGHT` (1080p). HLS
+variants are ranked last on purpose: through a pipe, `ffmpeg` on an m3u8 fails
+(exit 8), so a format that only works when written to disk is not a format this
+route can use.
+
+Measured: a muxed 360p clip, 27.2 MB in **21s**; an adaptive 1080p pair,
+245.7 + 29.3 MB → 275.4 MB muxed in **94s**, with `/tmp` empty afterwards.
+
+---
+
+## Accounts, and the wall around the workspaces
+
+Authentication is Supabase; the database is where the rule actually lives. The
+publishable key is in the browser by design, so **row level security**, not the
+key, is what protects a row.
+
+### Database (`backend/sql/001_users.sql`)
+
+| Table | Holds |
+|---|---|
+| `profiles` | one row per account (`display_name`, `avatar_url`, `plan`) |
+| `workspaces` | one row per document or recording (`file_key`, `source_url`, `status`, `page_count`, `duration_sec`, `meta`) |
+| `messages` | chat turns, with `citations` as JSON |
+| `usage_events` | what was spent, per account and per action |
+| `schema_migrations` | what has been applied |
+
+A `security definer` trigger on `auth.users` creates the profile on signup
+(`full_name` → `name` → the email local part), and five RLS policies make every
+row readable and writable only by the `auth.uid()` that owns it. The script is
+idempotent, so it can be run twice.
+
+### Four ways in
+
+| Flow | How |
+|---|---|
+| **Sign in** | `supabase.auth.signInWithPassword` from the browser |
+| **Email sign up** | `POST /auth/signup` — creates the account already confirmed through the admin API, because this project has no SMTP and the default flow would end in an inbox nobody reads |
+| **Google / GitHub** | `signInWithOAuth` → provider → `/auth/callback`, where the session is already in `localStorage` and the page forwards to `?next` |
+| **Reset** | `/reset-password`, the link returns there |
+
+A bare word is a username: `admin` signs in as `admin@chronomark.app`
+(`USERNAME_DOMAIN` in `lib/supabaseClient.js`).
+
+### The gate is on the server, not only in the router
+
+`frontend/src/components/RequireAuth.jsx` sends a signed-out visitor from
+`/upload` or `/documents` to `/register?next=…`, and shows a quiet placeholder
+while the session is read so the workspace never flashes first. A redirect is a
+courtesy though, not a wall — anyone can POST to the API directly. So
+`backend/auth_guard.py` verifies the Supabase access token against the project's
+JWKS (ES256/RS256; `cryptography` is already in the image, no PyJWT) and answers
+`401` on the endpoints that cost money.
+
+| Protected | Open — a `<video>` or an `<a download>` cannot send a header |
+|---|---|
+| `/uploadfile`, `/download-youtube`, `/ask` | `/api/video-stream/*`, `/api/document-stream/*` |
+| `/api/upload-document`, `/api/process-video`, `/api/get-upload-url` | `/api/document-file/*`, `/video-frames/*`, `/uploads`, `/audio`, `/frames` |
+| `/api/document/ask`, `/ask/stream`, `/quiz`, `/flashcards`, `/notes` | `/health` |
+
+Every browser call carries the token because `src/lib/authFetch.js` wraps `fetch`
+once and adds `Authorization: Bearer …` for our own API only — so a call written
+next month is authenticated too.
+
+### The frontend
+
+React 19 + Vite SPA with five surfaces:
+
+```
+/              landing
+/register      create an account   (/login signs in, /auth/callback is the OAuth return)
+/workspaces    dashboard, document list, history, settings
+/documents     document analysis   (viewer + chat)
+/upload        video analysis      (player + chat)
+```
+
+`/workspaces`, `/documents` and `/upload` are behind `RequireAuth`. All three use
+the same sidebar — `components/common/AppSidebar.jsx` — whose shape is the
+document workspace's: wordmark (the way home), one primary action, search, the
+list grouped by day, and one pinned card at the bottom. The workspace page's four
+views sit in a strip beside the top-bar breadcrumb, because the sidebar is the
+list of what you have, not a second navigation.
+
 ---
 
 ## Stack and what it costs
@@ -84,6 +181,7 @@ transcript-backed anyway.
 | Qdrant Cloud | vector store | plan-dependent |
 | Cloudflare R2 | video + document storage | storage + operations |
 | Cloudflare Stream | optional transcoding | $5 / 1,000 min stored, $1 / 1,000 min delivered |
+| Supabase | accounts, Postgres, row level security | the free tier is enough here |
 
 A 23-page handout costs roughly **$0.04** end to end (OCR dominates), and about
 $0.0002 of that is embeddings.
@@ -103,6 +201,23 @@ The frontend is served on `:8080`, the API on `:37712`. A Caddy instance in fron
 (`chronomark.0digital.xyz`) terminates TLS and proxies `/api/*` to the backend with
 the prefix stripped.
 
+The frontend needs its Supabase values at **build** time — Vite bakes them in — so
+`docker-compose.yml` passes them as build args:
+
+```yaml
+frontend:
+  build:
+    args:
+      VITE_SUPABASE_URL: ${SUPABASE_URL}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+```
+
+Then apply the schema once, from a machine that can reach the database:
+
+```bash
+psql "$DATABASE_URL" -f backend/sql/001_users.sql
+```
+
 ### Environment (`backend/.env`)
 
 **Required**
@@ -114,6 +229,28 @@ the prefix stripped.
 | `QDRANT_URL`, `QDRANT_API_KEY` | vector store |
 | `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | object storage |
 | `EMBEDDING_API_KEY` | OpenAI key for embeddings (falls back to `OPENAI_API_KEY`) |
+
+**Accounts**
+
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | project URL |
+| `SUPABASE_PUBLISHABLE_KEY` | browser-side key; also a build arg for the frontend |
+| `SUPABASE_SECRET_KEY` | server only — `POST /auth/signup` uses it to create confirmed users |
+| `SUPABASE_JWKS_URL` | `…/auth/v1/.well-known/jwks.json`; what `auth_guard.py` verifies against |
+| `SUPABASE_JWT_SECRET` | optional, only for an HS256 project |
+| `SUPABASE_JWT_AUDIENCE` | optional, default `authenticated` |
+
+**YouTube ingest**
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `YT_DLP_MODE` | `auto` | `auto` prefers a muxed file, `dash` forces the split pair |
+| `YT_DLP_MAX_HEIGHT` | `1080` | ceiling for adaptive video |
+| `YT_DLP_MIN_MUXED_HEIGHT` | `720` | below this, split instead of taking the muxed file |
+| `YT_DLP_DISK_FLOOR_MB` | `2500` | refuse a job that would eat the disk (only muxing uses it) |
+| `YT_DLP_TIMEOUT` | `3600` | seconds before a download is killed |
+| `YT_DLP_PROXY` | — | egress, e.g. `socks5://warp:1080`; YouTube refuses most datacentre IPs |
 
 **Provider switches**
 
@@ -197,16 +334,24 @@ twenty uploads by simply making them wait.
 
 ## API
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /api/upload-document` | accept a PDF/PPTX/DOCX, enqueue indexing |
-| `POST /uploadfile/` | accept a video (streamed to R2), enqueue analysis |
-| `GET /upload-status/{job_id}` | progress, read from the shared job store |
-| `POST /api/document/ask` | answer over a document |
-| `POST /api/document/ask/stream` | the same answer as SSE, token by token |
-| `POST /api/document/quiz`, `/flashcards`, `/notes` | study material |
-| `POST /ask` | answer over a video, with second-level citations |
-| `GET /api/documents`, `/api/document/{id}`, `/{id}/chats` | library and conversations |
+`Auth` means the request must carry `Authorization: Bearer <supabase access token>`.
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `POST /auth/signup` | — | create an account, already confirmed |
+| `POST /api/upload-document` | yes | accept a PDF/PPTX/DOCX, enqueue indexing |
+| `POST /uploadfile/` | yes | accept a video (streamed to R2), enqueue analysis |
+| `POST /download-youtube/` | yes | import a URL straight into R2, then analyse |
+| `GET /upload-status/{job_id}` | — | progress, read from the shared job store |
+| `POST /api/document/ask` | yes | answer over a document |
+| `POST /api/document/ask/stream` | yes | the same answer as SSE, token by token |
+| `POST /api/document/quiz`, `/flashcards`, `/notes` | yes | study material |
+| `POST /ask` | yes | answer over a video, with second-level citations |
+| `GET /api/documents`, `/api/document/{id}`, `/{id}/chats` | — | library and conversations |
+| `GET /health` | — | liveness |
+
+A `401` from one of the guarded endpoints means the token was missing, expired, or
+signed by another project — the body says which.
 
 ---
 
@@ -215,16 +360,24 @@ twenty uploads by simply making them wait.
 ```
 backend/            FastAPI app, workers and the pipelines
   main.py           endpoints, ingestion jobs, video pipeline
+  auth_guard.py     Supabase JWT verification + the middleware that enforces it
   worker.py         the process that claims and runs jobs
   jobs.py           file-based queue + status store
   documents.py      PDF/PPTX/DOCX extraction (Document AI with a pypdf fallback)
+  youtube_ingest.py diskless YouTube → R2 (stdout pipe, or a split pair muxed in R2)
   bert.py           embeddings (OpenAI or local MiniLM)
   llama.py          prompts, streaming, answer continuation
   whisper.py        ASR via Groq (direct media or extracted audio)
   cloudflare_media.py  optional edge audio route (audio-only M4A slices)
   cloudflare_stream.py  optional transcode route (whole video, long inputs)
   qdrant_store.py   collections and search
-frontend/           React 19 + Vite SPA (landing, video workspace, document workspace)
+  sql/001_users.sql schema, trigger and RLS policies
+frontend/           React 19 + Vite SPA
+  src/components/common/AppSidebar.jsx     the one sidebar
+  src/components/RequireAuth.jsx           the redirect
+  src/lib/authFetch.js                     the bearer token, added once
+  src/lib/supabaseClient.js                the client and the username mapping
+  src/components/workspace/Workspaces.jsx  dashboard, list, history, settings
 docker-compose.yml  api, worker (x2), frontend, WARP egress
 ```
 
@@ -241,10 +394,16 @@ docker-compose.yml  api, worker (x2), frontend, WARP egress
   endpoint takes at most 15 pages per request (hence the 14-page split).
 - **Frame/visual search is off by default**; turn on `FRAME_EMBEDDINGS=1` and the
   box pays for CLIP again.
+- **Workspaces are not yet written to Postgres** — the tables, the trigger and the
+  RLS policies exist and are tested, but uploads still live in the file store, so
+  every signed-in account sees the same library. Wiring `workspaces`/`messages`
+  into the pipeline is the next step; until then the gate proves *who* you are,
+  not *whose* document it is.
+- **The media endpoints are open by design** — a `<video>` cannot send a header, so
+  they are protected by unguessable keys instead. Signed URLs would be stronger.
 - The queue is filesystem-based on purpose: it survives restarts and needs no
   extra service, but it is single-host. Multi-host would want Redis behind the
   same interface.
-
 
 ---
 
@@ -259,28 +418,26 @@ docker-compose.yml  api, worker (x2), frontend, WARP egress
 | Truncated answers | continued automatically; a stream that ends without a `finish_reason` is treated as cut |
 | Edge audio (≤10 min) | 391s video → 7 slices → 113 segments in ~25s, no ffmpeg, no download |
 | Stream route (>10 min) | 12-min clip → transcode ready 29.5s → 2.3 MB MP4 → Groq 6.7s, 59 segments |
+| YouTube → R2, muxed 360p | 27.2 MB in **21s**, `/tmp` untouched |
+| YouTube → R2, adaptive 1080p | 245.7 + 29.3 MB → 275.4 MB muxed in **94s**, `/tmp` empty after |
+| Auth gate | the costly endpoints answer `401` without a token, `422`/`200` with one |
+| Sign-up without a mailer | account created already confirmed; the profile row is made by the trigger |
+| Sidebar | one component in all three workspaces; no second implementation left to drift |
 
-Both workspaces now read the same: full-bleed panels, no marketing header, no chat
-panel head, answers as plain text with pink `#` headings. The video player keeps its
-own aspect ratio — letterboxed, with space above and below — rather than being
+Both workspaces read the same: full-bleed panels, no marketing header, no chat
+panel head, answers as plain text with pink `#` headings. The video player keeps
+its own aspect ratio — letterboxed, with space above and below — rather than being
 stretched.
 
-### Known open items
+### Where this is going
 
-- A video job can currently run twice for the same upload: the edge route
-  transcribes, a later step raises, and the fallback re-runs the whole pipeline on
-  a local copy. Costs a duplicate Groq call; needs one owner for the status and no
-  silent fallback (see *Roadmap*).
-- `.pptx` / `.docx` are still parsed locally (Document AI covers PDFs and images).
-- Video answers are not streamed yet — only the document chat is.
-
-### Roadmap
-
-1. `pipelines/` package with a single `select_route()` that encodes each route's
+1. **Ownership**: write `workspaces`/`messages` per account so `/api/documents`
+   returns only the caller's library.
+2. `pipelines/` package with a single `select_route()` that encodes each route's
    preconditions, so the four video routes stop being a chain of `except`
-   fallbacks.
-2. The worker imports `pipelines`, never `main`.
-3. One writer for job status (monotonic progress), plus `route_used` and
-   per-stage timings in the job record.
-4. Tests for route selection and transcript merging; `make verify` runs them in
+   fallbacks, and the worker imports `pipelines` instead of `main`.
+3. One writer for job status (monotonic progress), plus `route_used` and per-stage
+   timings in the job record.
+4. Signed URLs for the media endpoints.
+5. Tests for route selection and transcript merging; `make verify` runs them in
    seconds.
