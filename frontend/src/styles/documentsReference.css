@@ -1121,3 +1121,28 @@
 .docs-app .answer .katex-display > .katex {
   color: inherit;
 }
+
+/* A document whose file has aged out: the reader says so where the page would
+   be, instead of drawing an empty frame. */
+.docs-app .pdf-expired {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 32px;
+  text-align: center;
+}
+.docs-app .pdf-expired strong {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.docs-app .pdf-expired p {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted);
+}

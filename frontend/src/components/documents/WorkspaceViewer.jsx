@@ -71,12 +71,24 @@ export default function WorkspaceViewer({ document: doc, page, zoom, onPage, onZ
 
       <div className="viewer">
         <div className="page-scroll">
-          <iframe
-            key={`${base}-${page}-${zoom}`}
-            className="pdf-frame"
-            title={`${doc.file_name} page ${page}`}
-            src={`${base}#page=${page}${zoomParam}&${chrome}`}
-          />
+          {base ? (
+            <iframe
+              key={`${base}-${page}-${zoom}`}
+              className="pdf-frame"
+              title={`${doc.file_name} page ${page}`}
+              src={`${base}#page=${page}${zoomParam}&${chrome}`}
+            />
+          ) : (
+            <div className="pdf-expired">
+              <strong>The uploaded file has been removed</strong>
+              <p>
+                An upload is kept for three hours, so the bucket does not fill with
+                handouts nobody opens again. Nothing else is affected: the page
+                texts, the questions and this document&rsquo;s chat history stay
+                exactly where they were. Upload the file again to see the pages.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </article>

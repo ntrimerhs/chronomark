@@ -2406,18 +2406,33 @@ async def api_video_stream(file_key: str):
     return RedirectResponse(download_url, status_code=302)
 
 
-# --- Session-scoped video retention ------------------------------------------
-# The R2 copy of a video lives only while someone is still in the video page.
-# Presence: every /api/video-stream hit counts as "here", the frontend sends a
-# heartbeat once a minute, and ?active=0 marks the user gone (navigate away,
-# replace file, tab close). A daemon thread deletes videos/ objects with no
-# remaining presence: 30 s after a release (so a refresh recovers cleanly) or
-# after VIDEO_RETENTION_MINUTES without any heartbeat (crashed tabs). Derived
-# artifacts (audio/, frames/, Qdrant points) are kept, so questions still
-# answer without playback.
+# --- Storage retention --------------------------------------------------------
+# R2 holds the file that was just uploaded, not a library. Keeping every handout
+# and every recording forever is how a bucket fills and a bill arrives, so two
+# rules apply, in this order:
+#
+#   1. Nothing stays longer than R2_MAX_AGE_HOURS (3 hours). The file is the one
+#      part of an analysis that can be replaced by uploading it again; the
+#      reading cannot, so the reading is what survives.
+#   2. If the bucket still grows past R2_MAX_GB, objects are evicted oldest first
+#      inside a priority order: a video nobody is watching goes before a video
+#      leaving a player, and any video goes before a document.
+#
+# Videos keep their session rule as well, which frees space long before four
+# hours: 30 seconds after the player is closed, or VIDEO_RETENTION_MINUTES
+# without a heartbeat from a tab that died.
+#
+# Never deleted: the extracted page texts (backend/documents), the vectors in
+# Qdrant and the conversations in backend/chats. A document whose file has aged
+# out still answers every question and keeps its chat history for its owner; the
+# API reports the file as gone and the viewer says so instead of drawing a
+# broken frame.
+R2_MAX_AGE_HOURS = float(os.getenv("R2_MAX_AGE_HOURS", "3") or "3")
+R2_MAX_BYTES = int(float(os.getenv("R2_MAX_GB", "8") or "8") * 1024 ** 3)
+R2_SWEEP_SECONDS = float(os.getenv("R2_SWEEP_SECONDS", "120") or "120")
+
 VIDEO_RETENTION_MINUTES = float(os.environ.get("VIDEO_RETENTION_MINUTES", "60") or "60")
 _RELEASE_GRACE_SECONDS = 30.0
-_SWEEP_INTERVAL_SECONDS = 60.0
 
 _VIDEO_LAST_SEEN = {}
 _VIDEO_RELEASED_AT = {}
@@ -2434,57 +2449,121 @@ def _touch_video_presence(file_key: str, active: bool = True) -> None:
             _VIDEO_RELEASED_AT[file_key] = now
 
 
-def _video_cleanup_sweeper():
-    # Objects already in the bucket (from before this feature, or left by a
-    # previous process run) start their clock at their upload time, so the
-    # old pile ages out instead of living forever.
+def _documents_by_file_key() -> dict:
+    """file_key -> document record, so a deleted object can be marked gone."""
+    index = {}
+    for path in DOCS_DIR.glob("*.json"):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                document = json.load(handle)
+        except Exception:
+            continue
+        key = document.get("file_key")
+        if key:
+            index[key] = document
+    return index
+
+
+def _expire(entry: dict, reason: str, documents: dict) -> bool:
+    """Delete one object; if it was a document, record that its file is gone."""
+    key = entry["key"]
+    if not r2_service.delete_object(key):
+        return False
+    print(f"[R2] retention: deleted {key} ({reason})")
+    document = documents.pop(key, None)
+    if document is not None:
+        document["file_available"] = False
+        document["file_expired_at"] = time.time()
+        try:
+            _save_document(document)
+        except Exception as error:
+            print(f"[R2] could not mark {document.get('doc_id')} as expired: {error}")
+    with _PRESENCE_LOCK:
+        _VIDEO_LAST_SEEN.pop(key, None)
+        _VIDEO_RELEASED_AT.pop(key, None)
+    return True
+
+
+def _r2_retention_sweeper():
+    # Objects already in the bucket when this starts begin their clock at their
+    # upload time, so an old pile ages out instead of living forever.
     seeded = False
     while True:
-        time.sleep(_SWEEP_INTERVAL_SECONDS)
+        time.sleep(R2_SWEEP_SECONDS)
+        try:
+            objects = r2_service.list_objects()
+        except Exception as error:
+            print(f"[R2] retention listing failed (retrying): {error}")
+            continue
+
         if not seeded:
-            try:
-                with _PRESENCE_LOCK:
-                    for entry in r2_service.list_upload_keys():
+            with _PRESENCE_LOCK:
+                for entry in objects:
+                    if entry["key"].startswith(r2_service.UPLOAD_KEY_PREFIX):
                         _VIDEO_LAST_SEEN.setdefault(entry["key"], entry["last_modified"])
-                    seeded_count = len(_VIDEO_LAST_SEEN)
-                seeded = True
-                print(f"[R2] retention sweeper seeded {seeded_count} video(s)")
-            except Exception as error:
-                print(f"[R2] retention seed failed (retrying): {error}")
-                continue
+            seeded = True
+            print(
+                f"[R2] retention read {len(objects)} object(s), "
+                f"max age {R2_MAX_AGE_HOURS:g}h"
+            )
 
         now = time.time()
-        victims = []
-        with _PRESENCE_LOCK:
-            for key, seen in list(_VIDEO_LAST_SEEN.items()):
+        documents = _documents_by_file_key()
+        alive = []
+
+        # 1. the hard cap
+        for entry in objects:
+            age = now - entry["last_modified"]
+            if R2_MAX_AGE_HOURS > 0 and age > R2_MAX_AGE_HOURS * 3600:
+                if _expire(entry, f"uploaded {age / 3600:.1f}h ago", documents):
+                    continue
+            alive.append(entry)
+
+        # 2. a video whose player has gone
+        for entry in list(alive):
+            key = entry["key"]
+            if not key.startswith(r2_service.UPLOAD_KEY_PREFIX):
+                continue
+            with _PRESENCE_LOCK:
+                seen = _VIDEO_LAST_SEEN.get(key, entry["last_modified"])
                 released_at = _VIDEO_RELEASED_AT.get(key)
-                if released_at is not None:
-                    if now - released_at >= _RELEASE_GRACE_SECONDS:
-                        victims.append((key, f"user left {int(now - released_at)}s ago"))
-                        _VIDEO_LAST_SEEN.pop(key, None)
-                        _VIDEO_RELEASED_AT.pop(key, None)
-                elif now - seen > VIDEO_RETENTION_MINUTES * 60:
-                    victims.append((key, f"no viewer for {int((now - seen) / 60)} min"))
-                    _VIDEO_LAST_SEEN.pop(key, None)
-        for key, reason in victims:
-            if r2_service.delete_object(key):
-                print(f"[R2] session cleanup: deleted {key} ({reason})")
+            if released_at is not None and now - released_at >= _RELEASE_GRACE_SECONDS:
+                reason = f"the player left {int(now - released_at)}s ago"
+            elif now - seen > VIDEO_RETENTION_MINUTES * 60:
+                reason = f"no viewer for {int((now - seen) / 60)} min"
             else:
-                # Deletion failed; put it back on the clock so the next sweep
-                # retries instead of forgetting the object forever.
+                continue
+            if _expire(entry, reason, documents):
+                alive.remove(entry)
+
+        # 3. the ceiling, in priority order
+        total = sum(entry["size"] for entry in alive)
+        if R2_MAX_BYTES > 0 and total > R2_MAX_BYTES:
+
+            def priority(entry):
+                if not entry["key"].startswith(r2_service.UPLOAD_KEY_PREFIX):
+                    return 2
                 with _PRESENCE_LOCK:
-                    _VIDEO_LAST_SEEN[key] = now
+                    return 1 if entry["key"] in _VIDEO_LAST_SEEN else 0
+
+            reason = f"storage over {R2_MAX_BYTES / 1024 ** 3:.1f} GB"
+            for entry in sorted(alive, key=lambda e: (priority(e), e["last_modified"])):
+                if total <= R2_MAX_BYTES:
+                    break
+                if _expire(entry, reason, documents):
+                    total -= entry["size"]
 
 
-def _start_video_cleanup_sweeper():
+def _start_retention_sweeper():
     if not r2_service.R2_BUCKET_NAME:
         return
     threading.Thread(
-        target=_video_cleanup_sweeper, name="r2-video-cleanup", daemon=True
+        target=_r2_retention_sweeper, name="r2-retention", daemon=True
     ).start()
 
 
-_start_video_cleanup_sweeper()
+_start_retention_sweeper()
+
 
 
 # --- Derived-artifact retention ----------------------------------------------
@@ -3869,14 +3948,16 @@ async def api_list_documents(request: Request):
     return {"documents": items}
 
 
-def _document_file_url(document: dict) -> str:
-    """Where the viewer iframe reads the PDF from.
+def _document_file_url(document: dict):
+    """Where the viewer iframe reads the PDF from, or None once it has aged out.
 
     Straight from R2 when the bucket allows this origin, relayed by the API
     otherwise. The relay is a fallback for the bucket, not for the reader: an
     iframe sends no Authorization header, so the relayed URL carries the
     expiring signature this authenticated request just minted.
     """
+    if document.get("file_available") is False:
+        return None
     if _document_cors_available():
         return f"/api/document-stream/{document.get('file_key')}"
     return (

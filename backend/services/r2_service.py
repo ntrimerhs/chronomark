@@ -352,17 +352,28 @@ def delete_object(file_key: str) -> bool:
     return True
 
 
-def list_upload_keys() -> list:
-    """Every object under the upload prefix, with its epoch mtime.
+def list_objects(prefixes=_ALLOWED_PREFIXES) -> list:
+    """Every object under the given roots, with its size and epoch mtime.
 
-    Used by the retention sweeper to put pre-existing videos on the same
-    aging clock as newly uploaded ones.
+    One pass that sees the whole bucket, because the retention policy has to
+    compare objects against each other (priority order, total bytes), not just
+    age them one by one.
     """
     entries = []
     paginator = _get_client().get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=R2_BUCKET_NAME, Prefix=UPLOAD_KEY_PREFIX):
-        for obj in page.get("Contents", []):
-            entries.append(
-                {"key": obj["Key"], "last_modified": obj["LastModified"].timestamp()}
-            )
+    for prefix in prefixes:
+        for page in paginator.paginate(Bucket=R2_BUCKET_NAME, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                entries.append(
+                    {
+                        "key": obj["Key"],
+                        "last_modified": obj["LastModified"].timestamp(),
+                        "size": int(obj.get("Size") or 0),
+                    }
+                )
     return entries
+
+
+def list_upload_keys() -> list:
+    """Only the videos -- kept for callers that predate list_objects()."""
+    return list_objects((UPLOAD_KEY_PREFIX,))

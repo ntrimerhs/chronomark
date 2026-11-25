@@ -108,7 +108,9 @@ export default function Documents() {
           kind: data.kind,
           page_count: data.page_count,
           language: data.language,
-          file_url: `${API_BASE_URL}${data.file_url}`,
+          // null once the upload has aged out of the bucket (three hours);
+          // the viewer explains it instead of loading a broken frame.
+          file_url: data.file_url ? `${API_BASE_URL}${data.file_url}` : '',
         })
         setPage(1)
         setError('')

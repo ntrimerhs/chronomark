@@ -189,6 +189,32 @@ route: the authenticated request that returns it mints an expiring signature
 (`?expires=…&sig=…`, six hours) and `/api/document-file` accepts either that
 signature or a header. A tampered or expired one is a `401`.
 
+### How long a file stays — three hours, then out
+
+R2 holds the file that was just uploaded, not a library. A bucket that keeps
+every handout and every recording forever is a bucket that fills up and a bill
+that arrives, so `_r2_retention_sweeper` applies two rules, in this order:
+
+1. **Nothing stays longer than three hours** (`R2_MAX_AGE_HOURS=3`). The file is
+   the one part of an analysis that a reader can replace by uploading it again.
+2. **Above `R2_MAX_GB` (8 GB), evict oldest first in a priority order**: a video
+   nobody is watching goes before a video someone has open, and any video goes
+   before a document. Videos also keep their session rule, so most leave long
+   before three hours: 30 seconds after the player closes, or
+   `VIDEO_RETENTION_MINUTES` (60) without a heartbeat from a tab that died.
+
+What is **never** deleted: the extracted page texts (`backend/documents/`), the
+vectors in Qdrant, and the conversations in `backend/chats/`. So a document whose
+file has aged out still lists in the library, still answers questions and keeps
+its chat history — the API returns `"file_url": null` and the viewer says the
+upload was removed instead of drawing an empty frame. Uploading the same file
+again gets the pages back.
+
+```bash
+docker compose logs -f backend | grep retention     # what left, and why
+docker compose exec -T backend python -c "from services import r2_service; print(r2_service.list_objects())"
+```
+
 
 ### The frontend
 
@@ -270,6 +296,8 @@ psql "$DATABASE_URL" -f backend/sql/001_users.sql
 | `QDRANT_URL`, `QDRANT_API_KEY` | vector store |
 | `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | object storage |
 | `R2_SCOPE_SECRET` | any long random string; turns a user id into that account's bucket directory and signs the document `file_url`s. **Rotating it orphans every object uploaded before the rotation** |
+| `R2_MAX_AGE_HOURS` | how long an uploaded file stays in the bucket (default `3`); the text, the vectors and the chats outlive it |
+| `R2_MAX_GB`, `R2_SWEEP_SECONDS` | bucket ceiling (`8`) and sweep interval (`120`) — over the ceiling, eviction is oldest-first, idle videos, then watched videos, then documents |
 | `EMBEDDING_API_KEY` | OpenAI key for embeddings (falls back to `OPENAI_API_KEY`) |
 
 **Accounts**
