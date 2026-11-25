@@ -1938,3 +1938,86 @@
 @media (max-width: 900px) {
   .ch-splitter { display: none; }
 }
+
+/* The waiting line belongs to the answer: under the text that is being written,
+   plain, and quiet. The dots went -- they were the loudest thing on a page where
+   nothing else moves. */
+.ch-thinking {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 2px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ch-thinking-progress {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #6F63D9;
+}
+.ch-thinking-label {
+  background: linear-gradient(90deg, #8f93a8 0%, #ffffff 42%, #8f93a8 84%);
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ch-shimmer 2.6s linear infinite;
+}
+/* ── the answer, once it has settled ─────────────────────────────────────────
+   The model writes markdown: bold, lists, tables of invoice fields. It used to
+   arrive as the characters themselves. */
+.ch-markdown { font-size: 14px; line-height: 1.75; color: #E7E8F0; }
+.ch-markdown p { margin: 0 0 12px; }
+.ch-markdown p:last-child { margin-bottom: 0; }
+.ch-markdown strong { color: #F3F4F8; font-weight: 600; }
+.ch-markdown h1,
+.ch-markdown h2,
+.ch-markdown h3 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #F3F4F8;
+}
+.ch-markdown ul,
+.ch-markdown ol { margin: 0 0 12px; padding-left: 20px; }
+.ch-markdown li { margin: 3px 0; }
+.ch-markdown code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #1B1B2B;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #D8D6FF;
+}
+.ch-markdown pre {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid #2A2C3B;
+  border-radius: 10px;
+  background: #0F0F17;
+  overflow-x: auto;
+}
+.ch-markdown pre code { padding: 0; background: none; }
+.ch-markdown table {
+  width: 100%;
+  margin: 4px 0 14px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ch-markdown th,
+.ch-markdown td {
+  padding: 7px 10px;
+  border: 1px solid #2A2C3B;
+  text-align: left;
+  vertical-align: top;
+}
+.ch-markdown th { background: #141420; color: #F3F4F8; font-weight: 500; }
+.ch-markdown blockquote {
+  margin: 0 0 12px;
+  padding-left: 12px;
+  border-left: 2px solid #2A2C3B;
+  color: #A7ACBA;
+}
+.ch-markdown a { color: #A8A2FF; }

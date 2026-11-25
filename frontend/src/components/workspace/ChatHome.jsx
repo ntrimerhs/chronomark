@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { ChevronLeft, ChevronRight, Paperclip, Plus, Send, Video } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { API_BASE_URL } from '../../config'
 import AppSidebar from '../common/AppSidebar.jsx'
 import useLibrary from '../../hooks/useLibrary.js'
@@ -62,7 +64,6 @@ export default function ChatHome() {
   const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState('')
   const [dragging, setDragging] = useState(false)
-  const [thinking, setThinking] = useState('')
   // How much of the window the analysis gets. Remembered, because a reader who
   // widens the pages once means it for every document after that.
   const [split, setSplit] = useState(() => {
@@ -394,14 +395,12 @@ export default function ChatHome() {
     say('user', text)
     setDraft('')
     setBusy(true)
-    setThinking('Deep Diving')
 
     const stream = beginStream()
     let pushed = 0
     const push = (chunk) => {
       if (!chunk) return
       pushed += chunk.length
-      setThinking('')
       stream.push(chunk)
     }
 
@@ -459,7 +458,6 @@ export default function ChatHome() {
     } finally {
       stream.finish()
       setBusy(false)
-      setThinking('')
     }
   }, [beginStream, busy, draft, library, matter, messages, readStream, say])
 
@@ -678,38 +676,39 @@ export default function ChatHome() {
                     </p>
                   </div>
                 ) : (
-                  messages.map((message) => (
+                  messages
+                    .filter((message) => !(message.streaming && !message.text))
+                    .map((message) => (
                     <div key={message.id} className={`ch-turn ch-turn-${message.role}`}>
                       <span className="ch-who">
                         {message.role === 'user' ? 'You' : 'ChronoMark'}
                       </span>
-                      <p>
-                        {message.text}
-                        {message.streaming ? <span className="ch-caret" aria-hidden="true" /> : null}
-                      </p>
+                      {message.role === 'assistant' && !message.streaming ? (
+                        /* Markdown, but only once the answer has stopped moving:
+                           a half-written table or a stray asterisk renders as
+                           noise, so the text streams plainly and settles into
+                           headings, lists and tables when it is done. */
+                        <div className="ch-markdown">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p>
+                          {message.text}
+                          {message.streaming ? <span className="ch-caret" aria-hidden="true" /> : null}
+                        </p>
+                      )}
                     </div>
-                  ))
+                    ))
                 )}
 
+                {/* Under the words, not over them: the line belongs to the
+                    answer being written, and a spinner parked above the first
+                    character pushed the text out of place when it arrived. */}
                 {busy ? (
-                  <div className="ch-turn ch-turn-assistant">
-                    <span className="ch-who">ChronoMark</span>
-                    <span className="ch-thinking">
-                      <span className="ch-thinking-dots" aria-hidden="true">
-                        <span />
-                        <span />
-                        <span />
-                      </span>
-                      <span className="ch-thinking-label">
-                        {status && status !== 'thinking' && status !== 'Deep Diving'
-                          ? `${thinking || 'Working'} · ${status}`
-                          : 'Deep Diving'}
-                      </span>
-                    </span>
+                  <div className="ch-thinking">
+                    <span className="ch-thinking-label">Thinking...</span>
                     {progress ? (
-                      <div className="ch-bar">
-                        <span style={{ width: `${progress}%` }} />
-                      </div>
+                      <span className="ch-thinking-progress">{progress}%</span>
                     ) : null}
                   </div>
                 ) : null}
