@@ -41,6 +41,16 @@ function kindOf(name) {
   return null
 }
 
+const YOUTUBE_RE =
+  /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?[^\s]*|shorts\/[^\s]*|live\/[^\s]*)|youtu\.be\/[^\s]+)/i
+
+function youtubeLinkIn(text) {
+  const match = String(text || '').match(YOUTUBE_RE)
+  if (!match) return null
+  const link = match[0]
+  return link.startsWith('http') ? link : `https://${link}`
+}
+
 function prettyBytes(bytes) {
   if (!bytes) return '0 MB'
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -265,7 +275,7 @@ export default function ChatHome() {
     }
   }, [say])
 
-  const openVideo = useCallback(async (videoId) => {
+  const openVideo = useCallback(async (videoId, options = {}) => {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/videos`, { timeout: 30000 })
       const found = (data.videos || []).find((item) => item.video_id === videoId)
@@ -274,7 +284,7 @@ export default function ChatHome() {
         return
       }
       setMatter({ kind: 'video', id: videoId, video: found })
-      setMessages([])
+      if (!options.keepThread) setMessages([])
       setPage(1)
     } catch (error) {
       say('assistant', `I could not open that recording: ${error?.response?.data?.detail || error.message}`)
@@ -409,6 +419,31 @@ export default function ChatHome() {
     }
 
     try {
+      const link = youtubeLinkIn(text)
+      if (link) {
+        // A link is not a question: it is a recording to fetch. yt-dlp does the
+        // work on the server, straight into R2, and the player opens on it --
+        // the same path a dropped file takes, just with someone else's copy.
+        setStatus('reading metadata')
+        const { data } = await axios.post(
+          `${API_BASE_URL}/download-youtube/`,
+          { url: link },
+          { timeout: 60000 },
+        )
+        setStatus('importing')
+        const job = await waitForJob(data.job_id)
+        const imported = job?.result?.video_id
+        if (imported) {
+          await openVideo(imported, { keepThread: true })
+          await library.refresh()
+          say('assistant', 'The recording is imported. Ask me anything about it.')
+        } else {
+          await library.refresh()
+          say('assistant', 'The import finished but I could not find the recording. Reload and check the library.')
+        }
+        return
+      }
+
       if (!matter) {
         // Nothing to read: the model answers the message anyway, so it can
         // respond to what was actually said instead of printing one sentence.
@@ -466,7 +501,7 @@ export default function ChatHome() {
       // character has been written, not when the socket closed.
       stream.finished.then(() => setTyping(false))
     }
-  }, [beginStream, busy, draft, library, matter, messages, readStream, say])
+  }, [beginStream, busy, draft, library, matter, messages, openVideo, readStream, say, waitForJob])
 
   useEffect(() => {
     window.localStorage.setItem('cm.chat.split', String(Math.round(split)))
@@ -718,8 +753,10 @@ export default function ChatHome() {
                 {busy || typing ? (
                   <div className="ch-thinking">
                     <span className="ch-thinking-label">Thinking...</span>
-                    {busy && progress ? (
-                      <span className="ch-thinking-progress">{progress}%</span>
+                    {busy && (status || progress) ? (
+                      <span className="ch-thinking-progress">
+                        {status ? String(status).replace(/_/g, ' ') : `${progress}%`}
+                      </span>
                     ) : null}
                   </div>
                 ) : null}
