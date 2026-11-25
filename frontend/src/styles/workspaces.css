@@ -1775,3 +1775,69 @@
 .ch-turn-assistant {
   align-self: stretch;
 }
+/* ── one page, two panes ─────────────────────────────────────────────────────
+   The analysis opens beside the conversation instead of in a page of its own:
+   nothing navigates, the sidebar and the composer stay where they are, and the
+   only thing that changes is the pane on the left of the thread. */
+.ch-main { height: 100vh; overflow: hidden; }
+.ch-split { flex: 1; display: flex; gap: 16px; min-height: 0; width: 100%; padding: 16px; }
+.ch-split:not(.has-analysis) .ch-conversation { max-width: 760px; margin: 0 auto; }
+
+.ch-analysis {
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #1f2130;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0F0F17;
+}
+.ch-analysis-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1f2130;
+  background: #141420;
+}
+.ch-analysis-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #A7ACBA;
+}
+.ch-pager { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #A7ACBA; }
+.ch-pager button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #A7ACBA;
+  cursor: pointer;
+}
+.ch-pager button:hover:not(:disabled) { background: #1B1B2B; color: #F3F4F8; }
+.ch-pager button:disabled { opacity: 0.35; cursor: default; }
+
+.ch-page { flex: 1; width: 100%; height: 100%; min-height: 0; border: 0; background: #F3F4F8; }
+.ch-video { width: 100%; flex: 1; min-height: 0; background: #000; object-fit: contain; }
+
+.ch-expired { margin: auto; padding: 32px 24px; text-align: center; color: #A7ACBA; font-size: 13px; line-height: 1.65; }
+.ch-expired strong { display: block; margin-bottom: 8px; font-weight: 500; color: #F3F4F8; }
+.ch-expired p { margin: 0; }
+
+.ch-conversation { flex: 1 1 50%; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.ch-thread { flex: 1; min-height: 0; width: 100%; max-width: none; margin: 0; padding: 8px 4px 16px; overflow-y: auto; }
+.ch-composer { max-width: none; margin: 0 0 2px; }
+
+@media (max-width: 900px) {
+  .ch-split { flex-direction: column; }
+  .ch-analysis { flex: 0 0 42vh; }
+}

@@ -1,14 +1,11 @@
 import './App.css'
 import PulseLanding from './components/PulseLanding.jsx'
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import Proxeiro from './components/Proxeiro.jsx'
-import Documents from './components/Documents.jsx'
 import Form from './components/Form.jsx';
 import PulseHeader from './components/PulseHeader.jsx';
 import AuthPage from './components/AuthPage.jsx';
 import AuthCallback from './components/AuthCallback.jsx';
 import RequireAuth from './components/RequireAuth.jsx';
-import { useSearchParams } from 'react-router-dom';
 import ChatHome from './components/workspace/ChatHome.jsx';
 
 /* /workspaces carries all three states of an analysis in one address: no
@@ -16,21 +13,9 @@ import ChatHome from './components/workspace/ChatHome.jsx';
    pages, ?video= is the recording with its player. Same sidebar, same chat, one
    entry point -- the old /upload and /documents pages are gone. */
 function WorkspaceRoute() {
-  const [params] = useSearchParams();
-  if (params.get('doc')) {
-    return (
-      <Form footer={false} header={false}>
-        <Documents />
-      </Form>
-    );
-  }
-  if (params.get('video')) {
-    return (
-      <Form footer={false} header={false}>
-        <Proxeiro />
-      </Form>
-    );
-  }
+  // One page for every state of an analysis. A ?doc= or ?video= in the address
+  // still opens that chat on arrival, but nothing here navigates: the shell
+  // stays and only the pane beside the thread changes.
   return <ChatHome />;
 }
 import PrivacyPage from './components/PrivacyPage.jsx';
