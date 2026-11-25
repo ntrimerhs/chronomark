@@ -660,7 +660,10 @@ export default function ChatHome() {
             ref={splitRef}
           >
             {matter ? (
-              <section className="ch-analysis" style={{ flex: `0 0 ${split}%` }}>
+              <section
+                className={`ch-analysis${matter.kind === 'video' ? ' is-video' : ''}`}
+                style={{ flex: `0 0 ${split}%` }}
+              >
                 <div className="ch-analysis-head">
                   <span className="ch-analysis-title" title={matter.document?.file_name || matter.video?.title}>
                     {matter.kind === 'document'

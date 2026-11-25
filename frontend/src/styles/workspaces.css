@@ -2054,3 +2054,38 @@
 @media (prefers-reduced-motion: reduce) {
   .ch-thinking-label { animation: none; color: #A8A2FF; background: none; }
 }
+
+/* ── the reader speaks from the right ───────────────────────────────────────
+   Both sides sat on the left, so a conversation read as one column and the
+   shape said nothing. The tail moves with the bubble. */
+.ch-turn-user {
+  align-self: flex-end;
+  align-items: flex-end;
+  max-width: 78%;
+}
+.ch-turn-user .ch-who {
+  text-align: right;
+}
+.ch-turn-user p {
+  padding: 10px 14px;
+  border-radius: 14px 14px 4px 14px;
+  background: rgba(111, 99, 217, 0.16);
+  border: 1px solid rgba(168, 162, 255, 0.26);
+  color: #F3F4F8;
+}
+
+/* ── the pane fits the recording ─────────────────────────────────────────────
+   A 16:9 clip inside a full-height panel is mostly black bars. The pane takes
+   the video's own height; the empty space under it is page, not letterbox. */
+.ch-analysis.is-video {
+  align-self: flex-start;
+  background: #0F0F17;
+}
+.ch-analysis.is-video .ch-video {
+  flex: 0 0 auto;
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 140px);
+  display: block;
+  background: transparent;
+}
