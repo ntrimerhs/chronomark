@@ -71,6 +71,9 @@ export default function ChatHome() {
     return Number.isFinite(stored) && stored >= 25 && stored <= 80 ? stored : 50
   })
   const [resizing, setResizing] = useState(false)
+  // True from the moment an answer starts arriving until the last character has
+  // been written out, which is later than the request finishing.
+  const [typing, setTyping] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
@@ -397,6 +400,7 @@ export default function ChatHome() {
     setBusy(true)
 
     const stream = beginStream()
+    setTyping(true)
     let pushed = 0
     const push = (chunk) => {
       if (!chunk) return
@@ -458,6 +462,9 @@ export default function ChatHome() {
     } finally {
       stream.finish()
       setBusy(false)
+      // The request is over, the answer is not: the line goes when the last
+      // character has been written, not when the socket closed.
+      stream.finished.then(() => setTyping(false))
     }
   }, [beginStream, busy, draft, library, matter, messages, readStream, say])
 
@@ -680,9 +687,13 @@ export default function ChatHome() {
                     .filter((message) => !(message.streaming && !message.text))
                     .map((message) => (
                     <div key={message.id} className={`ch-turn ch-turn-${message.role}`}>
-                      <span className="ch-who">
-                        {message.role === 'user' ? 'You' : 'ChronoMark'}
-                      </span>
+                      {/* The answers are not signed: a name over every one of
+                          them was noise above the thinking line. The reader's
+                          own turns still say You, because the bubble shape is
+                          not always enough to tell the two apart. */}
+                      {message.role === 'user' ? (
+                        <span className="ch-who">You</span>
+                      ) : null}
                       {message.role === 'assistant' && !message.streaming ? (
                         /* Markdown, but only once the answer has stopped moving:
                            a half-written table or a stray asterisk renders as
@@ -704,10 +715,10 @@ export default function ChatHome() {
                 {/* Under the words, not over them: the line belongs to the
                     answer being written, and a spinner parked above the first
                     character pushed the text out of place when it arrived. */}
-                {busy ? (
+                {busy || typing ? (
                   <div className="ch-thinking">
                     <span className="ch-thinking-label">Thinking...</span>
-                    {progress ? (
+                    {busy && progress ? (
                       <span className="ch-thinking-progress">{progress}%</span>
                     ) : null}
                   </div>
