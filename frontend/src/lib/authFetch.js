@@ -9,7 +9,24 @@
    own backend, and only when there is a session to prove. */
 
 import { API_BASE_URL } from '../config'
+import axios from 'axios'
 import { supabase, AUTH_ENABLED } from './supabaseClient'
+
+/* The API refuses processing until the user has given the China-transfer
+   consent. Tell the UI so it can open the consent dialog. */
+export const CONSENT_EVENT = 'cm:consent-required'
+function announceIfConsentRequired(status, body) {
+  if (status === 403 && body && body.code === 'consent_required') {
+    window.dispatchEvent(new CustomEvent(CONSENT_EVENT))
+  }
+}
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    announceIfConsentRequired(error?.response?.status, error?.response?.data)
+    return Promise.reject(error)
+  },
+)
 
 const nativeFetch = window.fetch.bind(window)
 const BASE = String(API_BASE_URL || '').replace(/\/+$/, '')
@@ -49,6 +66,13 @@ export function installAuthFetch() {
     if (!isOurApi(url) || url.includes('/auth/v1/')) {
       return nativeFetch(input, init)
     }
+    const send = async (...args) => {
+      const response = await nativeFetch(...args)
+      if (response.status === 403) {
+        response.clone().json().then((b) => announceIfConsentRequired(403, b)).catch(() => {})
+      }
+      return response
+    }
 
     // A Request object carries its own headers; a plain call carries an init.
     const request = typeof input === 'object' && input !== null && 'headers' in input && !init
@@ -57,16 +81,16 @@ export function installAuthFetch() {
     const existing = init?.headers ?? request?.headers
     const headers = new Headers(existing || undefined)
     if (headers.has('Authorization')) {
-      return nativeFetch(input, init)
+      return send(input, init)
     }
 
     const token = await accessToken()
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
     if (request) {
-      return nativeFetch(new Request(request, { headers }))
+      return send(new Request(request, { headers }))
     }
-    return nativeFetch(input, { ...(init || {}), headers })
+    return send(input, { ...(init || {}), headers })
   }
 }
 

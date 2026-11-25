@@ -9,6 +9,7 @@ import AuthPage from './components/AuthPage.jsx';
 import AuthCallback from './components/AuthCallback.jsx';
 import RequireAuth from './components/RequireAuth.jsx';
 import Workspaces from './components/workspace/Workspaces.jsx';
+import PrivacyPage from './components/PrivacyPage.jsx';
 import BackToTop from './components/BackToTop.jsx';
 import useSmoothScroll from './hooks/useSmoothScroll.js';
 
@@ -25,6 +26,7 @@ function App() {
         {/* The workspace is where signing in lands: the sidebar frame and the one
             action a new account needs. */}
         <Route path='/workspaces' element={<RequireAuth><Workspaces /></RequireAuth>}/>
+        <Route path='/privacy' element={<PrivacyPage />}/>
         <Route path='/register' element={<AuthPage mode='signup' />}/>
         <Route path='/login' element={<AuthPage mode='signin' />}/>
         {/* Where Google and GitHub come back to: the session is already in

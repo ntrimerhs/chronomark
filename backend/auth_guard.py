@@ -28,6 +28,8 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 
+import compliance
+
 JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "").strip()
 JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "").strip()
 AUDIENCE = os.getenv("SUPABASE_JWT_AUDIENCE", "authenticated").strip()
@@ -179,6 +181,9 @@ def verify_token(token: str) -> dict:
 # removes one prefix from the public URL while some routes are declared with
 # "/api" inside the app: the same door has to be recognised either way.
 _PROTECTED = {
+    "/consent",
+    "/account",
+    "/account/export",
     "/uploadfile",
     "/download-youtube",
     "/ask",
@@ -220,6 +225,23 @@ def _normalise(path: str) -> str:
 # unprotected. "/documents" is the library listing; "/document/..." is one
 # document, its chats, its questions and its deletion.
 _PROTECTED_PREFIXES = ("/document",)
+
+# Everything that sends a user's content to a provider outside the EU. Without
+# the user's explicit consent to that transfer (privacy policy, section 5) these
+# answer 403 with code=consent_required and the app shows the consent dialog.
+_CONSENT_REQUIRED = {
+    "/uploadfile",
+    "/download-youtube",
+    "/ask",
+    "/get-upload-url",
+    "/upload-document",
+    "/process-video",
+    "/document/ask",
+    "/document/ask/stream",
+    "/document/quiz",
+    "/document/flashcards",
+    "/document/notes",
+}
 
 
 def _is_protected(method: str, path: str) -> bool:
@@ -313,4 +335,24 @@ class AuthGateMiddleware(BaseHTTPMiddleware):
 
         request.state.user = claims
         request.state.user_id = claims.get("sub")
+
+        if request.method != "OPTIONS" and _normalise(request.url.path) in _CONSENT_REQUIRED:
+            try:
+                allowed = await run_in_threadpool(
+                    compliance.has_transfer_consent, request.state.user_id
+                )
+            except compliance.ConsentUnavailable:
+                return JSONResponse(
+                    {"detail": "Consent service is unavailable. Try again shortly."},
+                    status_code=503,
+                )
+            if not allowed:
+                return JSONResponse(
+                    {
+                        "detail": "Your consent is needed before your files can be processed.",
+                        "code": "consent_required",
+                    },
+                    status_code=403,
+                )
+
         return await call_next(request)

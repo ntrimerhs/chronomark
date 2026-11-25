@@ -55,6 +55,7 @@ import sys
 
 from services import r2_service
 from services import user_scope
+import compliance
 from services.r2_service import (
     generate_presigned_download_url,
     generate_presigned_upload_url,
@@ -3375,7 +3376,7 @@ def _current_user(request) -> str:
     return str(user_id)
 
 
-def _owned_document(doc_id: str, user_id: str) -> dict:
+def _owned_document(doc_id: str, user_id: str, allow_purged: bool = False) -> dict:
     """The document, but only if this account uploaded it.
 
     Someone else's document answers exactly like a document that does not
@@ -3385,6 +3386,11 @@ def _owned_document(doc_id: str, user_id: str) -> dict:
     document = _load_document(doc_id)
     if str(document.get("owner_id") or "") != str(user_id):
         raise HTTPException(status_code=404, detail="Document not found")
+    if document.get("purged_at") and not allow_purged:
+        raise HTTPException(
+            status_code=410,
+            detail="This file was deleted after the retention period. Your chat history is still available.",
+        )
     return document
 
 
@@ -3942,6 +3948,7 @@ async def api_list_documents(request: Request):
                 "page_count": document.get("page_count"),
                 "chunk_count": document.get("chunk_count"),
                 "created_at": document.get("created_at"),
+                "purged": bool(document.get("purged_at")),
             }
         )
     items.sort(key=lambda item: item.get("created_at") or 0, reverse=True)
@@ -4064,32 +4071,10 @@ async def api_document_file(
 
 @app.delete("/api/document/{doc_id}")
 async def api_delete_document(doc_id: str, request: Request):
-    """Forget a document: its points, its R2 object and its metadata."""
-    document = _owned_document(doc_id, _current_user(request))
-    try:
-        client.delete(
-            collection_name=TEXT_COLLECTION,
-            points_selector=qmodels.FilterSelector(
-                filter=qmodels.Filter(
-                    must=[
-                        qmodels.FieldCondition(
-                            key="video_id", match=qmodels.MatchValue(value=doc_id)
-                        )
-                    ]
-                )
-            ),
-        )
-    except Exception as error:
-        print(f"[Docs] point cleanup failed: {error}")
-
-    file_key = document.get("file_key")
-    if file_key:
-        try:
-            r2_service.delete_object(file_key)
-        except Exception as error:
-            print(f"[Docs] R2 cleanup failed: {error}")
-
-    _document_meta_path(doc_id).unlink(missing_ok=True)
+    """Forget a document: its points, its R2 object, its text and its summary.
+    The conversations stay until the user deletes them from the chat list."""
+    document = _owned_document(doc_id, _current_user(request), allow_purged=True)
+    await run_in_threadpool(_purge_document, document, False)
     return {"deleted": doc_id}
 
 
@@ -4165,7 +4150,7 @@ def _document_context_chunks(doc_id: str) -> list:
 @app.get("/api/document/{doc_id}/chats")
 async def api_document_chats(doc_id: str, request: Request):
     """The conversations held about this document, newest first."""
-    _owned_document(doc_id, _current_user(request))
+    _owned_document(doc_id, _current_user(request), allow_purged=True)
     data = _load_chats(doc_id)
     chats = sorted(
         data.get("chats") or [], key=lambda item: item.get("updated_at") or 0, reverse=True
@@ -4205,7 +4190,7 @@ async def api_document_chat_create(
 
 @app.get("/api/document/{doc_id}/chats/{chat_id}")
 async def api_document_chat(doc_id: str, chat_id: str, request: Request):
-    _owned_document(doc_id, _current_user(request))
+    _owned_document(doc_id, _current_user(request), allow_purged=True)
     data = _load_chats(doc_id)
     chat = _find_chat(data, chat_id)
     if chat is None:
@@ -4219,7 +4204,7 @@ async def api_document_chat(doc_id: str, chat_id: str, request: Request):
 
 @app.delete("/api/document/{doc_id}/chats/{chat_id}")
 async def api_document_chat_delete(doc_id: str, chat_id: str, request: Request):
-    _owned_document(doc_id, _current_user(request))
+    _owned_document(doc_id, _current_user(request), allow_purged=True)
     with _CHAT_LOCK:
         data = _load_chats(doc_id)
         before = len(data.get("chats") or [])
@@ -4576,3 +4561,206 @@ async def api_document_notes(req: DocumentStudyRequest, request: Request):
     context = _study_context(chunks, 120)
     notes, notes_truncated = document_notes(context, language=language)
     return {"doc_id": req.doc_id, "notes": notes, "truncated": notes_truncated}
+
+
+# --- GDPR: consent, retention of derived data, export and erasure -------------
+# The file itself leaves R2 after R2_MAX_AGE_HOURS (see the storage retention
+# block above). The data derived from it -- extracted page text, the summary and
+# the vectors in Qdrant -- used to stay forever; the privacy policy promises
+# otherwise, so the same clock now removes them. What is left is a tombstone
+# (id, owner, file name, date) so the owner can still open the chat history,
+# which is the only content kept, until the user deletes it.
+
+class ConsentUpdate(BaseModel):
+    china_transfer: bool | None = None
+    marketing: bool | None = None
+
+
+class AccountDeleteRequest(BaseModel):
+    confirm: str
+
+
+def _purge_document(document: dict, drop_chats: bool = False) -> None:
+    """Remove everything derived from one document. Chats go only on request."""
+    doc_id = str(document.get("doc_id") or "")
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", doc_id)
+    if not safe:
+        return
+    try:
+        client.delete(
+            collection_name=TEXT_COLLECTION,
+            points_selector=qmodels.FilterSelector(
+                filter=qmodels.Filter(
+                    must=[
+                        qmodels.FieldCondition(
+                            key="video_id", match=qmodels.MatchValue(value=safe)
+                        )
+                    ]
+                )
+            ),
+        )
+    except Exception as error:
+        print(f"[Purge] vectors for {safe}: {error}")
+
+    file_key = document.get("file_key")
+    if file_key:
+        try:
+            r2_service.delete_object(file_key)
+        except Exception as error:
+            print(f"[Purge] R2 object {file_key}: {error}")
+
+    try:
+        _summary_path(safe).unlink(missing_ok=True)
+        with _SUMMARY_LOCK:
+            _SUMMARY_CACHE.pop(safe, None)
+    except Exception:
+        pass
+
+    keep_tombstone = not drop_chats and _chats_path(safe).exists()
+    if keep_tombstone:
+        _save_document(
+            {
+                "doc_id": safe,
+                "owner_id": document.get("owner_id"),
+                "file_name": document.get("file_name"),
+                "kind": document.get("kind"),
+                "created_at": document.get("created_at"),
+                "purged_at": time.time(),
+            }
+        )
+    else:
+        _document_meta_path(safe).unlink(missing_ok=True)
+    if drop_chats:
+        _chats_path(safe).unlink(missing_ok=True)
+
+
+def _derived_data_sweeper():
+    while True:
+        time.sleep(R2_SWEEP_SECONDS)
+        if R2_MAX_AGE_HOURS <= 0:
+            continue
+        cutoff = time.time() - R2_MAX_AGE_HOURS * 3600
+        for path in list(DOCS_DIR.glob("*.json")):
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    document = json.load(handle)
+            except Exception:
+                continue
+            if document.get("purged_at"):
+                continue
+            created = float(document.get("created_at") or 0)
+            if created > cutoff:
+                continue
+            try:
+                # A document with no owner predates accounts: nobody can reach
+                # its chats, so nothing of it is worth keeping.
+                _purge_document(document, drop_chats=not document.get("owner_id"))
+                print(f"[Purge] {document.get('doc_id')} past {R2_MAX_AGE_HOURS:g}h")
+            except Exception as error:
+                print(f"[Purge] {document.get('doc_id')} failed: {error}")
+
+
+threading.Thread(target=_derived_data_sweeper, name="derived-retention", daemon=True).start()
+
+
+@app.get("/api/consent")
+async def api_get_consent(request: Request):
+    try:
+        return await run_in_threadpool(
+            compliance.get_consents, _current_user(request), fresh=True
+        )
+    except compliance.ConsentUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+@app.post("/api/consent")
+async def api_set_consent(request: Request, req: ConsentUpdate):
+    user_id = _current_user(request)
+    try:
+        for kind in ("china_transfer", "marketing"):
+            value = getattr(req, kind)
+            if value is not None:
+                await run_in_threadpool(compliance.record_consent, user_id, kind, value)
+        return await run_in_threadpool(compliance.get_consents, user_id, fresh=True)
+    except compliance.ConsentUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+def _account_documents(user_id: str) -> list[dict]:
+    out = []
+    for path in DOCS_DIR.glob("*.json"):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                document = json.load(handle)
+        except Exception:
+            continue
+        if str(document.get("owner_id") or "") == user_id:
+            out.append(document)
+    return out
+
+
+@app.get("/api/account/export")
+async def api_account_export(request: Request):
+    """Everything we hold about the caller (GDPR Art. 15 and 20)."""
+    user_id = _current_user(request)
+
+    def _build():
+        claims = getattr(request.state, "user", {}) or {}
+        documents = []
+        for document in _account_documents(user_id):
+            doc_id = document.get("doc_id")
+            chats = []
+            try:
+                chats = _load_chats(doc_id).get("chats", [])
+            except Exception:
+                pass
+            documents.append(
+                {
+                    "doc_id": doc_id,
+                    "file_name": document.get("file_name"),
+                    "created_at": document.get("created_at"),
+                    "file_still_stored": not document.get("purged_at"),
+                    "chats": chats,
+                }
+            )
+        return {
+            "account": {"id": user_id, "email": claims.get("email")},
+            "consents": compliance.get_consents(user_id, fresh=True),
+            "documents": documents,
+            "note": "Uploaded files are deleted automatically; chat history is kept until you delete it.",
+        }
+
+    try:
+        return await run_in_threadpool(_build)
+    except compliance.ConsentUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+@app.delete("/api/account")
+async def api_account_delete(request: Request, req: AccountDeleteRequest):
+    """Delete the caller's documents, videos, conversations and account."""
+    if (req.confirm or "").strip() != "DELETE":
+        raise HTTPException(status_code=400, detail="Type DELETE to confirm")
+    user_id = _current_user(request)
+
+    def _erase():
+        documents = _account_documents(user_id)
+        for document in documents:
+            _purge_document(document, drop_chats=True)
+        for kind in ("documents", "videos"):
+            try:
+                prefix = user_scope.directory(kind, user_id)
+                for entry in r2_service.list_objects((prefix,)):
+                    r2_service.delete_object(entry["key"])
+            except Exception as error:
+                print(f"[Account] R2 {kind}: {error}")
+        compliance.delete_auth_user(user_id)
+        return len(documents)
+
+    try:
+        count = await run_in_threadpool(_erase)
+    except compliance.ConsentUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+    return {"deleted": True, "documents": count}
