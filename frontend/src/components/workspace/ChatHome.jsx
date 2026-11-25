@@ -502,12 +502,15 @@ export default function ChatHome() {
               key: 'new',
               icon: Plus,
               label: 'New analysis',
-              title: 'Start with a file',
+              title: 'Start an empty conversation',
               primary: true,
+              // A new chat opens empty and waits. The picker used to appear on
+              // its own, which turned "new chat" into a question you had to
+              // answer before you could type -- the paperclip is there for when
+              // a file is what you actually want.
               onClick: () => {
                 reset()
                 setOpen(false)
-                fileRef.current?.click()
               },
             },
           ]}
