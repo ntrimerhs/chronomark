@@ -2377,3 +2377,57 @@
 .ch-caret {
   background: currentColor;
 }
+/* ── the reader's bubble, in the product's own dark ─────────────────────────
+   The blue was iMessage's, not ours: on a page of deep violet and charcoal it
+   read as a different app pasted in. The reader's turn is now a dark violet
+   surface, the answer stays the raised charcoal, and the pair is told apart by
+   tint rather than by a colour from somewhere else. */
+.ch-turn-user .ch-bubble {
+  background: #2a2650;
+  border: 1px solid rgba(168, 162, 255, 0.28);
+  color: #f3f4f8;
+}
+.ch-turn-user .ch-bubble p {
+  color: #f3f4f8;
+}
+.ch-turn-assistant .ch-bubble {
+  background: #1b1b2b;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: #e7e8f0;
+}
+/* ── the answer is plain, the field has no second rectangle ─────────────────
+   documentsReference.css puts a pink focus ring on every textarea in the app
+   with !important, so the chat field drew a rectangle inside the composer even
+   though the composer lights up as a whole. One rule with the same weight is
+   the only thing that beats it. */
+.docs-app .ch-composer .ch-input,
+.docs-app .ch-composer .ch-input:focus,
+.docs-app .ch-composer .ch-input:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+/* The answer, outside any bubble: a cited paragraph in a box reads as a
+   quotation, and it is not one. */
+.ch-turn-assistant {
+  max-width: min(78%, 760px);
+  align-self: flex-start;
+}
+.ch-plain {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #e7e8f0;
+  white-space: pre-wrap;
+}
+
+/* The working line, one step up: it was set at caption size and it is the only
+   thing on screen while an answer is coming. */
+.ch-thinking-label {
+  font-size: 15px;
+}
+.ch-thinking-timer {
+  font-size: 12px;
+}

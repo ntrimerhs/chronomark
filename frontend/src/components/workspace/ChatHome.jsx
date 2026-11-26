@@ -871,30 +871,28 @@ export default function ChatHome() {
                     .filter((message) => !(message.streaming && !message.text))
                     .map((message) => (
                     <div key={message.id} className={`ch-turn ch-turn-${message.role}`}>
-                      {/* One bubble per turn, the way a message app draws it:
-                          the reader's on the right, the answer on the left.
-                          Nothing is signed -- the side and the colour already
-                          say who is speaking. */}
-                      <div className="ch-bubble">
-                        {message.role === 'assistant' && !message.streaming ? (
-                          /* Markdown, but only once the answer has stopped
-                             moving: a half-written table or a stray asterisk
-                             renders as noise, so the text streams plainly and
-                             settles into shape when it is done. */
+                      {/* Only the reader speaks in a bubble. The answer is
+                          plain text on the page, as it always was: a cited
+                          paragraph inside a grey box reads as a quotation, and
+                          it is not one. */}
+                      {message.role === 'assistant' ? (
+                        message.streaming ? (
+                          <p className="ch-plain">
+                            {message.text}
+                            <span className="ch-caret" aria-hidden="true" />
+                          </p>
+                        ) : (
                           <div className="ch-markdown">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {message.text}
                             </ReactMarkdown>
                           </div>
-                        ) : (
-                          <p>
-                            {message.text}
-                            {message.streaming ? (
-                              <span className="ch-caret" aria-hidden="true" />
-                            ) : null}
-                          </p>
-                        )}
-                      </div>
+                        )
+                      ) : (
+                        <div className="ch-bubble">
+                          <p>{message.text}</p>
+                        </div>
+                      )}
                     </div>
                     ))
                 )}
