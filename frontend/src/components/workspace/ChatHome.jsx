@@ -871,27 +871,30 @@ export default function ChatHome() {
                     .filter((message) => !(message.streaming && !message.text))
                     .map((message) => (
                     <div key={message.id} className={`ch-turn ch-turn-${message.role}`}>
-                      {/* The answers are not signed: a name over every one of
-                          them was noise above the thinking line. The reader's
-                          own turns still say You, because the bubble shape is
-                          not always enough to tell the two apart. */}
-                      {message.role === 'user' ? (
-                        <span className="ch-who">You</span>
-                      ) : null}
-                      {message.role === 'assistant' && !message.streaming ? (
-                        /* Markdown, but only once the answer has stopped moving:
-                           a half-written table or a stray asterisk renders as
-                           noise, so the text streams plainly and settles into
-                           headings, lists and tables when it is done. */
-                        <div className="ch-markdown">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p>
-                          {message.text}
-                          {message.streaming ? <span className="ch-caret" aria-hidden="true" /> : null}
-                        </p>
-                      )}
+                      {/* One bubble per turn, the way a message app draws it:
+                          the reader's on the right, the answer on the left.
+                          Nothing is signed -- the side and the colour already
+                          say who is speaking. */}
+                      <div className="ch-bubble">
+                        {message.role === 'assistant' && !message.streaming ? (
+                          /* Markdown, but only once the answer has stopped
+                             moving: a half-written table or a stray asterisk
+                             renders as noise, so the text streams plainly and
+                             settles into shape when it is done. */
+                          <div className="ch-markdown">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {message.text}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p>
+                            {message.text}
+                            {message.streaming ? (
+                              <span className="ch-caret" aria-hidden="true" />
+                            ) : null}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     ))
                 )}
@@ -918,7 +921,7 @@ export default function ChatHome() {
                 <textarea
                   className="ch-input"
                   rows={1}
-                  placeholder="Message ChronoMark"
+                  placeholder={messages.length ? 'Reply' : 'Message ChronoMark'}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {

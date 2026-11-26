@@ -2298,3 +2298,82 @@
   }
   .docs-app .sidebar { transition: none; }
 }
+
+/* The field inside the composer is not a form control that needs its own ring:
+   the composer already lights up as a whole when it has focus, and a second
+   rectangle inside it read as a box drawn in the wrong place. */
+.ch-input,
+.ch-input:focus,
+.ch-input:focus-visible {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+/* ── messages, the way a phone draws them ───────────────────────────────────
+   The reader speaks in the blue bubble on the right, ChronoMark answers in the
+   grey one on the left, both with the flat side towards the sender -- iMessage
+   in the dark. The text scrollers and the analyses keep the product's own
+   palette; two people talking is the one place a second colour earns its keep. */
+.ch-turn {
+  max-width: min(78%, 760px);
+}
+.ch-turn-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.ch-turn-assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.ch-bubble {
+  padding: 9px 14px;
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+  overflow-wrap: anywhere;
+}
+.ch-turn-user .ch-bubble {
+  background: #0a84ff;
+  color: #ffffff;
+  border-bottom-right-radius: 6px;
+}
+.ch-turn-assistant .ch-bubble {
+  background: #26262e;
+  color: #e7e8f0;
+  border-bottom-left-radius: 6px;
+}
+/* the bubble is the surface now; the old paragraph styling inside it is gone */
+.ch-bubble p,
+.ch-turn-user .ch-bubble p {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.ch-turn-user .ch-bubble p {
+  color: #ffffff;
+}
+.ch-bubble .ch-markdown {
+  font-size: 14px;
+  line-height: 1.6;
+  color: inherit;
+}
+.ch-bubble .ch-markdown p:last-child {
+  margin-bottom: 0;
+}
+.ch-bubble .ch-markdown code {
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+.ch-bubble .ch-markdown table {
+  font-size: 13px;
+}
+.ch-caret {
+  background: currentColor;
+}
