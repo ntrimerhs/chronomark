@@ -2099,3 +2099,26 @@
   color: #FFFFFF;
   font-variant-numeric: tabular-nums;
 }
+
+
+/* ── replies grow upwards ────────────────────────────────────────────────────
+   The thread started at the top of a tall column and grew down, so a short
+   conversation sat at the ceiling with a canyon under it. The first turn now
+   pushes the rest down: the newest line is the one nearest the composer, and
+   each new one lifts the older ones, the way every chat app does it. */
+.ch-thread {
+  padding: 8px 4px 18px;
+}
+.ch-thread > :first-child {
+  margin-top: auto;
+}
+.ch-conversation {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The recording sits in the middle of its pane instead of clinging to the top
+   of it -- the pane is shorter than the row now, and the eye wants the middle. */
+.ch-analysis.is-video {
+  align-self: center;
+}

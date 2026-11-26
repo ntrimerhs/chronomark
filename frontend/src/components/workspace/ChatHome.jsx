@@ -296,7 +296,7 @@ export default function ChatHome() {
     if (fileRef.current) fileRef.current.value = ''
   }, [])
 
-  const openDocument = useCallback(async (docId) => {
+  const openDocument = useCallback(async (docId, options = {}) => {
     setBusy(true)
     setStatus('opening')
     try {
@@ -316,7 +316,11 @@ export default function ChatHome() {
         turns = turnsFromChat(data)
       }
       setMatter({ kind: 'document', id: docId, document: docResponse.data })
-      setMessages(turns)
+      // Arriving from a conversation that already had something in it (the
+      // question you typed, the link you pasted, the file you just dropped)
+      // must not wipe that conversation: only a fresh visit loads the stored
+      // one.
+      if (!options.keepThread) setMessages(turns)
       setPage(1)
     } catch (error) {
       say('assistant', `I could not open that document: ${error?.response?.data?.detail || error.message}`)
@@ -424,7 +428,7 @@ export default function ChatHome() {
           setStatus('parsing')
           await waitForJob(data.job_id)
           setProgress(100)
-          await openDocument(data.doc_id)
+          await openDocument(data.doc_id, { keepThread: true })
           await library.refresh()
           return
         }
@@ -436,7 +440,7 @@ export default function ChatHome() {
         setStatus('transcribing')
         await waitForJob(data.job_id)
         setProgress(100)
-        await openVideo(data.video_id)
+        await openVideo(data.video_id, { keepThread: true })
         await library.refresh()
       } catch (error) {
         const detail =
@@ -684,7 +688,7 @@ export default function ChatHome() {
             {matter ? (
               <section
                 className={`ch-analysis${matter.kind === 'video' ? ' is-video' : ''}`}
-                style={{ flex: `0 0 ${split}%` }}
+                style={{ flex: `0 0 calc(${split}% - 14px)` }}
               >
                 <div className="ch-analysis-head">
                   <span className="ch-analysis-title" title={matter.document?.file_name || matter.video?.title}>
@@ -809,7 +813,12 @@ export default function ChatHome() {
                 {busy || typing ? (
                   <div className="ch-thinking">
                     <span className="ch-thinking-label">
-                      {busy ? stageLabel(status) : 'Thinking...'}
+                      {/* A stage with a known total shows how far along it is;
+                          the model thinking does not have a total, so it gets
+                          no number at all. */}
+                      {busy && status
+                        ? `${stageLabel(status)} (${Math.min(99, Math.round(progress || 0))}%)`
+                        : 'Thinking...'}
                     </span>
                     <span className="ch-thinking-timer">{elapsedLabel(elapsed)}</span>
                   </div>
