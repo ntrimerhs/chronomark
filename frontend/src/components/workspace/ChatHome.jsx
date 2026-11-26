@@ -8,11 +8,16 @@ import {
   MessageSquare,
   Paperclip,
   Plus,
+  BookOpen,
   Sparkles,
+  Square,
   Video,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { API_BASE_URL } from '../../config'
 import AppSidebar from '../common/AppSidebar.jsx'
 import useLibrary from '../../hooks/useLibrary.js'
@@ -104,6 +109,32 @@ function prettyBytes(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+const PAGE_RE = /^[\[(]?\s*p\.\s*(\d{1,4})\s*[\])]?$/i
+
+/* The old chat turned every `p. 12` into a pink button that jumped the viewer
+   to that page. That is back: an answer you cannot check is only a guess. */
+function citationComponents(onJump) {
+  function Code({ children, className }) {
+    const raw = String(children)
+    const fenced = typeof className === 'string' && className.startsWith('language-')
+    const match = fenced ? null : PAGE_RE.exec(raw.trim())
+    if (match) {
+      const page = Number(match[1])
+      return (
+        <button type="button" className="citation" onClick={() => onJump?.(page)}>
+          <BookOpen size={11} />
+          Page {page}
+        </button>
+      )
+    }
+    return <code className={className}>{children}</code>
+  }
+  return { code: Code }
+}
+
+const REMARK_PLUGINS = [remarkGfm, remarkMath]
+const REHYPE_PLUGINS = [rehypeKatex]
+
 function turnsFromChat(chat) {
   return (chat?.messages || []).map((message, index) => ({
     id: `${message.role}-${index}-${message.at || index}`,
@@ -143,6 +174,8 @@ export default function ChatHome() {
 
   const fileRef = useRef(null)
   const startedRef = useRef(0)
+  // The request that is in flight, so the stop button can end it.
+  const abortRef = useRef(null)
   const typeRef = useRef(null)
   const pollRef = useRef(null)
   const threadRef = useRef(null)
@@ -244,11 +277,12 @@ export default function ChatHome() {
   /* The document answers are already streamed token by token; this reads that
      stream and hands each delta to the typewriter, so the two smooth each other
      out instead of one fighting the other. */
-  const readStream = useCallback(async (path, body, onDelta) => {
+  const readStream = useCallback(async (path, body, onDelta, signal) => {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal,
     })
     if (!response.ok || !response.body) {
       let detail = `HTTP ${response.status}`
@@ -582,6 +616,24 @@ export default function ChatHome() {
     [busy, library, openDocument, openVideo, say, waitForJob],
   )
 
+  /* Stop: the socket is aborted, the typewriter is told there is no more to
+     come, and whatever has already arrived stays on screen. */
+  const stop = useCallback(() => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    typeRef.current?.finish?.()
+    setBusy(false)
+  }, [])
+
+  /* An abort is not an error: the reader asked for it. */
+  function wasStopped(error) {
+    return (
+      error?.code === 'ERR_CANCELED' ||
+      error?.name === 'CanceledError' ||
+      error?.name === 'AbortError'
+    )
+  }
+
   const ask = useCallback(async (override) => {
     const requested = typeof override === 'string' ? override : draft
     const text = requested.trim()
@@ -589,6 +641,13 @@ export default function ChatHome() {
     say('user', text)
     if (typeof override !== 'string') setDraft('')
     startedRef.current = Date.now()
+    // A new question starts from nothing: the stage and the percentage of the
+    // previous upload were still on screen, so the line said "Ready (99%)" while
+    // the model was actually thinking.
+    setStatus('')
+    setProgress(0)
+    const controller = new AbortController()
+    abortRef.current = controller
     setBusy(true)
 
     const stream = beginStream()
@@ -646,7 +705,7 @@ export default function ChatHome() {
         const { data } = await axios.post(
           `${API_BASE_URL}/api/chat`,
           { question: text, history, chat_id: conversationId },
-          { timeout: 120000 },
+          { timeout: 120000, signal: controller.signal },
         )
         if (data.chat_id && data.chat_id !== conversationId) setConversationId(data.chat_id)
         push(data.answer || '')
@@ -666,6 +725,7 @@ export default function ChatHome() {
           '/api/document/ask/stream',
           { doc_id: matter.id, question: text, conversation_id: conversationId },
           push,
+          controller.signal,
         )
         // The final frame carries the tidied answer: anything the deltas did
         // not include (a repaired citation, for instance) is appended here.
@@ -681,15 +741,20 @@ export default function ChatHome() {
         const { data } = await axios.post(
           `${API_BASE_URL}/ask`,
           { question: text, video_id: matter.id, history, conversation_id: conversationId },
-          { timeout: 300000 },
+          { timeout: 300000, signal: controller.signal },
         )
         push(data.answer || '')
       }
     } catch (error) {
-      const detail = error?.response?.data?.detail || error?.message || 'The answer failed.'
-      push(`I could not answer that: ${detail}`)
+      if (wasStopped(error)) {
+        // Nothing to say: the reader pulled the plug on purpose.
+      } else {
+        const detail = error?.response?.data?.detail || error?.message || 'The answer failed.'
+        push(`I could not answer that: ${detail}`)
+      }
     } finally {
       stream.finish()
+      abortRef.current = null
       setBusy(false)
       // The request is over, the answer is not: the line goes when the last
       // character has been written, not when the socket closed.
@@ -933,7 +998,11 @@ export default function ChatHome() {
                           </p>
                         ) : (
                           <div className="ch-markdown">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            <ReactMarkdown
+                              remarkPlugins={REMARK_PLUGINS}
+                              rehypePlugins={REHYPE_PLUGINS}
+                              components={citationComponents(setPage)}
+                            >
                               {message.text}
                             </ReactMarkdown>
                           </div>
@@ -1011,16 +1080,28 @@ export default function ChatHome() {
                   >
                     <Paperclip size={17} />
                   </button>
-                  <button
-                    type="button"
-                    className="ch-send"
-                    onClick={ask}
-                    disabled={busy || !draft.trim()}
-                    title="Send"
-                    aria-label="Send"
-                  >
-                    <ArrowUp size={17} />
-                  </button>
+                  {busy ? (
+                    <button
+                      type="button"
+                      className="ch-send is-stop"
+                      onClick={stop}
+                      title="Stop the answer"
+                      aria-label="Stop the answer"
+                    >
+                      <Square size={13} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="ch-send"
+                      onClick={ask}
+                      disabled={!draft.trim()}
+                      title="Send"
+                      aria-label="Send"
+                    >
+                      <ArrowUp size={17} />
+                    </button>
+                  )}
                 </div>
               </div>
             </section>

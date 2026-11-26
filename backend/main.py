@@ -4094,6 +4094,18 @@ def _document_file_url(document: dict):
     """
     if document.get("file_available") is False:
         return None
+    key = document.get("file_key")
+    if key and not r2_service.object_exists(key):
+        # The sweeper removed it while this process was not looking: record it,
+        # so every later open in the conversation is a sentence instead of a
+        # blank frame.
+        document["file_available"] = False
+        document["file_expired_at"] = time.time()
+        try:
+            _save_document(document)
+        except Exception as error:
+            print(f"[Docs] could not mark {document.get('doc_id')} expired: {error}")
+        return None
     if _document_cors_available():
         return f"/api/document-stream/{document.get('file_key')}"
     return (
@@ -4432,7 +4444,9 @@ async def api_delete_document(doc_id: str, request: Request):
 _PAGE_CITATION_RE = re.compile(r"[`\[(]\s*p\.?\s*(\d{1,4})\s*[`\])]", re.IGNORECASE)
 
 
-def _enforce_page_citations(answer: str, pages: set[int], fallback_page=None):
+def _enforce_page_citations(
+    answer: str, pages: set[int], fallback_page=None, fallback_allowed=True
+):
     """Keep only `p. N` markers that point at a page the model was really given."""
     kept = 0
     dropped = 0
@@ -4461,7 +4475,10 @@ def _enforce_page_citations(answer: str, pages: set[int], fallback_page=None):
     result = "```".join(parts)
 
     used_fallback = False
-    if kept == 0 and pages:
+    # A short reply to "thanks" or "wraia" is not an answer about the document, so
+    # it does not need a page marker glued to it -- which is how a thank-you ended
+    # in a citation of page 1.
+    if kept == 0 and pages and fallback_allowed:
         anchor = fallback_page if fallback_page in pages else min(pages)
         marker = f"`p. {anchor}`"
         paragraphs = result.split("\n\n")
@@ -4727,7 +4744,10 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
     best = max(selected, key=lambda r: getattr(r, "score", 0) or 0, default=None)
     fallback_page = _page_of(best.payload) if best is not None else None
     answer, kept, dropped, used_fallback = _enforce_page_citations(
-        answer, available_pages, fallback_page=fallback_page
+        answer,
+        available_pages,
+        fallback_page=fallback_page,
+        fallback_allowed=len(answer) > 240,
     )
     print(f"[Cite] document: {kept} citation(s) kept, {dropped} dropped")
 

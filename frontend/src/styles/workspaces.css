@@ -2466,3 +2466,112 @@
   opacity: 0.5;
   cursor: default;
 }
+
+
+/* ── one left edge ───────────────────────────────────────────────────────────
+   The thread, the working line, the action pill and the composer each had their
+   own inset, so four things that belong in one column started at four different
+   x positions -- and the pill was centred while the box was not. They all live
+   on the column now: full width, no side padding, nothing centred. The splitter
+   can move as much as it likes; the column is the unit. */
+.ch-thread {
+  padding: 8px 0 18px;
+}
+.ch-thinking {
+  padding: 2px 0 0;
+}
+.ch-tools {
+  width: 100%;
+  max-width: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.ch-composer {
+  width: 100%;
+  margin: 0 0 6px;
+}
+
+/* The stop button sits where send sits, in the colour of stopping. */
+.ch-send.is-stop {
+  background: #2a2c3b;
+  color: #f3f4f8;
+}
+.ch-send.is-stop:hover {
+  background: #3a3a4d;
+}
+
+/* ── the answer's own structure ──────────────────────────────────────────────
+   Headings in the palette's violet, the way the document chat always drew them,
+   with the maths and the citation buttons that had gone missing. */
+.ch-markdown h1,
+.ch-markdown h2,
+.ch-markdown h3,
+.ch-markdown h4 {
+  color: #d8d6ff;
+  letter-spacing: -0.01em;
+}
+.ch-markdown h1 { font-size: 17px; margin: 18px 0 8px; }
+.ch-markdown h2 { font-size: 15px; margin: 16px 0 7px; }
+.ch-markdown h3,
+.ch-markdown h4 { font-size: 14px; margin: 14px 0 6px; }
+.ch-markdown strong {
+  color: #ffffff;
+}
+.ch-markdown .katex {
+  font-size: 1.02em;
+}
+.ch-markdown .katex-display {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.docs-app .ch-markdown .citation {
+  background: rgba(168, 162, 255, 0.22);
+  border: 1px solid rgba(168, 162, 255, 0.21);
+  color: #a8a2ff;
+  border-radius: 6px;
+  padding: 1px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+  margin: 0 2px;
+  cursor: pointer;
+}
+.docs-app .ch-markdown .citation:hover {
+  background: rgba(168, 162, 255, 0.34);
+}
+
+/* ── the shimmer, slower and seamless ───────────────────────────────────────
+   It was a percentage-position gradient on a 260% tile, so the highlight raced
+   across and then snapped back to the start -- a visible restart on a label that
+   is only a few centimetres wide. The tile is a fixed 200px now, the gradient
+   begins and ends on the same colour, and the animation travels exactly one
+   tile: the frame at the end is the frame at the beginning, so it loops without
+   a seam. Slower, too. */
+.ch-thinking-label {
+  background-image: linear-gradient(
+    90deg,
+    #a8a2ff 0%,
+    #d8d6ff 22%,
+    #ffffff 50%,
+    #d8d6ff 78%,
+    #a8a2ff 100%
+  );
+  background-size: 200px 100%;
+  background-repeat: repeat;
+  background-position: 0 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ch-shimmer 3.8s linear infinite;
+}
+@keyframes ch-shimmer {
+  from { background-position: 0 0; }
+  to { background-position: 200px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ch-thinking-label { animation: none; color: #a8a2ff; background: none; }
+}

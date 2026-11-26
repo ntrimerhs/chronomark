@@ -201,6 +201,22 @@ def generate_presigned_download_url(file_key: str, expires_in: int = 3600) -> st
         raise RuntimeError(f"Could not create download URL: {error}") from error
 
 
+def object_exists(file_key: str) -> bool:
+    """Does this object still exist? One HEAD, for the moment a document opens.
+
+    The retention sweeper deletes uploads after three hours, and a document it
+    deleted before this process started has no flag on its record -- so the pane
+    would keep an iframe pointing at a missing object and go blank. Asking is
+    cheaper than a blank page.
+    """
+    try:
+        key = validate_file_key(file_key)
+        _get_client().head_object(Bucket=R2_BUCKET_NAME, Key=key)
+        return True
+    except Exception:
+        return False
+
+
 def open_object(file_key: str):
     """Open an object for streaming back to a client.
 
