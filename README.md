@@ -234,7 +234,7 @@ notice.
 | `DELETE /api/account` | body `{"confirm": "DELETE"}` — removes documents, videos, conversations, objects in the account's bucket directories and the Supabase user |
 | Ownership | documents carry `owner_id`; every video_id is prefixed with the account (`services/video_registry.py`), and `/ask` answers only for the account that analysed the video |
 | Debug routes | `/debug/*` answer `404` unless `ENABLE_DEBUG_ENDPOINTS=1` — they dump indexed transcripts |
-| Policy | `/privacy` renders `frontend/src/content/privacy.en.md` |
+| Policy and terms | `/privacy` and `/terms` render `frontend/src/content/privacy.en.md` and `terms.en.md` |
 
 Apply the migration once per project (`psql "$DATABASE_URL" -f backend/sql/002_consents.sql`),
 and bump `CONSENT_VERSION` whenever the policy changes what the reader agreed to:
