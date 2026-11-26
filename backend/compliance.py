@@ -120,8 +120,3 @@ def record_consent(user_id: str, kind: str, granted: bool) -> None:
 
 def has_transfer_consent(user_id: str) -> bool:
     return bool(get_consents(user_id)["china_transfer"])
-
-
-# ── ownership registry ─────────────────────────────────────────────────────
-
-_registry_lock = threading.Lock()
