@@ -48,6 +48,7 @@ from llama import (
     document_flashcards,
     document_notes,
     document_quiz,
+    document_chapters,
     extract_examples,
     map_examples_to_excerpts,
     transcribe_image,
@@ -3603,6 +3604,116 @@ def _load_cached_summary(doc_id: str) -> dict | None:
     return cached
 
 
+# --- chapters ----------------------------------------------------------------
+# The walkthrough needs the document's own structure, and it needs the same
+# structure every time: a model asked to "continue" from memory answered with
+# four sections in one reply on Monday and repeated itself on Tuesday. The
+# outline is therefore read once from the pages, stored next to the document and
+# reused, and each reply is given exactly the pages of one chapter.
+
+_CHAPTERS_CACHE: dict[str, list] = {}
+_CHAPTERS_LOCK = threading.Lock()
+CHAPTERS_DIR = DOCS_DIR / "chapters"
+
+
+def _chapters_path(doc_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", str(doc_id or ""))
+    return CHAPTERS_DIR / f"{safe}.json"
+
+
+def _payload_page(payload: dict | None):
+    payload = payload or {}
+    page = payload.get("page")
+    if page is None:
+        start = payload.get("start")
+        page = int(start) if isinstance(start, (int, float)) else None
+    return page
+
+
+def _document_chapters_cached(doc_id: str, context: str, language: str) -> list:
+    with _CHAPTERS_LOCK:
+        cached = _CHAPTERS_CACHE.get(doc_id)
+    if cached:
+        return cached
+    path = _chapters_path(doc_id)
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                stored = json.load(handle)
+            if isinstance(stored, list) and stored:
+                with _CHAPTERS_LOCK:
+                    _CHAPTERS_CACHE[doc_id] = stored
+                return stored
+        except Exception as error:
+            print(f"[Docs] chapter outline unreadable: {error}")
+    try:
+        chapters = document_chapters(context, language)
+    except Exception as error:  # noqa: BLE001 - a walkthrough without an outline still works
+        print(f"[Docs] could not read the chapter structure: {error}")
+        return []
+    if not chapters:
+        return []
+    with _CHAPTERS_LOCK:
+        _CHAPTERS_CACHE[doc_id] = chapters
+    try:
+        CHAPTERS_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".json.tmp")
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(chapters, handle, ensure_ascii=False)
+        tmp.replace(path)
+    except Exception as error:
+        print(f"[Docs] could not store the chapter outline: {error}")
+    return chapters
+
+
+def _chapter_index(chapters: list, question: str, history: list) -> int:
+    """Which chapter this message is about."""
+
+    def which(text, headings_only=False):
+        lowered = " ".join(str(text or "").lower().split())
+        if headings_only:
+            # Only what the answer actually covered: its closing paragraph names
+            # the chapter that comes after it, and matching that would skip one.
+            lowered = " ".join(
+                " ".join(line.split()).lower()
+                for line in str(text or "").splitlines()
+                if line.lstrip().startswith("#")
+            )
+        found = None
+        for position, chapter in enumerate(chapters):
+            title = " ".join(str(chapter.get("title") or "").lower().split())
+            if title and title in lowered:
+                found = position
+        return found
+
+    named = which(question)
+    if named is not None:
+        return named
+    lowered = str(question or "").lower()
+    if any(
+        word in lowered
+        for word in (
+            "continue",
+            "go on",
+            "next",
+            "συνέχ",
+            "συνεχ",
+            "επόμεν",
+            "επομεν",
+            "παρακάτω",
+            "παρακατω",
+        )
+    ):
+        for turn in reversed(history or []):
+            if turn.get("role") != "assistant":
+                continue
+            position = which(turn.get("content"), headings_only=True)
+            if position is not None:
+                return min(position + 1, len(chapters) - 1)
+        return 1 if len(chapters) > 1 else 0
+    return 0
+
+
 def _store_cached_summary(
     doc_id: str,
     answer: str,
@@ -3687,6 +3798,23 @@ def _warm_document_summary(document: dict) -> None:
         f"[Docs] pre-analysis: {selected}/{len(chunks)} chunks, {total_chars} chars, "
         f"answering in {answer_language}"
     )
+    # The upload is also when the chapter structure is read, so the first click
+    # on Summarize knows what chapter two is called and does not pay for it.
+    chapters = _document_chapters_cached(doc_id, context, answer_language)
+    chapter_title = chapters[0]["title"] if chapters else None
+    next_title = chapters[1]["title"] if len(chapters) > 1 else None
+    at_end = bool(chapters) and next_title is None
+    if chapters:
+        chapter = chapters[0]
+        start_page, end_page = chapter["start_page"], chapter["end_page"]
+        context = "\n".join(
+            text
+            for r in chunks
+            if _payload_page(r.payload) is None
+            or start_page <= (_payload_page(r.payload) or 0) <= end_page
+            for text in [((r.payload or {}).get("text") or "").strip()]
+            if text
+        ) or context
     answer, truncated = ask_document(
         question=question,
         context=context,
@@ -3694,13 +3822,19 @@ def _warm_document_summary(document: dict) -> None:
         answer_language=answer_language,
         summary_mode=True,
         transcript_available=True,
+        chapter_title=chapter_title,
+        next_chapter=next_title,
     )
-    answer, next_chapter, at_end = split_chapter_marker(answer)
+    answer, marker_next, marker_end = split_chapter_marker(answer)
+    if marker_next:
+        next_title, at_end = marker_next, False
+    elif marker_end:
+        next_title, at_end = None, True
     answer, kept, _dropped, _fallback = _enforce_page_citations(
         answer, available_pages, fallback_page=None
     )
     print(f"[Docs] pre-analysis summary ready: {len(answer)} chars, {kept} citation(s)")
-    _store_cached_summary(doc_id, answer, truncated, next_chapter, at_end)
+    _store_cached_summary(doc_id, answer, truncated, next_title, at_end)
 
 
 # --- conversations -----------------------------------------------------------
@@ -4726,18 +4860,54 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
     if not any(character.isalpha() for character in question) and document_language:
         answer_language = document_language
 
+    chapter_title = None
+    plan_next = None
+    plan_end = False
     if summary_mode:
-        # A summary has to cover the whole handout, not a sample of it: the whole
-        # chunk list goes in whenever it fits, and only a document too large for
-        # one context is thinned out, evenly, so no section is skipped outright.
+        # The whole document goes in once, to read its structure; the reply then
+        # gets one chapter of it. A document too large for one context is thinned
+        # out evenly, so no chapter is missing from the outline.
         total_chars = sum(len((r.payload.get("text") or "")) for r in chunks)
         if total_chars <= 90_000:
-            selected = chunks
+            whole = chunks
         else:
             budget = max(20, int(len(chunks) * 90_000 / total_chars))
             step = len(chunks) / budget
-            selected = [chunks[int(i * step)] for i in range(budget)]
-        print(f"[Docs] summary context: {len(selected)}/{len(chunks)} chunks, {total_chars} chars")
+            whole = [chunks[int(i * step)] for i in range(budget)]
+        outline = "\n".join(
+            text if text.startswith("[figure") else f"[p.{_payload_page(r.payload)}] {text}"
+            for r in whole
+            for text in [((r.payload.get("text") or "").strip())]
+            if text
+        )
+        chapters = _document_chapters_cached(
+            req.doc_id, outline, _document_language(document) or "English"
+        )
+        if chapters:
+            position = _chapter_index(chapters, question, history)
+            chapter = chapters[position]
+            start_page = int(chapter["start_page"])
+            end_page = int(chapter["end_page"])
+            in_chapter = [
+                r
+                for r in chunks
+                if _payload_page(r.payload) is None
+                or start_page <= (_payload_page(r.payload) or 0) <= end_page
+            ]
+            selected = in_chapter or chunks
+            chapter_title = chapter["title"]
+            plan_next = chapters[position + 1]["title"] if position + 1 < len(chapters) else None
+            plan_end = plan_next is None
+            print(
+                f"[Docs] chapter {position + 1}/{len(chapters)}: {chapter_title} "
+                f"(p.{start_page}-{end_page}, {len(selected)} chunks)"
+            )
+        else:
+            selected = whole
+            print(
+                f"[Docs] summary context: {len(selected)}/{len(chunks)} chunks, "
+                f"{total_chars} chars"
+            )
     else:
         query_embedding = embed_query(question)
         vector_hits = search_text(query_embedding, limit=12, video_id=req.doc_id)
@@ -4836,8 +5006,6 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
     transcript_available = bool(context.strip())
 
     marker_stream = None
-    next_chapter = None
-    at_end = False
     try:
         if summary_mode and not history:
             # The summary written at upload is chapter one of the whole document;
@@ -4850,12 +5018,12 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
             # Generated during upload, over the same pages: no round-trip.
             answer = cached_summary["answer"]
             truncated = bool(cached_summary.get("truncated"))
-            next_chapter = cached_summary.get("next_chapter")
-            at_end = bool(cached_summary.get("at_end"))
+            plan_next = cached_summary.get("next_chapter") or plan_next
+            plan_end = bool(cached_summary.get("at_end")) or plan_end
             print(f"[Docs] summary served from pre-analysis: {req.doc_id}")
         else:
-            # The next step is written by the model as a machine line at the end;
-            # the filter keeps it out of what the reader sees while it arrives.
+            # The structure is a machine line at the end of the answer; the filter
+            # keeps it out of what the reader sees while it arrives.
             marker_stream = ChapterMarkerStream(emit) if emit else None
             answer, truncated = ask_document(
                 question=question,
@@ -4864,14 +5032,20 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
                 answer_language=answer_language,
                 summary_mode=summary_mode,
                 transcript_available=transcript_available,
+                chapter_title=chapter_title,
+                next_chapter=plan_next,
                 # Streaming: the callback fires per token, so the reader watches
                 # the answer being written instead of waiting for all of it.
                 on_delta=(marker_stream.push if marker_stream else None),
             )
             if marker_stream is not None:
-                answer, next_chapter, at_end = marker_stream.finish(answer)
+                answer, marker_next, marker_end = marker_stream.finish(answer)
             else:
-                answer, next_chapter, at_end = split_chapter_marker(answer)
+                answer, marker_next, marker_end = split_chapter_marker(answer)
+            if marker_next:
+                plan_next, plan_end = marker_next, False
+            elif marker_end:
+                plan_next, plan_end = None, True
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"LLM provider error: {error}")
 
@@ -4919,8 +5093,8 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
         "truncated": truncated,
         # What the composer offers next: the chapter after this one, or nothing
         # when the walkthrough reached the end of the document.
-        "next_chapter": next_chapter,
-        "at_end": at_end,
+        "next_chapter": plan_next,
+        "at_end": plan_end,
         "pages": page_rows,
         "text_results": [
             {

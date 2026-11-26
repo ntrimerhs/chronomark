@@ -278,6 +278,62 @@ class ChapterMarkerStream:
         return cleaned, next_chapter, at_end
 
 
+_CHAPTER_OUTLINE_PROMPT = (
+    "You are given the pages of a document, each labelled [p.N]. Name the "
+    "document's own chapters or sections, in order, exactly as it names them, "
+    "and say which pages each one covers.\n"
+    "Rules: use the document's titles, never invented ones. A cover page, a "
+    "table of contents and a preface are not chapters; when one of them carries "
+    "no material, leave it out. Cover the whole document with no gaps and no "
+    "overlaps. Between three and twelve chapters: merge tiny sections, and split "
+    "a section that runs longer than ten pages at its own sub-headings.\n"
+    "Answer with JSON only: "
+    '{"chapters": [{"title": "...", "start_page": 2, "end_page": 6}]}'
+)
+
+
+def document_chapters(context: str, language: str = "the document's language"):
+    """The document's chapters, as {title, start_page, end_page}.
+
+    The structure is read from the document itself rather than from the model's
+    memory of the previous answer: the walkthrough then knows which pages a
+    chapter covers and what it is called, and the interface can offer the next
+    one by name.
+    """
+    if not _openai_client or not (context or "").strip():
+        return []
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                _CHAPTER_OUTLINE_PROMPT
+                + f"\nWrite the chapter titles in {language}, the language of the "
+                "document itself."
+            ),
+        },
+        {"role": "user", "content": f"Document pages:\n{context}\n\nAnswer with JSON only."},
+    ]
+    data = _chat_json(messages, max_tokens=900, temperature=0)
+    raw = data.get("chapters") if isinstance(data, dict) else None
+    if not isinstance(raw, list):
+        return []
+    chapters = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        title = " ".join(str(item.get("title") or "").split())
+        try:
+            start = int(item.get("start_page"))
+            end = int(item.get("end_page"))
+        except (TypeError, ValueError):
+            continue
+        if not title or start < 1 or end < start:
+            continue
+        chapters.append({"title": title, "start_page": start, "end_page": end})
+    chapters.sort(key=lambda c: c["start_page"])
+    return chapters[:12]
+
+
 _DOCUMENT_SYSTEM_PROMPT = (
     "You are ChronoMark's study assistant: an advanced AI answering questions "
     "about a DOCUMENT the user uploaded (a PDF, a slide deck or a Word file). It "
@@ -496,6 +552,8 @@ def ask_document(
     summary_mode: bool = False,
     transcript_available: bool = True,
     on_delta=None,
+    chapter_title: str | None = None,
+    next_chapter: str | None = None,
 ):
     """Answer a question about pages of a document, citing `p. N`.
 
@@ -513,33 +571,43 @@ def ask_document(
             "not cover it, and do not ask the user to paste the text."
         )
     elif summary_mode:
-        style = (
-            "MODE: a guided walkthrough of the document, one chapter at a time, "
-            "together with the reader. Not a report, not a dump of everything the "
-            "excerpts contain.\n"
-            "- Work out the document's own structure from the excerpts: its "
-            "chapters or sections, their numbering and their titles. Use the "
-            "document's names for them, never invented ones.\n"
-            "- If the conversation has already taken a chapter, continue with the "
-            "one that follows it and name it in a `###` heading. If this is the "
-            "first answer, take the first chapter that carries real content (skip "
-            "a cover, a table of contents or a preface unless it is all there is).\n"
-            "- One chapter means one of the document's own sections: a numbered "
-            "chapter, or, in a document without numbering, one top-level heading. "
-            "The material under that one heading is the reply; everything under "
-            "the next heading is the next reply.\n"
-            "- Keep the reply between 350 and 600 words, one sitting of reading. If "
-            "the chapter is bigger than that, cover its first part properly, say in "
-            "one clause that the rest follows, and offer it; never shrink five "
-            "sections into one long reply to fit.\n"
+        # What comes next is decided by the document's own outline (see
+        # document_chapters), not by the model's memory of what it said before:
+        # that is what made one reply walk four sections and the next one repeat
+        # itself.
+        if chapter_title:
+            opening = (
+                f"MODE: this reply covers exactly one chapter of the document: "
+                f"«{chapter_title}». The excerpts you were given are that chapter "
+                f"and nothing else, so do not reach past them.\n"
+            )
+        else:
+            opening = (
+                "MODE: a guided walkthrough of the document, one chapter at a time. "
+                "Take the first chapter that carries real content, and only that "
+                "one: the material under the next heading is the next reply.\n"
+            )
+        style = opening + (
+            "- Inside the chapter, be complete: every definition, rule, theorem "
+            "and formula with its plain-language gloss, each symbol defined as it "
+            "appears, and the document's own worked example walked through with "
+            "its real labels and numbers. A figure the chapter depends on is "
+            "drawn as a plain-text diagram.\n"
+            "- Keep the reply between 350 and 600 words, one sitting of reading.\n"
             "- The answer is the chapter itself, not an introduction to the "
             "document: no table of contents in prose, no list of the other "
             "chapters, no document-wide wrap-up.\n"
             "- End with one short paragraph, no heading, that hands the choice "
-            "back: name the next chapter and offer to continue with it, or to go "
-            "deeper, re-explain or revise anything in this one. Two sentences at "
-            "most, in the reader's language.\n"
-            "- If the reader asks for a specific chapter by name or number, or "
+            "back. "
+            + (
+                f"Name the next chapter, «{next_chapter}», and offer to continue "
+                f"with it, or to go deeper into this one. Two sentences at most.\n"
+                if next_chapter
+                else "Say that this was the last chapter of the document, and offer "
+                "to practise it with exercises or to revise anything from it. Two "
+                "sentences at most.\n"
+            )
+            + "- If the reader asks for a specific chapter by name or number, or "
             "asks you to go on, do exactly that and nothing else."
         )
     else:
@@ -564,19 +632,13 @@ def ask_document(
                 + (
                     "\n\n## ONE CHAPTER, HARD LIMIT\n"
                     "This reply carries exactly one chapter of the document, the "
-                    "one it opens with. Even when the reader says 'summarise', "
+                    "one it is told to cover. Even when the reader says 'summarise', "
                     "'the whole document', 'everything', or names no chapter at "
                     "all, you do not cover a second one. If you are about to write "
                     "a heading for another chapter, do not write it: the closing "
                     "paragraph that offers to continue takes its place. Walking the "
                     "whole document in one reply is a failure of this rule, not "
                     "extra help.\n"
-                    "After that closing paragraph, on one final line of its own, "
-                    "write the choice the interface offers next, in this exact "
-                    "form: `[[next: the next chapter's own title]]`. When the "
-                    "chapter you just covered is the last one, write `[[end]]` "
-                    "instead. Nothing follows that line, and the prose never "
-                    "mentions it.\n"
                     if summary_mode
                     else ""
                 )
