@@ -16,8 +16,8 @@ We collect only what is needed to run ChronoMark:
 | --- | --- |
 | Account | email, display name, profile picture (if you sign in with Google or GitHub), subscription plan |
 | Files and content | videos, audio, YouTube links, PDF/PPTX/DOCX documents, the text extracted from them, transcripts and numerical representations (embeddings) used for search |
-| Conversations | your questions, the answers, references to pages or timestamps, and any quizzes and flashcards you generate |
-| Payments | your card is entered only with Stripe, never on our servers. We receive the subscription status, billing email, the last digits of the card and your Stripe customer ID |
+| Conversations | your questions and the answers, with or without a file attached, references to pages or timestamps, any quizzes and flashcards you generate, and the title of each conversation, which is written automatically by AI from its content (you can rename it) |
+| Payments (once paid plans are available) | your card is entered only with Stripe, never on our servers. We receive the subscription status, billing email, the last digits of the card and your Stripe customer ID |
 | Technical | IP address, device and browser type, operational logs, usage records (how many pages or minutes you have processed) |
 | Sign-in | the session token stored in your browser (localStorage) |
 
@@ -93,12 +93,12 @@ We keep your data only as long as needed:
 | --- | --- |
 | Account details | While the account exists, and up to 30 days after it is closed (backups) |
 | Files, transcripts, embeddings | Deleted automatically at most 3 hours after upload, or sooner if you delete them |
-| Conversations | Until you delete them or close your account. Chat history (with the name of the file it belongs to) is the only thing we keep after the 3 hours |
+| Conversations | Until you delete them or close your account. Chat history, including its title and the name of the file it belongs to, is the only thing we keep after the 3 hours |
 | Technical logs and usage records | 90 days |
 | Payment and invoice records | As long as tax law requires (currently up to 10 years from the end of the tax year) |
 | Email address for marketing updates | Until you withdraw your consent |
 
-Deleting your files, automatically or manually, also deletes the corresponding embeddings in Qdrant. How long DeepSeek keeps the data sent to it is decided by that provider and we cannot control it.
+Deleting your files, automatically or manually, also deletes the extracted text, the summary, the transcript, the frames and audio, and the corresponding embeddings in Qdrant. If our storage runs full, a file can be removed before the 3 hours are up. How long DeepSeek keeps the data sent to it is decided by that provider and we cannot control it.
 
 ## 7. Your rights
 
@@ -122,6 +122,8 @@ You also have the right to lodge a complaint with the Hellenic Data Protection A
 **Minors.** We do not set a minimum age for using the service. If you are under 15, you need the consent of your parent or guardian for the processing of your data (Art. 8 GDPR, Art. 21 of Greek Law 4624/2019), and the consent to the transfer to China must be given by them. If you believe a minor has created an account without such consent, contact us and we will delete it.
 
 **Files containing other people's data.** If the files you upload contain other people's personal data (for example voices or names in a lecture video), you are responsible for having the right to use them and for any permission to reproduce them. Do not upload medical, financial or other sensitive information about other people.
+
+**Service limits.** To keep the service stable, documents can be up to 40 MB, and only a few files are processed at the same time, so your upload may wait for its turn. YouTube imports are limited to 1080p. We may introduce usage limits per account.
 
 **Artificial intelligence.** Answers, quizzes and flashcards are generated automatically with artificial intelligence and may contain errors. We do not make decisions that legally affect you solely by automated processing.
 

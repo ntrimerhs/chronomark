@@ -5340,6 +5340,10 @@ async def api_account_export(request: Request):
                 {"video_id": r.get("video_id"), "created_at": r.get("created_at")}
                 for r in video_registry.records_for(user_id)
             ],
+            "conversations": [
+                conversations.get(item["chat_id"], user_id)
+                for item in conversations.list_for(user_id)
+            ],
             "note": "Uploaded files are deleted automatically; chat history is kept until you delete it.",
         }
 
@@ -5362,6 +5366,8 @@ async def api_account_delete(request: Request, req: AccountDeleteRequest):
             _purge_document(document, drop_chats=True)
         for record in video_registry.records_for(user_id):
             _purge_video(record["video_id"])
+        for item in conversations.list_for(user_id):
+            conversations.remove(item["chat_id"], user_id)
         for kind in ("documents", "videos"):
             try:
                 prefix = user_scope.directory(kind, user_id)
