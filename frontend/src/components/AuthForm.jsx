@@ -185,7 +185,7 @@ export default function AuthForm({
 
       {signup && (
         <p style={{ fontSize: 12, lineHeight: 1.5, color: '#a7acba', margin: '4px 0 0' }}>
-          By creating an account you agree to our <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
+          By creating an account you agree to our <a href="/terms" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
           To answer your questions, the text of your files and your questions are sent to AI providers,
           including DeepSeek, whose servers are in China. We ask for your explicit consent before your
           first upload. Uploaded files are deleted after 3 hours.

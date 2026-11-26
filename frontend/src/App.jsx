@@ -19,6 +19,7 @@ function WorkspaceRoute() {
   return <ChatHome />;
 }
 import PrivacyPage from './components/PrivacyPage.jsx';
+import TermsPage from './components/TermsPage.jsx';
 import BackToTop from './components/BackToTop.jsx';
 import { useLocation } from 'react-router-dom';
 import useSmoothScroll from './hooks/useSmoothScroll.js';
@@ -49,6 +50,7 @@ function App() {
         <Route path='/upload' element={<Navigate to='/workspaces' replace />}/>
         <Route path='/documents' element={<Navigate to='/workspaces' replace />}/>
         <Route path='/privacy' element={<PrivacyPage />}/>
+        <Route path='/terms' element={<TermsPage />}/>
         <Route path='/register' element={<AuthPage mode='signup' />}/>
         <Route path='/login' element={<AuthPage mode='signin' />}/>
         {/* Where Google and GitHub come back to: the session is already in

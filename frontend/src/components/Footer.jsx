@@ -35,7 +35,7 @@ const Footer = () => {
             <div className='footer-column'>
               <h4>Company</h4>
               <a href='/privacy'>Privacy</a>
-              <a href='#'>Terms</a>
+              <a href='/terms'>Terms</a>
               <a href='#'>Contact</a>
             </div>
           </div>
@@ -45,7 +45,7 @@ const Footer = () => {
           <p className='footer-bottom-text'>© 2026 ChronoMark. All rights reserved.</p>
           <div className='footer-legal-links'>
             <a className='footer-legal-link' href='/privacy'>Privacy</a>
-            <a className='footer-legal-link' href='#'>Terms</a>
+            <a className='footer-legal-link' href='/terms'>Terms</a>
           </div>
         </div>
       </div>
