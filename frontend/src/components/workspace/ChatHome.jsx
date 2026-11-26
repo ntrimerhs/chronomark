@@ -135,6 +135,11 @@ function citationComponents(onJump) {
 const REMARK_PLUGINS = [remarkGfm, remarkMath]
 const REHYPE_PLUGINS = [rehypeKatex]
 
+/* The empty page greets like a person would: it says the one sentence it has
+   to say one character at a time, then stops. */
+const GREETING = 'Hi. How can I help?'
+const GREETING_MS = 42
+
 function turnsFromChat(chat) {
   return (chat?.messages || []).map((message, index) => ({
     id: `${message.role}-${index}-${message.at || index}`,
@@ -172,6 +177,8 @@ export default function ChatHome() {
   // just read, or exercises once the document has no more.
   const [nextChapter, setNextChapter] = useState(null)
   const [atEnd, setAtEnd] = useState(false)
+  // What the empty page has managed to say so far.
+  const [greeting, setGreeting] = useState('')
   const [collapsed, setCollapsed] = useState(false)
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
@@ -231,6 +238,25 @@ export default function ChatHome() {
     const node = threadRef.current
     if (node) node.scrollTop = node.scrollHeight
   }, [messages, busy])
+
+  /* The greeting types itself out on an empty chat, and again on every return to
+     one. Nothing else on the page moves while it does: only the letters. */
+  useEffect(() => {
+    if (messages.length || matter || busy) return undefined
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+    if (reduced) {
+      setGreeting(GREETING)
+      return undefined
+    }
+    setGreeting('')
+    let shown = 0
+    const timer = window.setInterval(() => {
+      shown += 1
+      setGreeting(GREETING.slice(0, shown))
+      if (shown >= GREETING.length) window.clearInterval(timer)
+    }, GREETING_MS)
+    return () => window.clearInterval(timer)
+  }, [messages.length, matter, busy])
 
   const say = useCallback((role, text) => {
     commit((list) => [
@@ -1114,7 +1140,12 @@ export default function ChatHome() {
               >
                 {messages.length === 0 && !busy ? (
                   <div className="ch-empty">
-                    <h1>Hi. How can I help?</h1>
+                    <h1>
+                      {greeting}
+                      {greeting.length < GREETING.length ? (
+                        <span className="ch-caret" aria-hidden="true" />
+                      ) : null}
+                    </h1>
                   </div>
                 ) : (
                   messages
