@@ -218,6 +218,66 @@ def complete_with_continuation(messages, max_tokens, temperature=None):
     return "".join(parts), truncated
 
 
+_FINISH_RE = re.compile(r"\[\[\s*(next\s*:\s*(?P<name>[^\]]+?)|end)\s*\]\]", re.IGNORECASE)
+
+
+def split_chapter_marker(text: str):
+    """Take the interface's next step out of an answer.
+
+    The model ends a chapter answer with one machine-readable line saying what
+    the reader could do next. It is read here and never shown: the reader sees
+    the closing sentence, and the button under the composer carries the choice.
+    """
+    match = _FINISH_RE.search(text or "")
+    if not match:
+        return text, None, False
+    name = (match.group("name") or "").strip().strip("`*\"' ")
+    cleaned = _FINISH_RE.sub("", text).rstrip()
+    if name:
+        return cleaned, name, False
+    return cleaned, None, True
+
+
+class ChapterMarkerStream:
+    """Emits deltas, but holds back anything that could be the final marker.
+
+    The marker arrives token by token in the middle of the stream. Holding back
+    the tail means the reader never sees `[[next:` appear and then vanish.
+    """
+
+    def __init__(self, emit):
+        self.emit = emit
+        self.held = ""
+
+    def push(self, delta: str) -> None:
+        self.held += delta
+        cut = self.held.find("[[")
+        if cut == -1:
+            # A single bracket may be the start of the marker: keep it.
+            bracket = self.held.rfind("[")
+            if bracket != -1 and len(self.held) - bracket <= 2:
+                cut = bracket
+        if cut == -1:
+            safe, self.held = self.held, ""
+        else:
+            safe, self.held = self.held[:cut], self.held[cut:]
+        if safe:
+            self.emit("delta", {"text": safe})
+
+    def finish(self, answer: str):
+        """Strip the marker, emit the held tail, and say what comes next."""
+        cleaned, next_chapter, at_end = split_chapter_marker(answer or "")
+        held, self.held = self.held, ""
+        if held:
+            # The tail is the marker itself (or a fragment of it): what is left
+            # of the prose is what the marker search kept.
+            if "[[" in held:
+                held = held.split("[[", 1)[0]
+            if held:
+                self.emit("delta", {"text": held})
+        return cleaned, next_chapter, at_end
+
+
 _DOCUMENT_SYSTEM_PROMPT = (
     "You are ChronoMark's study assistant: an advanced AI answering questions "
     "about a DOCUMENT the user uploaded (a PDF, a slide deck or a Word file). It "
@@ -511,6 +571,12 @@ def ask_document(
                     "paragraph that offers to continue takes its place. Walking the "
                     "whole document in one reply is a failure of this rule, not "
                     "extra help.\n"
+                    "After that closing paragraph, on one final line of its own, "
+                    "write the choice the interface offers next, in this exact "
+                    "form: `[[next: the next chapter's own title]]`. When the "
+                    "chapter you just covered is the last one, write `[[end]]` "
+                    "instead. Nothing follows that line, and the prose never "
+                    "mentions it.\n"
                     if summary_mode
                     else ""
                 )

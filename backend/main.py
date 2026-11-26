@@ -38,7 +38,9 @@ import auth_guard
 from llama import (
     ask_llama,
     ask_document,
+    ChapterMarkerStream,
     complete_with_continuation,
+    split_chapter_marker,
     suggest_title,
     suggest_title_from_text,
     describe_figure,
@@ -3601,8 +3603,20 @@ def _load_cached_summary(doc_id: str) -> dict | None:
     return cached
 
 
-def _store_cached_summary(doc_id: str, answer: str, truncated: bool) -> None:
-    payload = {"answer": answer, "truncated": bool(truncated), "created_at": time.time()}
+def _store_cached_summary(
+    doc_id: str,
+    answer: str,
+    truncated: bool,
+    next_chapter: str | None = None,
+    at_end: bool = False,
+) -> None:
+    payload = {
+        "answer": answer,
+        "truncated": bool(truncated),
+        "next_chapter": next_chapter,
+        "at_end": bool(at_end),
+        "created_at": time.time(),
+    }
     with _SUMMARY_LOCK:
         _SUMMARY_CACHE[doc_id] = payload
     try:
@@ -3681,11 +3695,12 @@ def _warm_document_summary(document: dict) -> None:
         summary_mode=True,
         transcript_available=True,
     )
+    answer, next_chapter, at_end = split_chapter_marker(answer)
     answer, kept, _dropped, _fallback = _enforce_page_citations(
         answer, available_pages, fallback_page=None
     )
     print(f"[Docs] pre-analysis summary ready: {len(answer)} chars, {kept} citation(s)")
-    _store_cached_summary(doc_id, answer, truncated)
+    _store_cached_summary(doc_id, answer, truncated, next_chapter, at_end)
 
 
 # --- conversations -----------------------------------------------------------
@@ -4820,6 +4835,9 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
     available_pages = pages_in_context or {int(p.get("page") or 0) for p in document.get("pages") or []}
     transcript_available = bool(context.strip())
 
+    marker_stream = None
+    next_chapter = None
+    at_end = False
     try:
         if summary_mode and not history:
             # The summary written at upload is chapter one of the whole document;
@@ -4832,8 +4850,13 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
             # Generated during upload, over the same pages: no round-trip.
             answer = cached_summary["answer"]
             truncated = bool(cached_summary.get("truncated"))
+            next_chapter = cached_summary.get("next_chapter")
+            at_end = bool(cached_summary.get("at_end"))
             print(f"[Docs] summary served from pre-analysis: {req.doc_id}")
         else:
+            # The next step is written by the model as a machine line at the end;
+            # the filter keeps it out of what the reader sees while it arrives.
+            marker_stream = ChapterMarkerStream(emit) if emit else None
             answer, truncated = ask_document(
                 question=question,
                 context=context,
@@ -4843,8 +4866,12 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
                 transcript_available=transcript_available,
                 # Streaming: the callback fires per token, so the reader watches
                 # the answer being written instead of waiting for all of it.
-                on_delta=(lambda delta: emit("delta", {"text": delta})) if emit else None,
+                on_delta=(marker_stream.push if marker_stream else None),
             )
+            if marker_stream is not None:
+                answer, next_chapter, at_end = marker_stream.finish(answer)
+            else:
+                answer, next_chapter, at_end = split_chapter_marker(answer)
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"LLM provider error: {error}")
 
@@ -4890,6 +4917,10 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
         # True when the model ran out of output budget:
         # the chat asks for the rest in a new message instead of showing a cut.
         "truncated": truncated,
+        # What the composer offers next: the chapter after this one, or nothing
+        # when the walkthrough reached the end of the document.
+        "next_chapter": next_chapter,
+        "at_end": at_end,
         "pages": page_rows,
         "text_results": [
             {
