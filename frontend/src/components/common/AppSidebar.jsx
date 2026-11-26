@@ -60,7 +60,6 @@ export default function AppSidebar({
   footer = null,
   footerAction = null,
 }) {
-  const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
   // The name of a conversation is the reader's to change: one double click puts
   // it in a field, Enter keeps it, Escape forgets it.
@@ -144,6 +143,21 @@ export default function AppSidebar({
           </button>
         </div>
 
+        {/* A field, not a mode: the search sits where the eye already is, with
+            the magnifier inside the box, and it never covers the list. */}
+        {search ? (
+          <div className="sidebar-search-field">
+            <Search size={14} aria-hidden="true" />
+            <input
+              type="search"
+              value={query}
+              placeholder={search.placeholder || 'Search'}
+              aria-label={search.label || 'Search'}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        ) : null}
+
         <div className="sidebar-main-actions">
           {actions.map((action) => {
             const Icon = action.icon || Plus
@@ -164,41 +178,9 @@ export default function AppSidebar({
             )
           })}
 
-          {search ? (
-            <button
-              type="button"
-              className="sidebar-action"
-              onClick={() => setSearching((value) => !value)}
-              title="Search"
-            >
-              <span className="sidebar-action-icon">
-                <Search size={17} />
-              </span>
-              <span className="sidebar-copy">{search.label || 'Search'}</span>
-            </button>
-          ) : null}
         </div>
 
-        {search && searching ? (
-          <div className="search-box">
-            <Search size={14} />
-            <input
-              autoFocus
-              type="search"
-              value={query}
-              placeholder={search.placeholder || 'Search'}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <button
-              type="button"
-              className="sidebar-search-close"
-              onClick={() => setSearching(false)}
-              aria-label="Close search"
-            >
-              ×
-            </button>
-          </div>
-        ) : null}
+
 
         {children ? <div className="sidebar-custom sidebar-copy">{children}</div> : null}
 
