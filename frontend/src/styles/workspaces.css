@@ -2122,3 +2122,50 @@
 .ch-analysis.is-video {
   align-self: center;
 }
+
+/* ── the conversation uses the window ────────────────────────────────────────
+   A 760px column in the middle of a 1900px screen left a canyon on both sides,
+   and the canyon did not close when the sidebar was collapsed. The column now
+   takes whatever the window and the sidebar leave: collapse the rail and it
+   grows, open it and it steps back, no measurement anywhere. */
+.ch-split,
+.ch-split:not(.has-analysis) .ch-conversation {
+  max-width: none;
+  margin: 0;
+}
+.ch-split {
+  gap: 12px;
+  padding: 12px 20px 12px 20px;
+}
+.ch-conversation {
+  flex: 1 1 auto;
+  width: 100%;
+}
+.ch-thread {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+.ch-composer {
+  width: 100%;
+  max-width: none;
+  margin: 0 0 6px;
+}
+.ch-empty {
+  width: 100%;
+}
+.ch-empty p {
+  max-width: 62ch;
+}
+
+/* The panes take the room they need: a document keeps the page view, a
+   recording is centred inside whatever the splitter gives it. */
+.ch-analysis {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .ch-split { padding: 8px 10px; }
+}
