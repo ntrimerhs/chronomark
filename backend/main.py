@@ -118,6 +118,40 @@ def _is_summary_request(text: str) -> bool:
     )
 
 
+def _is_chapter_continue(text: str) -> bool:
+    """A reader asking for the next chapter, not a new topic.
+
+    The answer has to start where the last one stopped, so it needs the whole
+    document in front of the model and the previous chapter in the history.
+    """
+    lowered = (text or "").lower().strip()
+    if len(lowered) > 90:
+        return False
+    return any(
+        phrase in lowered
+        for phrase in (
+            "continue",
+            "go on",
+            "carry on",
+            "next chapter",
+            "next section",
+            "keep going",
+            "συνέχισε",
+            "συνεχισε",
+            "συνέχεια",
+            "συνεχεια",
+            "συνέχισέ",
+            "συνεχισε παρακαλω",
+            "επόμενο κεφάλαιο",
+            "επομενο κεφαλαιο",
+            "παρακάτω",
+            "παρακατω",
+            "προχώρα",
+            "προχωρα",
+        )
+    )
+
+
 def _summary_query_for_language(language: str) -> str:
     if language == "Greek":
         return "δώσε μια περίληψη του βίντεο με τα βασικά σημεία"
@@ -4657,7 +4691,18 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
     if not chunks:
         raise HTTPException(status_code=409, detail="This document has no indexed text yet")
 
-    summary_mode = _is_summary_request(question)
+    summary_mode = _is_summary_request(question) or _is_chapter_continue(question)
+    # The chapter already covered lives in the conversation, not in the request:
+    # reading it from there is what makes "continue" start at the next chapter
+    # even after a reload.
+    history = list(req.history or [])
+    if not history and req.conversation_id:
+        stored = None
+        try:
+            stored = conversations.get(req.conversation_id, str(user_id))
+        except Exception as history_error:  # noqa: BLE001 - history is optional
+            print(f"[Chats] could not read the turns of {req.conversation_id}: {history_error}")
+        history = list((stored or {}).get("messages") or [])
     # A Greek document is answered in Greek, whatever language the question is
     # typed in: the material a student revises from has to match the material
     # they were given. For any other document the question's own language wins.
@@ -4776,7 +4821,9 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
     transcript_available = bool(context.strip())
 
     try:
-        if summary_mode:
+        if summary_mode and not history:
+            # The summary written at upload is chapter one of the whole document;
+            # it is only the right answer when nothing has been discussed yet.
             cached_summary = _load_cached_summary(req.doc_id)
         else:
             cached_summary = None
@@ -4790,7 +4837,7 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
             answer, truncated = ask_document(
                 question=question,
                 context=context,
-                history=(req.history or [])[-6:],
+                history=history[-6:],
                 answer_language=answer_language,
                 summary_mode=summary_mode,
                 transcript_available=transcript_available,
