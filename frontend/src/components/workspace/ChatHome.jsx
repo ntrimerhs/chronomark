@@ -181,6 +181,34 @@ export default function ChatHome() {
   const threadRef = useRef(null)
   const splitRef = useRef(null)
   const chatRef = useRef(null)
+  /* The thread belongs to the conversation, not to the window. An answer that
+     is still being written when the reader clicks another chat has to be found
+     again, mid-sentence, when they come back to it. */
+  const threadsRef = useRef(new Map())
+  const threadKeyRef = useRef('draft')
+
+  const commit = useCallback((updater) => {
+    const key = threadKeyRef.current
+    const list = threadsRef.current.get(key) || []
+    const next = typeof updater === 'function' ? updater(list) : updater
+    threadsRef.current.set(key, next)
+    setMessages(next)
+  }, [])
+
+  /* Which thread the window is showing. A stored one wins: it may be an answer
+     the server does not have yet, because it is still arriving. */
+  const showThread = useCallback((key, seed) => {
+    threadKeyRef.current = key
+    const stored = threadsRef.current.get(key)
+    if (stored) {
+      setMessages(stored)
+      return stored
+    }
+    const fresh = seed || []
+    threadsRef.current.set(key, fresh)
+    setMessages(fresh)
+    return fresh
+  }, [])
 
   useEffect(() => () => {
     if (pollRef.current) window.clearInterval(pollRef.current)
@@ -201,11 +229,11 @@ export default function ChatHome() {
   }, [messages, busy])
 
   const say = useCallback((role, text) => {
-    setMessages((list) => [
+    commit((list) => [
       ...list,
       { id: `${role}-${list.length}-${Date.now()}`, role, text },
     ])
-  }, [])
+  }, [commit])
 
   /* Answers arrive faster than anyone wants to read them. This drains the
      incoming text on requestAnimationFrame -- one batch per frame, so the paint
@@ -214,9 +242,13 @@ export default function ChatHome() {
      not crawl, and neither one jumps. */
   const beginStream = useCallback(() => {
     const id = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    setMessages((list) => [...list, { id, role: 'assistant', text: '', streaming: true }])
+    // The thread this answer belongs to, captured now: the reader may switch
+    // chat before the last character is written.
+    const key = threadKeyRef.current
+    commit((list) => [...list, { id, role: 'assistant', text: '', streaming: true }])
     const state = {
       id,
+      key,
       shown: '',
       pending: '',
       carry: 0,
@@ -228,6 +260,16 @@ export default function ChatHome() {
     const finished = new Promise((resolve) => {
       state.resolve = resolve
     })
+
+    /* Painting goes to the stored thread first, and only reaches the screen
+       when that thread is the one on it. */
+    const patch = (fields) => {
+      const thread = (threadsRef.current.get(key) || []).map((message) =>
+        message.id === id ? { ...message, ...fields } : message,
+      )
+      threadsRef.current.set(key, thread)
+      if (threadKeyRef.current === key) setMessages(thread)
+    }
 
     const pump = () => {
       const now = performance.now()
@@ -243,18 +285,10 @@ export default function ChatHome() {
           state.shown += state.pending.slice(0, take)
           state.pending = state.pending.slice(take)
           state.carry -= take
-          setMessages((list) =>
-            list.map((message) =>
-              message.id === state.id ? { ...message, text: state.shown } : message,
-            ),
-          )
+          patch({ text: state.shown })
         }
       } else if (state.done) {
-        setMessages((list) =>
-          list.map((message) =>
-            message.id === state.id ? { ...message, streaming: false } : message,
-          ),
-        )
+        patch({ streaming: false })
         state.resolve?.()
         return
       }
@@ -279,7 +313,7 @@ export default function ChatHome() {
       finished,
     }
     return typeRef.current
-  }, [])
+  }, [commit])
 
   /* The document answers are already streamed token by token; this reads that
      stream and hands each delta to the typewriter, so the two smooth each other
@@ -340,15 +374,49 @@ export default function ChatHome() {
     return finalPayload
   }, [])
 
+  /* A conversation remembers the file it is about. Opening it again must put
+     that file back beside the thread: an answer about a PDF with the PDF gone
+     is a claim the reader cannot check. */
+  const showMatterFor = useCallback(async (chat) => {
+    if (!chat) {
+      setMatter(null)
+      return
+    }
+    try {
+      if (chat.document_id) {
+        const { data } = await axios.get(`${API_BASE_URL}/api/document/${chat.document_id}`, {
+          timeout: 30000,
+        })
+        setMatter({ kind: 'document', id: chat.document_id, document: data })
+        return
+      }
+      if (chat.video_id) {
+        const { data } = await axios.get(`${API_BASE_URL}/api/videos`, { timeout: 30000 })
+        const found = (data.videos || []).find((item) => item.video_id === chat.video_id)
+        if (found) {
+          setMatter({ kind: 'video', id: chat.video_id, video: found })
+          return
+        }
+      }
+      setMatter(null)
+    } catch (error) {
+      console.error('[Chat] could not reopen the file of this chat', error)
+      setMatter(null)
+    }
+  }, [])
+
   const openConversation = useCallback(async (chatId) => {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/conversations/${chatId}`, {
         timeout: 30000,
       })
-      setMatter(null)
       chatRef.current = null
       setConversationId(data.chat_id)
-      setMessages(turnsFromChat(data))
+      // The file first, so the pane and the thread arrive together.
+      await showMatterFor(data)
+      // A thread already in memory may still be receiving an answer that the
+      // server has not stored yet: it wins over what the server sends back.
+      showThread(data.chat_id, turnsFromChat(data))
       setPage(1)
     } catch (error) {
       const gone = error?.response?.status === 404
@@ -358,14 +426,14 @@ export default function ChatHome() {
         // leaving the previous chat on screen.
         setMatter(null)
         setConversationId(null)
-        setMessages([])
+        showThread('draft', [])
         await library.refresh()
         say('assistant', 'That conversation is no longer here — I have started a new one.')
         return
       }
       say('assistant', `I could not open that conversation: ${error?.message}`)
     }
-  }, [library, say])
+  }, [library, say, showMatterFor, showThread])
 
   /* An upload happens inside a conversation: the one that is open, or a new
      one. It never opens a second chat -- the file is bound to the conversation
@@ -373,8 +441,14 @@ export default function ChatHome() {
   const ensureConversation = useCallback(async () => {
     if (conversationId) return conversationId
     const { data } = await axios.post(`${API_BASE_URL}/api/conversations`, {}, { timeout: 30000 })
-    setConversationId(data.chat_id)
-    return data.chat_id
+    const created = data.chat_id
+    // What is already on screen (the sentence that was typed, the file that was
+    // dropped) belongs to the conversation that has just been created.
+    const draft = threadsRef.current.get('draft')
+    if (draft && draft.length) threadsRef.current.set(created, draft)
+    threadKeyRef.current = created
+    setConversationId(created)
+    return created
   }, [conversationId])
 
   const pinConversation = useCallback(async (chatId, pinned) => {
@@ -419,25 +493,27 @@ export default function ChatHome() {
   const deleteConversation = useCallback(async (chatId) => {
     try {
       await axios.delete(`${API_BASE_URL}/api/conversations/${chatId}`, { timeout: 20000 })
+      threadsRef.current.delete(chatId)
       if (conversationId === chatId) {
         setConversationId(null)
-        setMessages([])
+        setMatter(null)
+        showThread('draft', [])
       }
       await library.refresh()
     } catch (error) {
       console.error('[Chat] delete failed', error)
     }
-  }, [conversationId, library])
+  }, [conversationId, library, showThread])
 
   const reset = useCallback(() => {
     setMatter(null)
     setConversationId(null)
-    setMessages([])
+    showThread('draft', [])
     setPage(1)
     chatRef.current = null
     setDraft('')
     if (fileRef.current) fileRef.current.value = ''
-  }, [])
+  }, [showThread])
 
   const openDocument = useCallback(async (docId, options = {}) => {
     setBusy(true)
@@ -459,11 +535,13 @@ export default function ChatHome() {
         turns = turnsFromChat(data)
       }
       setMatter({ kind: 'document', id: docId, document: docResponse.data })
+      const key = conversationId || docId
       // Arriving from a conversation that already had something in it (the
       // question you typed, the link you pasted, the file you just dropped)
       // must not wipe that conversation: only a fresh visit loads the stored
       // one.
-      if (!options.keepThread) setMessages(turns)
+      if (!options.keepThread) showThread(key, turns)
+      else if (threadKeyRef.current !== key) showThread(key)
       setPage(1)
     } catch (error) {
       say('assistant', `I could not open that document: ${error?.response?.data?.detail || error.message}`)
@@ -471,7 +549,7 @@ export default function ChatHome() {
       setBusy(false)
       setStatus('')
     }
-  }, [say])
+  }, [conversationId, say, showThread])
 
   const openVideo = useCallback(async (videoId, options = {}) => {
     try {
@@ -482,12 +560,14 @@ export default function ChatHome() {
         return
       }
       setMatter({ kind: 'video', id: videoId, video: found })
-      if (!options.keepThread) setMessages([])
+      const key = conversationId || videoId
+      if (!options.keepThread) showThread(key, [])
+      else if (threadKeyRef.current !== key) showThread(key)
       setPage(1)
     } catch (error) {
       say('assistant', `I could not open that recording: ${error?.response?.data?.detail || error.message}`)
     }
-  }, [say])
+  }, [conversationId, say, showThread])
 
   // A ?doc= or ?video= in the address is read once, on arrival: it opens that
   // chat in this same page. After that the address is left alone.
@@ -1089,7 +1169,11 @@ export default function ChatHome() {
                   >
                     <Paperclip size={17} />
                   </button>
-                  {busy ? (
+                  {/* The run is not over when the socket closes: the words are
+                      still being written out. Stop stays where it was until the
+                      last one is on screen, instead of turning into Send while
+                      the answer is still moving. */}
+                  {busy || typing ? (
                     <button
                       type="button"
                       className="ch-send is-stop"
