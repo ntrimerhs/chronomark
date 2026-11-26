@@ -135,13 +135,14 @@ function citationComponents(onJump) {
 const REMARK_PLUGINS = [remarkGfm, remarkMath]
 const REHYPE_PLUGINS = [rehypeKatex]
 
-/* The empty page greets like a person would: it says the one sentence it has
-   to say one character at a time, lets it sit for a moment, fades it out and
-   says it again. Only on an empty chat. */
+/* The empty page greets like a person would: it types the one sentence it has
+   to say, lets it sit for a moment, deletes it letter by letter as if hitting
+   backspace, and types it again. Only on an empty chat. */
 const GREETING = 'Hi. How can I help?'
 const GREETING_MS = 42
+const GREETING_ERASE_MS = 22
 const GREETING_HOLD_MS = 5000
-const GREETING_FADE_MS = 320
+const GREETING_REST_MS = 260
 
 function turnsFromChat(chat) {
   return (chat?.messages || []).map((message, index) => ({
@@ -180,9 +181,9 @@ export default function ChatHome() {
   // just read, or exercises once the document has no more.
   const [nextChapter, setNextChapter] = useState(null)
   const [atEnd, setAtEnd] = useState(false)
-  // What the empty page has managed to say so far.
+  // What the empty page has managed to say so far, and what it is doing with it.
   const [greeting, setGreeting] = useState('')
-  const [greetingGone, setGreetingGone] = useState(false)
+  const [greetingPhase, setGreetingPhase] = useState('typing')
   const [collapsed, setCollapsed] = useState(false)
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
@@ -243,15 +244,15 @@ export default function ChatHome() {
     if (node) node.scrollTop = node.scrollHeight
   }, [messages, busy])
 
-  /* The greeting types itself out on an empty chat, stays for five seconds,
-     fades out and starts again. Nothing else on the page moves while it does:
-     only the letters. */
+  /* The greeting types itself out on an empty chat, sits for five seconds, is
+     erased backwards letter by letter, and starts again. One character changes
+     at a time in both directions, so the movement reads as someone writing. */
   useEffect(() => {
     if (messages.length || matter || busy) return undefined
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
     if (reduced) {
       setGreeting(GREETING)
-      setGreetingGone(false)
+      setGreetingPhase('hold')
       return undefined
     }
 
@@ -264,17 +265,22 @@ export default function ChatHome() {
 
     const run = async () => {
       while (!cancelled) {
-        setGreetingGone(false)
-        setGreeting('')
+        setGreetingPhase('typing')
         for (let shown = 1; shown <= GREETING.length && !cancelled; shown += 1) {
           setGreeting(GREETING.slice(0, shown))
           await wait(GREETING_MS)
         }
         if (cancelled) return
+        setGreetingPhase('hold')
         await wait(GREETING_HOLD_MS)
         if (cancelled) return
-        setGreetingGone(true)
-        await wait(GREETING_FADE_MS)
+        setGreetingPhase('erasing')
+        for (let shown = GREETING.length - 1; shown >= 0 && !cancelled; shown -= 1) {
+          setGreeting(GREETING.slice(0, shown))
+          await wait(GREETING_ERASE_MS)
+        }
+        if (cancelled) return
+        await wait(GREETING_REST_MS)
       }
     }
     run()
@@ -1167,9 +1173,9 @@ export default function ChatHome() {
               >
                 {messages.length === 0 && !busy ? (
                   <div className="ch-empty">
-                    <h1 className={greetingGone ? 'is-gone' : undefined}>
+                    <h1>
                       {greeting}
-                      {greeting.length < GREETING.length ? (
+                      {greetingPhase === 'typing' || greetingPhase === 'erasing' ? (
                         <span className="ch-caret" aria-hidden="true" />
                       ) : null}
                     </h1>
@@ -1268,7 +1274,9 @@ export default function ChatHome() {
                 <textarea
                   className="ch-input"
                   rows={1}
-                  placeholder={messages.length ? 'Reply' : 'Message ChronoMark'}
+                  placeholder={
+                    messages.length ? 'Reply' : 'Upload a Video or Document to ChronoMark'
+                  }
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
