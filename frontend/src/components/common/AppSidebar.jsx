@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { MoreHorizontal, PanelLeft, Plus, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { MoreHorizontal, PanelLeft, Pin, Plus, Search, Trash2 } from 'lucide-react'
 import '../../styles/documentsReference.css'
 
 /* The one sidebar, for every workspace.
@@ -49,6 +49,7 @@ export default function AppSidebar({
   onSelectItem,
   onDeleteItem,
   onRenameItem = null,
+  onPinItem = null,
   emptyText = 'Nothing here yet.',
   children = null,
   footerLabel = '',
@@ -65,6 +66,22 @@ export default function AppSidebar({
   // it in a field, Enter keeps it, Escape forgets it.
   const [editingId, setEditingId] = useState(null)
   const [draftTitle, setDraftTitle] = useState('')
+  // Which row has its little menu open.
+  const [menuFor, setMenuFor] = useState(null)
+
+  useEffect(() => {
+    if (!menuFor) return undefined
+    const close = () => setMenuFor(null)
+    const onKey = (event) => {
+      if (event.key === 'Escape') close()
+    }
+    document.addEventListener('click', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', close)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuFor])
 
   const startRename = (item) => {
     if (!onRenameItem || item.renamable === false) return
@@ -240,16 +257,48 @@ export default function AppSidebar({
                           <span>{item.title}</span>
                         </button>
                       )}
-                      {onDeleteItem && item.deletable !== false ? (
+                      {(onDeleteItem && item.deletable !== false) || onPinItem ? (
                         <button
                           type="button"
                           className="history-delete"
-                          onClick={() => onDeleteItem(item.id)}
-                          aria-label={`Delete ${item.title}`}
-                          title="Delete"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setMenuFor(menuFor === item.id ? null : item.id)
+                          }}
+                          aria-label={`Options for ${item.title}`}
+                          title="Options"
                         >
                           <MoreHorizontal size={14} />
                         </button>
+                      ) : null}
+                      {menuFor === item.id ? (
+                        <div className="history-menu" onClick={(event) => event.stopPropagation()}>
+                          {onPinItem ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onPinItem(item.id, !item.pinned)
+                                setMenuFor(null)
+                              }}
+                            >
+                              <Pin size={13} />
+                              <span>{item.pinned ? 'Unpin' : 'Pin'}</span>
+                            </button>
+                          ) : null}
+                          {onDeleteItem && item.deletable !== false ? (
+                            <button
+                              type="button"
+                              className="is-danger"
+                              onClick={() => {
+                                onDeleteItem(item.id)
+                                setMenuFor(null)
+                              }}
+                            >
+                              <Trash2 size={13} />
+                              <span>Delete</span>
+                            </button>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                   )

@@ -323,6 +323,19 @@ export default function ChatHome() {
     return data.chat_id
   }, [conversationId])
 
+  const pinConversation = useCallback(async (chatId, pinned) => {
+    try {
+      await axios.patch(
+        `${API_BASE_URL}/api/conversations/${chatId}`,
+        { pinned },
+        { timeout: 20000 },
+      )
+      await library.refresh()
+    } catch (error) {
+      console.error('[Chat] pin failed', error)
+    }
+  }, [library])
+
   const renameConversation = useCallback(async (chatId, title) => {
     try {
       await axios.patch(`${API_BASE_URL}/api/conversations/${chatId}`, { title }, { timeout: 20000 })
@@ -703,6 +716,9 @@ export default function ChatHome() {
     active: conversationId === chat.chat_id,
     renamable: true,
     deletable: true,
+    pinned: Boolean(chat.pinned),
+    // The heading exists only while something is in it: no pins, no group.
+    group: chat.pinned ? 'Pinned chats' : undefined,
   }))
 
   const totalPages = matter?.document?.page_count || 1
@@ -747,6 +763,7 @@ export default function ChatHome() {
           }}
           onDeleteItem={deleteConversation}
           onRenameItem={renameConversation}
+          onPinItem={pinConversation}
           search={{ placeholder: 'Search your library', label: 'Search your library' }}
           emptyText="Nothing analysed yet. Send a file to begin."
         />

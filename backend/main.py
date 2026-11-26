@@ -3285,6 +3285,7 @@ class ConversationUpdate(BaseModel):
     title: str | None = None
     document_id: str | None = None
     video_id: str | None = None
+    pinned: bool | None = None
 
 
 # What the model is told when the composer has no material behind it. The point
@@ -4185,6 +4186,11 @@ async def api_conversation(chat_id: str, request: Request):
         "chat_id": record["id"],
         "title": record.get("title"),
         "messages": record.get("messages") or [],
+        # Which file the conversation is about. Without this the page opened the
+        # words and left the pages behind.
+        "document_id": record.get("document_id"),
+        "video_id": record.get("video_id"),
+        "pinned": bool(record.get("pinned")),
     }
 
 
@@ -4200,6 +4206,8 @@ async def api_conversation_update(chat_id: str, req: ConversationUpdate, request
         record = conversations.attach(chat_id, user_id, "document", req.document_id) or record
     if req.video_id:
         record = conversations.attach(chat_id, user_id, "video", req.video_id) or record
+    if req.pinned is not None:
+        record = conversations.set_pinned(chat_id, user_id, req.pinned) or record
     if record is None:
         record = conversations.get(chat_id, user_id)
     if record is None:
@@ -4209,6 +4217,7 @@ async def api_conversation_update(chat_id: str, req: ConversationUpdate, request
         "title": record.get("title"),
         "document_id": record.get("document_id"),
         "video_id": record.get("video_id"),
+        "pinned": bool(record.get("pinned")),
     }
 
 

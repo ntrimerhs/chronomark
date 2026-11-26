@@ -11,14 +11,19 @@ atomic write or an unlink, and a restart loses nothing.
 """
 
 import json
+import os
 import re
 import threading
 import time
 import uuid
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-STORE_DIR = BASE_DIR / "chats" / "general"
+# This module sits at the root of the app, not inside a package: its own
+# directory is the app directory. (parent.parent here is "/" -- which silently
+# wrote every conversation to a folder that no volume covered, so the history
+# vanished at the next container restart.)
+BASE_DIR = Path(__file__).resolve().parent
+STORE_DIR = Path(os.getenv("CONVERSATIONS_DIR") or (BASE_DIR / "chats" / "general"))
 STORE_DIR.mkdir(parents=True, exist_ok=True)
 
 _LOCK = threading.Lock()
@@ -63,6 +68,7 @@ def create(owner_id: str, title: str = "New conversation") -> dict:
         "created_at": time.time(),
         "updated_at": time.time(),
         "messages": [],
+        "pinned": False,
     }
     with _LOCK:
         _write(record)
@@ -113,6 +119,7 @@ def list_for(owner_id: str) -> list:
                 # draws one row per conversation, never one per file.
                 "document_id": record.get("document_id"),
                 "video_id": record.get("video_id"),
+                "pinned": bool(record.get("pinned")),
             }
         )
     items.sort(key=lambda item: item.get("updated_at") or 0, reverse=True)
@@ -129,6 +136,18 @@ def append_turn(chat_id: str, owner_id: str, question: str, answer: str) -> dict
         messages.append({"role": "user", "content": question, "at": time.time()})
         messages.append({"role": "assistant", "content": answer, "at": time.time()})
         record["updated_at"] = time.time()
+        _write(record)
+        return record
+
+
+def set_pinned(chat_id: str, owner_id: str, pinned: bool) -> dict | None:
+    """Pin or unpin. Pinning is not "recently used": it must not touch updated_at,
+    or a pinned chat would keep jumping to the top of the ordinary list too."""
+    with _LOCK:
+        record = _owned(_read(chat_id), owner_id)
+        if record is None:
+            return None
+        record["pinned"] = bool(pinned)
         _write(record)
         return record
 
