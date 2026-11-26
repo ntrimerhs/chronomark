@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { ChevronLeft, ChevronRight, MessageSquare, Paperclip, Plus, Send, Video } from 'lucide-react'
+import {
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  MessageSquare,
+  Paperclip,
+  Plus,
+  Video,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { API_BASE_URL } from '../../config'
@@ -304,6 +313,16 @@ export default function ChatHome() {
     }
   }, [say])
 
+  /* An upload happens inside a conversation: the one that is open, or a new
+     one. It never opens a second chat -- the file is bound to the conversation
+     that is already there. */
+  const ensureConversation = useCallback(async () => {
+    if (conversationId) return conversationId
+    const { data } = await axios.post(`${API_BASE_URL}/api/conversations`, {}, { timeout: 30000 })
+    setConversationId(data.chat_id)
+    return data.chat_id
+  }, [conversationId])
+
   const renameConversation = useCallback(async (chatId, title) => {
     try {
       await axios.patch(`${API_BASE_URL}/api/conversations/${chatId}`, { title }, { timeout: 20000 })
@@ -442,6 +461,12 @@ export default function ChatHome() {
       }
 
       say('user', `${file.name} · ${prettyBytes(file.size)}`)
+      let chatId = conversationId
+      try {
+        chatId = await ensureConversation()
+      } catch (error) {
+        console.error('[Chat] could not open a conversation for this upload', error)
+      }
       startedRef.current = Date.now()
       setBusy(true)
       setProgress(0)
@@ -468,6 +493,13 @@ export default function ChatHome() {
           setStatus('parsing')
           await waitForJob(data.job_id)
           setProgress(100)
+          if (chatId) {
+            await axios.patch(
+              `${API_BASE_URL}/api/conversations/${chatId}`,
+              { document_id: data.doc_id },
+              { timeout: 20000 },
+            )
+          }
           await openDocument(data.doc_id, { keepThread: true })
           await library.refresh()
           return
@@ -480,6 +512,13 @@ export default function ChatHome() {
         setStatus('transcribing')
         await waitForJob(data.job_id)
         setProgress(100)
+        if (chatId) {
+          await axios.patch(
+            `${API_BASE_URL}/api/conversations/${chatId}`,
+            { video_id: data.video_id },
+            { timeout: 20000 },
+          )
+        }
         await openVideo(data.video_id, { keepThread: true })
         await library.refresh()
       } catch (error) {
@@ -531,6 +570,16 @@ export default function ChatHome() {
         const job = await waitForJob(data.job_id)
         const imported = job?.result?.video_id
         if (imported) {
+          try {
+            const chatId = await ensureConversation()
+            await axios.patch(
+              `${API_BASE_URL}/api/conversations/${chatId}`,
+              { video_id: imported },
+              { timeout: 20000 },
+            )
+          } catch (attachError) {
+            console.error('[Chat] could not bind the recording to this chat', attachError)
+          }
           await openVideo(imported, { keepThread: true })
           await library.refresh()
           say('assistant', 'The recording is imported. Ask me anything about it.')
@@ -569,7 +618,7 @@ export default function ChatHome() {
         }
         const finalPayload = await readStream(
           '/api/document/ask/stream',
-          { doc_id: matter.id, question: text, chat_id: chatId },
+          { doc_id: matter.id, question: text, conversation_id: conversationId },
           push,
         )
         // The final frame carries the tidied answer: anything the deltas did
