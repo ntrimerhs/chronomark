@@ -269,6 +269,13 @@ export default function ChatHome() {
       finish() {
         state.done = true
       },
+      /* Halt where the eye is: whatever had not been typed yet is thrown away,
+         so pressing stop does not start a race between the button and the
+         typewriter that is already holding a paragraph. */
+      stop() {
+        state.pending = ''
+        state.done = true
+      },
       finished,
     }
     return typeRef.current
@@ -621,7 +628,7 @@ export default function ChatHome() {
   const stop = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
-    typeRef.current?.finish?.()
+    typeRef.current?.stop?.()
     setBusy(false)
   }, [])
 
@@ -991,22 +998,22 @@ export default function ChatHome() {
                           paragraph inside a grey box reads as a quotation, and
                           it is not one. */}
                       {message.role === 'assistant' ? (
-                        message.streaming ? (
-                          <p className="ch-plain">
+                        <div className="ch-markdown">
+                          {/* Rendered while it is being written, not after: a
+                              heading that appears as "###" until the last token
+                              arrives reads as a bug, and the maths never got to
+                              look like maths at all. */}
+                          <ReactMarkdown
+                            remarkPlugins={REMARK_PLUGINS}
+                            rehypePlugins={REHYPE_PLUGINS}
+                            components={citationComponents(setPage)}
+                          >
                             {message.text}
+                          </ReactMarkdown>
+                          {message.streaming ? (
                             <span className="ch-caret" aria-hidden="true" />
-                          </p>
-                        ) : (
-                          <div className="ch-markdown">
-                            <ReactMarkdown
-                              remarkPlugins={REMARK_PLUGINS}
-                              rehypePlugins={REHYPE_PLUGINS}
-                              components={citationComponents(setPage)}
-                            >
-                              {message.text}
-                            </ReactMarkdown>
-                          </div>
-                        )
+                          ) : null}
+                        </div>
                       ) : (
                         <div className="ch-bubble">
                           <p>{message.text}</p>

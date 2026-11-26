@@ -3257,6 +3257,23 @@ def _ask_impl(req: Question):
 DOCS_DIR = BASE_DIR / "documents"
 DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
+# The uploaded file itself, kept beside the text it produced. R2 is where the
+# bytes are served from while they are there; this is what makes a conversation
+# still show its pages after the sweeper has emptied the bucket.
+DOC_FILES_DIR = DOCS_DIR / "files"
+DOC_FILES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _kept_document_path(doc_id: str, suffix: str = "") -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "", str(doc_id or ""))
+    return DOC_FILES_DIR / f"{safe}{suffix or ''}"
+
+
+def _kept_document(doc_id: str):
+    for candidate in DOC_FILES_DIR.glob(f"{re.sub(r'[^A-Za-z0-9._-]', '', str(doc_id or ''))}.*"):
+        return candidate
+    return None
+
 # Conversation history, per document. One JSON file per document holding every
 # chat and its messages, so reopening a document shows the conversations the
 # student actually had instead of a blank panel. Same shape as the other stores:
@@ -3942,6 +3959,12 @@ async def api_upload_document(
             detail="Only PDF, PPTX and DOCX files are supported",
         )
 
+    # The id comes before the upload now: the local copy is named after it, so
+    # the pages are readable even if the bucket is empty by the time the reader
+    # comes back.
+    doc_id = f"doc_{uuid.uuid4().hex[:10]}"
+    kept_path = _kept_document_path(doc_id, suffix)
+
     # A second submit of the same file -- a double click, a retried fetch -- is
     # not a second document, and used to become one: two doc_ids with the same
     # name, two copies in R2, two rows in the library.
@@ -3982,6 +4005,15 @@ async def api_upload_document(
             raise HTTPException(status_code=400, detail="Empty upload")
 
         # The original stays in R2 so the viewer can render the real PDF.
+        # Keep the file itself: shutil.copy so the worker still gets its temp
+        # path, and the reader keeps the pages forever (until they delete it).
+        try:
+            import shutil
+
+            shutil.copyfile(temp_path, kept_path)
+        except Exception as keep_error:
+            print(f"[Upload] could not keep a local copy of {kept_path.name}: {keep_error}")
+
         with open(temp_path, "rb") as source:
             try:
                 uploaded = await run_in_threadpool(
@@ -4012,7 +4044,6 @@ async def api_upload_document(
         except Exception:
             pass
 
-    doc_id = f"doc_{uuid.uuid4().hex[:10]}"
     job_id = str(uuid.uuid4())
     job_store.create(
         job_id,
@@ -4092,9 +4123,14 @@ def _document_file_url(document: dict):
     iframe sends no Authorization header, so the relayed URL carries the
     expiring signature this authenticated request just minted.
     """
+    kept = _kept_document(document.get("doc_id"))
+    key = document.get("file_key")
+    if kept is not None:
+        # The copy on this machine is the document. The bucket copy only ever
+        # served it faster.
+        return f"/api/document-file/{document['doc_id']}"
     if document.get("file_available") is False:
         return None
-    key = document.get("file_key")
     if key and not r2_service.object_exists(key):
         # The sweeper removed it while this process was not looking: record it,
         # so every later open in the conversation is a sentence instead of a
@@ -4395,7 +4431,26 @@ async def api_document_file(
     """
     document = _load_document(doc_id)
     _authorise_media(request, document, expires, sig)
+    kept = _kept_document(doc_id)
     file_key = document.get("file_key")
+    if kept is not None:
+        suffix = kept.suffix.lower()
+        media_type = _DOCUMENT_CONTENT_TYPES.get(suffix, "application/octet-stream")
+
+        def _iter_kept():
+            with open(kept, "rb") as handle:
+                while True:
+                    chunk = handle.read(256 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+
+        headers = {
+            "Content-Disposition": f'inline; filename="{Path(document.get("file_name") or kept.name).name}"',
+            "Content-Length": str(kept.stat().st_size),
+        }
+        return StreamingResponse(_iter_kept(), media_type=media_type, headers=headers)
+
     if not file_key:
         raise HTTPException(status_code=404, detail="Document has no stored file")
 
@@ -4971,6 +5026,13 @@ def _purge_document(document: dict, drop_chats: bool = False) -> None:
         )
     except Exception as error:
         print(f"[Purge] vectors for {safe}: {error}")
+
+    kept = _kept_document(safe)
+    if kept is not None:
+        try:
+            kept.unlink(missing_ok=True)
+        except OSError as error:
+            print(f"[Purge] kept copy of {safe}: {error}")
 
     file_key = document.get("file_key")
     if file_key:

@@ -2575,3 +2575,73 @@
 @media (prefers-reduced-motion: reduce) {
   .ch-thinking-label { animation: none; color: #a8a2ff; background: none; }
 }
+/* ── headings, at heading size ───────────────────────────────────────────────
+   The answer renders as it is written now, so a `##` becomes a heading while the
+   rest is still arriving. Bigger and in the palette's violet, the way the old
+   document chat drew them, with the rule under a top-level one. */
+.ch-markdown h1 {
+  font-size: 20px;
+  line-height: 1.3;
+  margin: 22px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2c3b;
+}
+.ch-markdown h2 {
+  font-size: 17px;
+  line-height: 1.35;
+  margin: 20px 0 9px;
+}
+.ch-markdown h3 {
+  font-size: 15px;
+  line-height: 1.4;
+  margin: 16px 0 7px;
+}
+.ch-markdown h4 {
+  font-size: 14px;
+  margin: 14px 0 6px;
+  color: #a8a2ff;
+}
+.ch-markdown h1,
+.ch-markdown h2,
+.ch-markdown h3,
+.ch-markdown h4 {
+  color: #d8d6ff;
+  font-weight: 600;
+}
+.ch-markdown h1:first-child,
+.ch-markdown h2:first-child {
+  margin-top: 4px;
+}
+/* The formula block, when the maths renderer is in play. */
+.ch-markdown .katex-display > .katex {
+  color: #e7e8f0;
+}
+/* The answer is the thing being read: one step up from the UI text, with the
+   line height to match so it does not become a wall. */
+.ch-markdown {
+  font-size: 15.2px;
+  line-height: 1.72;
+  color: #e7e8f0;
+}
+.ch-markdown p,
+.ch-markdown li,
+.ch-bubble .ch-markdown,
+.ch-bubble .ch-markdown p {
+  font-size: 15.2px;
+  line-height: 1.72;
+}
+.ch-markdown ul,
+.ch-markdown ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+.ch-markdown li {
+  margin: 5px 0;
+}
+.ch-markdown table {
+  font-size: 14px;
+}
+.ch-plain {
+  font-size: 15.2px;
+  line-height: 1.72;
+}
