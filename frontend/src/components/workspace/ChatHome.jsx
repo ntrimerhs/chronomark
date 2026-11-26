@@ -570,7 +570,9 @@ export default function ChatHome() {
             onUploadProgress,
           })
           if (data.duplicate) {
-            await openDocument(data.doc_id)
+            // Keep what was said before the file arrived: the duplicate answer
+            // used to replace the whole thread with one line.
+            await openDocument(data.doc_id, { keepThread: true })
             say('assistant', 'That document is already open — I had it from a moment ago.')
             return
           }

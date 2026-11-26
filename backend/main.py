@@ -3468,7 +3468,7 @@ def _save_document(document: dict) -> None:
 
 # How far back a re-upload counts as the same file. Ten minutes is longer
 # than any double submit and shorter than a reader's second look.
-_DUPLICATE_WINDOW_SECONDS = 600
+_DUPLICATE_WINDOW_SECONDS = 90
 
 
 def _recent_duplicate(user_id: str, file_name: str) -> dict | None:
@@ -4127,8 +4127,13 @@ def _document_file_url(document: dict):
     key = document.get("file_key")
     if kept is not None:
         # The copy on this machine is the document. The bucket copy only ever
-        # served it faster.
-        return f"/api/document-file/{document['doc_id']}"
+        # served it faster. An iframe sends no Authorization header, so the
+        # relayed URL carries the expiring signature this authenticated request
+        # just minted -- without it the frame rendered a 401 as its content.
+        return (
+            f"/api/document-file/{document['doc_id']}"
+            f"?{auth_guard.sign_media(document['doc_id'])}"
+        )
     if document.get("file_available") is False:
         return None
     if key and not r2_service.object_exists(key):
