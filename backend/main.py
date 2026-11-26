@@ -77,6 +77,7 @@ for _stream in (sys.stdout, sys.stderr):
 class Question(BaseModel):
     question: str
     video_id: str | None = None
+    conversation_id: str | None = None
     # Prior conversation turns as [{"role": "user"|"assistant", "content": str}, ...],
     # oldest first. Optional -- lets the LLM handle follow-up questions
     # ("what about that?") instead of treating every question in isolation.
@@ -2864,7 +2865,21 @@ async def ask(req: Question, request: Request):
     if not req.video_id or not video_registry.is_owner(req.video_id, user_id):
         raise HTTPException(status_code=404, detail="Video not found")
     # Blocking retrieval and model call: off the event loop, in a thread.
-    return await run_in_threadpool(_ask_impl, req)
+    payload = await run_in_threadpool(_ask_impl, req)
+    if req.conversation_id and payload.get("answer"):
+        try:
+            # Store it in the conversation that asked, so a recording and a
+            # document live in the same history as everything else.
+            await run_in_threadpool(
+                conversations.append_turn,
+                req.conversation_id,
+                user_id,
+                req.question,
+                payload["answer"],
+            )
+        except Exception as chat_error:
+            print(f"[Chats] could not store the video turn: {chat_error}")
+    return payload
 
 
 def _ask_impl(req: Question):
@@ -3267,7 +3282,9 @@ class ChatRequest(BaseModel):
 
 
 class ConversationUpdate(BaseModel):
-    title: str
+    title: str | None = None
+    document_id: str | None = None
+    video_id: str | None = None
 
 
 # What the model is told when the composer has no material behind it. The point
@@ -3292,6 +3309,9 @@ class DocumentQuestion(BaseModel):
     question: str
     doc_id: str
     history: list[dict] | None = None
+    # When the question comes from a conversation, the turn is stored there --
+    # one history for the reader, whatever the answer was made of.
+    conversation_id: str | None = None
     # When set, the turn is stored in that conversation so the sidebar can list
     # and reopen it later.
     chat_id: str | None = None
@@ -4169,11 +4189,27 @@ async def api_conversation(chat_id: str, request: Request):
 
 
 @app.patch("/api/conversations/{chat_id}")
-async def api_conversation_rename(chat_id: str, req: ConversationUpdate, request: Request):
-    record = conversations.rename(chat_id, _current_user(request), req.title)
+async def api_conversation_update(chat_id: str, req: ConversationUpdate, request: Request):
+    """Rename it, or bind the file it is about -- one route, because a rename and
+    an upload both come from the same conversation that is open."""
+    user_id = _current_user(request)
+    record = None
+    if req.title and req.title.strip():
+        record = conversations.rename(chat_id, user_id, req.title)
+    if req.document_id:
+        record = conversations.attach(chat_id, user_id, "document", req.document_id) or record
+    if req.video_id:
+        record = conversations.attach(chat_id, user_id, "video", req.video_id) or record
+    if record is None:
+        record = conversations.get(chat_id, user_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    return {"chat_id": record["id"], "title": record["title"]}
+    return {
+        "chat_id": record["id"],
+        "title": record.get("title"),
+        "document_id": record.get("document_id"),
+        "video_id": record.get("video_id"),
+    }
 
 
 @app.delete("/api/conversations/{chat_id}")
@@ -4626,7 +4662,10 @@ def _document_ask_impl(req: DocumentQuestion, emit=None, user_id: str = ""):
 
     # Persist the turn so the conversation reappears when the student comes back.
     try:
-        _append_turn(req.doc_id, req.chat_id, question, answer, page_rows)
+        if req.conversation_id:
+            conversations.append_turn(req.conversation_id, str(user_id), question, answer)
+        else:
+            _append_turn(req.doc_id, req.chat_id, question, answer, page_rows)
     except Exception as chat_error:
         print(f"[Chats] could not store turn: {chat_error}")
 

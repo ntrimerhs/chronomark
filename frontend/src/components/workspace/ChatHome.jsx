@@ -585,7 +585,7 @@ export default function ChatHome() {
         }))
         const { data } = await axios.post(
           `${API_BASE_URL}/ask`,
-          { question: text, video_id: matter.id, history },
+          { question: text, video_id: matter.id, history, conversation_id: conversationId },
           { timeout: 300000 },
         )
         push(data.answer || '')
@@ -643,35 +643,18 @@ export default function ChatHome() {
     if (file) takeFile(file)
   }
 
-  const items = [
-    ...library.documents.map((doc) => ({
-      id: doc.doc_id,
-      title: doc.file_name || 'Untitled document',
-      updated_at: doc.created_at,
-      group: 'Library',
-      active: matter?.kind === 'document' && matter.id === doc.doc_id,
-      deletable: false,
-    })),
-    ...library.videos.map((video) => ({
-      id: video.video_id,
-      title: video.title || 'Recording',
-      updated_at: video.created_at,
-      group: 'Library',
-      icon: Video,
-      active: matter?.kind === 'video' && matter.id === video.video_id,
-      deletable: false,
-    })),
-    ...library.conversations.map((chat) => ({
-      id: chat.chat_id,
-      title: chat.title || 'Conversation',
-      updated_at: chat.updated_at,
-      group: 'Chats',
-      icon: MessageSquare,
-      active: !matter && conversationId === chat.chat_id,
-      renamable: true,
-      deletable: true,
-    })),
-  ]
+  /* One history, not two. The row is the conversation; the document or the
+     recording it is about is what the row opens when you click it, so uploading
+     a file never adds a second entry to keep in step with the first. */
+  const items = library.conversations.map((chat) => ({
+    id: chat.chat_id,
+    title: chat.title || 'Conversation',
+    updated_at: chat.updated_at,
+    icon: chat.video_id ? Video : chat.document_id ? FileText : MessageSquare,
+    active: conversationId === chat.chat_id,
+    renamable: true,
+    deletable: true,
+  }))
 
   const totalPages = matter?.document?.page_count || 1
   const fileUrl = matter?.document?.file_url ? `${API_BASE_URL}${matter.document.file_url}` : ''
@@ -822,15 +805,17 @@ export default function ChatHome() {
               />
             ) : null}
 
-            <section className="ch-conversation">
-              <div className="ch-thread" ref={threadRef}>
+            <section
+              className={`ch-conversation${messages.length === 0 && !matter && !busy ? ' is-empty' : ''}`}
+            >
+              <div
+                className="ch-thread"
+                ref={threadRef}
+                key={conversationId || matter?.id || 'empty'}
+              >
                 {messages.length === 0 && !busy ? (
                   <div className="ch-empty">
-                    <h1>What are we reading?</h1>
-                    <p>
-                      Drop a paper, a deck or a recording here. ChronoMark indexes every passage,
-                      slide and spoken second, and answers with the page or the moment it came from.
-                    </p>
+                    <h1>Hi. How can I help?</h1>
                   </div>
                 ) : (
                   messages
@@ -881,19 +866,10 @@ export default function ChatHome() {
               </div>
 
               <div className="ch-composer">
-                <button
-                  type="button"
-                  className="ch-attach"
-                  title="Attach a document or a recording"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={busy}
-                >
-                  <Paperclip size={16} />
-                </button>
                 <textarea
                   className="ch-input"
                   rows={1}
-                  placeholder="Ask a question, or drop a file — PDF, DOCX, PPTX, MP4, MKV, M4A…"
+                  placeholder="Message ChronoMark"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -904,15 +880,27 @@ export default function ChatHome() {
                   }}
                   disabled={busy}
                 />
-                <button
-                  type="button"
-                  className="ch-send"
-                  onClick={ask}
-                  disabled={busy || !draft.trim()}
-                  title="Send"
-                >
-                  <Send size={15} />
-                </button>
+                <div className="ch-composer-bar">
+                  <button
+                    type="button"
+                    className="ch-attach"
+                    title="Attach a document or a recording"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={busy}
+                  >
+                    <Paperclip size={17} />
+                  </button>
+                  <button
+                    type="button"
+                    className="ch-send"
+                    onClick={ask}
+                    disabled={busy || !draft.trim()}
+                    title="Send"
+                    aria-label="Send"
+                  >
+                    <ArrowUp size={17} />
+                  </button>
+                </div>
               </div>
             </section>
           </div>

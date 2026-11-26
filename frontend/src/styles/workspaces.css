@@ -2169,3 +2169,132 @@
 @media (max-width: 900px) {
   .ch-split { padding: 8px 10px; }
 }
+
+/* ── the empty state, and the composer ───────────────────────────────────────
+   A chatbot opens on a greeting with the box to type in, in the middle of the
+   window; the box only goes to the bottom once there is a conversation to sit
+   under. The composer itself is one rounded surface: the field on top, the
+   paperclip and the round send underneath -- not a row of controls. */
+.ch-conversation.is-empty {
+  justify-content: center;
+  align-items: center;
+}
+.ch-conversation.is-empty .ch-thread {
+  flex: 0 0 auto;
+  padding: 0 0 22px;
+  overflow: visible;
+}
+.ch-conversation.is-empty .ch-thread > :first-child {
+  margin-top: 0;
+}
+.ch-empty h1 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #f3f4f8;
+  margin: 0;
+  text-align: center;
+}
+.ch-conversation.is-empty .ch-composer {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.ch-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 14px 14px 10px;
+  border: 1px solid #2a2c3b;
+  border-radius: 18px;
+  background: #1a1a22;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.ch-composer:focus-within {
+  border-color: rgba(111, 99, 217, 0.65);
+  box-shadow: 0 0 0 3px rgba(111, 99, 217, 0.12);
+}
+.ch-input {
+  width: 100%;
+  min-height: 28px;
+  padding: 2px 2px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.ch-composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ch-attach {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #a7acba;
+}
+.ch-attach:hover:not(:disabled) {
+  background: #262633;
+  color: #f3f4f8;
+}
+.ch-send {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #6f63d9;
+  color: #0b0b12;
+}
+.ch-send:hover:not(:disabled) {
+  background: #a8a2ff;
+  color: #0b0b12;
+}
+.ch-send:disabled {
+  opacity: 0.35;
+}
+
+/* ── nothing raw ─────────────────────────────────────────────────────────────
+   Every arrival fades and lifts a little: a message, a pane, a whole chat when
+   the reader switches. Four pixels of travel is enough to read as movement and
+   short enough to feel instant. */
+@keyframes ch-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ch-turn {
+  animation: ch-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.ch-analysis,
+.ch-conversation {
+  animation: ch-in 240ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.ch-thinking {
+  animation: ch-in 200ms ease both;
+}
+.ch-empty h1 {
+  animation: ch-in 320ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.docs-app .history-item {
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.docs-app .history-open {
+  transition: color 160ms ease;
+}
+.docs-app .sidebar {
+  transition: width 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.ch-splitter::before {
+  transition: background 140ms ease, height 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-turn,
+  .ch-analysis,
+  .ch-conversation,
+  .ch-thinking,
+  .ch-empty h1 {
+    animation: none;
+  }
+  .docs-app .sidebar { transition: none; }
+}

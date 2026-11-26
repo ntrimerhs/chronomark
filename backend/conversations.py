@@ -73,6 +73,25 @@ def get(chat_id: str, owner_id: str) -> dict | None:
     return _owned(_read(chat_id), owner_id)
 
 
+def attach(chat_id: str, owner_id: str, kind: str, target: str) -> dict | None:
+    """Bind a document or a recording to the conversation that uploaded it.
+
+    One conversation, one subject: uploading inside a chat must not open a second
+    chat, so the file lands on the conversation that was already there.
+    """
+    field = {"document": "document_id", "video": "video_id"}.get(str(kind))
+    if field is None or not str(target or "").strip():
+        return None
+    with _LOCK:
+        record = _owned(_read(chat_id), owner_id)
+        if record is None:
+            return None
+        record[field] = str(target)
+        record["updated_at"] = time.time()
+        _write(record)
+        return record
+
+
 def list_for(owner_id: str) -> list:
     """Newest first, without the messages -- the sidebar needs names, not text."""
     items = []
@@ -90,6 +109,10 @@ def list_for(owner_id: str) -> list:
                 "created_at": record.get("created_at"),
                 "updated_at": record.get("updated_at"),
                 "message_count": len(record.get("messages") or []),
+                # The file the conversation is about, if it has one. The sidebar
+                # draws one row per conversation, never one per file.
+                "document_id": record.get("document_id"),
+                "video_id": record.get("video_id"),
             }
         )
     items.sort(key=lambda item: item.get("updated_at") or 0, reverse=True)
