@@ -183,6 +183,7 @@ def verify_token(token: str) -> dict:
 _PROTECTED = {
     "/consent",
     "/chat",
+    "/conversations",
     "/videos",
     "/account",
     "/account/export",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
-import { ChevronLeft, ChevronRight, Paperclip, Plus, Send, Video } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare, Paperclip, Plus, Send, Video } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { API_BASE_URL } from '../../config'
@@ -122,6 +122,8 @@ export default function ChatHome() {
   // How long the reader has been waiting. A percentage said how much of some
   // unknown total was done; a clock says the one thing they can act on.
   const [elapsed, setElapsed] = useState(0)
+  // The conversation that has no file behind it, if that is what is open.
+  const [conversationId, setConversationId] = useState(null)
   // True from the moment an answer starts arriving until the last character has
   // been written out, which is later than the request finishing.
   const [typing, setTyping] = useState(false)
@@ -287,8 +289,46 @@ export default function ChatHome() {
     return finalPayload
   }, [])
 
+  const openConversation = useCallback(async (chatId) => {
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/conversations/${chatId}`, {
+        timeout: 30000,
+      })
+      setMatter(null)
+      chatRef.current = null
+      setConversationId(data.chat_id)
+      setMessages(turnsFromChat(data))
+      setPage(1)
+    } catch (error) {
+      say('assistant', `I could not open that conversation: ${error?.message}`)
+    }
+  }, [say])
+
+  const renameConversation = useCallback(async (chatId, title) => {
+    try {
+      await axios.patch(`${API_BASE_URL}/api/conversations/${chatId}`, { title }, { timeout: 20000 })
+      await library.refresh()
+    } catch (error) {
+      console.error('[Chat] rename failed', error)
+    }
+  }, [library])
+
+  const deleteConversation = useCallback(async (chatId) => {
+    try {
+      await axios.delete(`${API_BASE_URL}/api/conversations/${chatId}`, { timeout: 20000 })
+      if (conversationId === chatId) {
+        setConversationId(null)
+        setMessages([])
+      }
+      await library.refresh()
+    } catch (error) {
+      console.error('[Chat] delete failed', error)
+    }
+  }, [conversationId, library])
+
   const reset = useCallback(() => {
     setMatter(null)
+    setConversationId(null)
     setMessages([])
     setPage(1)
     chatRef.current = null
@@ -510,10 +550,12 @@ export default function ChatHome() {
         }))
         const { data } = await axios.post(
           `${API_BASE_URL}/api/chat`,
-          { question: text, history },
+          { question: text, history, chat_id: conversationId },
           { timeout: 120000 },
         )
+        if (data.chat_id && data.chat_id !== conversationId) setConversationId(data.chat_id)
         push(data.answer || '')
+        library.refresh()
       } else if (matter.kind === 'document') {
         let chatId = chatRef.current
         if (!chatId) {
@@ -619,6 +661,16 @@ export default function ChatHome() {
       active: matter?.kind === 'video' && matter.id === video.video_id,
       deletable: false,
     })),
+    ...library.conversations.map((chat) => ({
+      id: chat.chat_id,
+      title: chat.title || 'Conversation',
+      updated_at: chat.updated_at,
+      group: 'Chats',
+      icon: MessageSquare,
+      active: !matter && conversationId === chat.chat_id,
+      renamable: true,
+      deletable: true,
+    })),
   ]
 
   const totalPages = matter?.document?.page_count || 1
@@ -657,9 +709,12 @@ export default function ChatHome() {
           onSelectItem={(id) => {
             const key = String(id || '')
             if (key.startsWith('doc_')) openDocument(key)
+            else if (key.startsWith('cv_')) openConversation(key)
             else openVideo(key)
             setOpen(false)
           }}
+          onDeleteItem={deleteConversation}
+          onRenameItem={renameConversation}
           search={{ placeholder: 'Search your library', label: 'Search your library' }}
           emptyText="Nothing analysed yet. Send a file to begin."
         />

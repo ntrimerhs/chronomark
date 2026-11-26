@@ -12,13 +12,15 @@ import { API_BASE_URL } from '../config'
 export default function useLibrary() {
   const [documents, setDocuments] = useState([])
   const [videos, setVideos] = useState([])
+  const [conversations, setConversations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const refresh = useCallback(async () => {
-    const [docs, vids] = await Promise.allSettled([
+    const [docs, vids, chats] = await Promise.allSettled([
       axios.get(`${API_BASE_URL}/api/documents`, { timeout: 30000 }),
       axios.get(`${API_BASE_URL}/api/videos`, { timeout: 30000 }),
+      axios.get(`${API_BASE_URL}/api/conversations`, { timeout: 30000 }),
     ])
     if (docs.status === 'fulfilled') {
       setDocuments(docs.value.data?.documents || [])
@@ -32,6 +34,9 @@ export default function useLibrary() {
     if (vids.status === 'fulfilled') {
       setVideos(vids.value.data?.videos || [])
     }
+    if (chats.status === 'fulfilled') {
+      setConversations(chats.value.data?.conversations || [])
+    }
     setLoading(false)
   }, [])
 
@@ -39,5 +44,5 @@ export default function useLibrary() {
     refresh()
   }, [refresh])
 
-  return { documents, videos, loading, error, refresh }
+  return { documents, videos, conversations, loading, error, refresh }
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PanelLeft, Plus, Search, Trash2 } from 'lucide-react'
+import { MoreHorizontal, PanelLeft, Plus, Search } from 'lucide-react'
 import '../../styles/documentsReference.css'
 
 /* The one sidebar, for every workspace.
@@ -48,6 +48,7 @@ export default function AppSidebar({
   activeId = null,
   onSelectItem,
   onDeleteItem,
+  onRenameItem = null,
   emptyText = 'Nothing here yet.',
   children = null,
   footerLabel = '',
@@ -60,6 +61,23 @@ export default function AppSidebar({
 }) {
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
+  // The name of a conversation is the reader's to change: one double click puts
+  // it in a field, Enter keeps it, Escape forgets it.
+  const [editingId, setEditingId] = useState(null)
+  const [draftTitle, setDraftTitle] = useState('')
+
+  const startRename = (item) => {
+    if (!onRenameItem || item.renamable === false) return
+    setEditingId(item.id)
+    setDraftTitle(item.title || '')
+  }
+
+  const commitRename = () => {
+    const value = draftTitle.trim()
+    if (editingId && value) onRenameItem?.(editingId, value)
+    setEditingId(null)
+    setDraftTitle('')
+  }
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -183,19 +201,45 @@ export default function AppSidebar({
                       key={item.id}
                       className={`history-item${item.id === activeId || item.active ? ' active' : ''}`}
                     >
-                      <button
-                        type="button"
-                        className="history-open"
-                        onClick={() => onSelectItem?.(item.id)}
-                        title={item.title}
-                      >
-                        {ItemIcon ? (
-                          <ItemIcon size={14} />
-                        ) : (
-                          <span className="history-marker" aria-hidden="true" />
-                        )}
-                        <span>{item.title}</span>
-                      </button>
+                      {editingId === item.id ? (
+                        <input
+                          className="history-rename"
+                          value={draftTitle}
+                          autoFocus
+                          aria-label={`Rename ${item.title}`}
+                          onChange={(event) => setDraftTitle(event.target.value)}
+                          onBlur={commitRename}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              commitRename()
+                            } else if (event.key === 'Escape') {
+                              event.preventDefault()
+                              setEditingId(null)
+                              setDraftTitle('')
+                            }
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="history-open"
+                          onClick={() => onSelectItem?.(item.id)}
+                          onDoubleClick={() => startRename(item)}
+                          title={
+                            onRenameItem && item.renamable !== false
+                              ? `${item.title} — double-click to rename`
+                              : item.title
+                          }
+                        >
+                          {ItemIcon ? (
+                            <ItemIcon size={14} />
+                          ) : (
+                            <span className="history-marker" aria-hidden="true" />
+                          )}
+                          <span>{item.title}</span>
+                        </button>
+                      )}
                       {onDeleteItem && item.deletable !== false ? (
                         <button
                           type="button"
@@ -204,7 +248,7 @@ export default function AppSidebar({
                           aria-label={`Delete ${item.title}`}
                           title="Delete"
                         >
-                          <Trash2 size={13} />
+                          <MoreHorizontal size={14} />
                         </button>
                       ) : null}
                     </div>

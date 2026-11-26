@@ -306,6 +306,40 @@ _DOCUMENT_SYSTEM_PROMPT = (
 )
 
 
+_TITLE_PROMPT = (
+    "Name this conversation for a sidebar. Rules: three to six words, in the "
+    "language the conversation is in, no quotes, no trailing punctuation, no "
+    "words like 'conversation' or 'chat'. Answer with the title only."
+)
+
+
+def suggest_title(question: str, answer: str, fallback: str = "") -> str:
+    """A short name written by the model, from what was actually said."""
+    question = (question or "").strip()
+    answer = (answer or "").strip()
+    if not question and not answer:
+        return fallback
+    try:
+        text, _ = complete_with_continuation(
+            [
+                {"role": "system", "content": _TITLE_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"Question: {question[:600]}\n\nAnswer: {answer[:900]}",
+                },
+            ],
+            32,
+            0.3,
+        )
+    except Exception as error:  # noqa: BLE001 - a title is never worth a failure
+        print(f"[Chat] title generation failed: {error}")
+        return fallback
+    title = " ".join(str(text or "").split()).strip(" .,:;\"'`*-")
+    if not title or len(title) > 70:
+        return fallback
+    return title
+
+
 def describe_figure(data_url: str) -> str:
     """Read a figure drawn on a document page.
 

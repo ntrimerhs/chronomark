@@ -1146,3 +1146,19 @@
   line-height: 1.65;
   color: var(--muted);
 }
+
+/* The name in the sidebar can be edited in place: same box, same line, so the
+   list does not jump while you type. */
+.docs-app .history-rename {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--pink, #a8a2ff);
+  border-radius: 6px;
+  background: #141420;
+  color: #f3f4f8;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  outline: none;
+}

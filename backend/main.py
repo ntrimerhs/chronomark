@@ -39,6 +39,7 @@ from llama import (
     ask_llama,
     ask_document,
     complete_with_continuation,
+    suggest_title,
     describe_figure,
     digest_segment,
     document_flashcards,
@@ -54,6 +55,7 @@ import documents as document_tools
 from pydantic import BaseModel
 import sys
 
+import conversations
 from services import r2_service
 from services import user_scope
 from services import video_registry
@@ -3258,6 +3260,14 @@ _DOCUMENT_CONTENT_TYPES = {
 class ChatRequest(BaseModel):
     question: str
     history: list[dict] | None = None
+    # When set, the exchange is stored in that conversation; when absent, a new
+    # one is created, so a reader who asks something before uploading anything
+    # still finds it in the sidebar tomorrow.
+    chat_id: str | None = None
+
+
+class ConversationUpdate(BaseModel):
+    title: str
 
 
 # What the model is told when the composer has no material behind it. The point
@@ -4082,10 +4092,15 @@ async def api_chat(req: ChatRequest, request: Request):
     model answers now, under instructions that keep it honest about having
     nothing to read.
     """
-    _current_user(request)
+    user_id = _current_user(request)
     question = (req.question or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="question is required")
+
+    record = conversations.get(req.chat_id, user_id) if req.chat_id else None
+    if record is None:
+        record = conversations.create(user_id)
+    first_turn = not (record.get("messages") or [])
 
     messages = [{"role": "system", "content": _NO_MATERIAL_PROMPT}]
     for turn in (req.history or [])[-8:]:
@@ -4109,7 +4124,63 @@ async def api_chat(req: ChatRequest, request: Request):
             "I have nothing to read yet, so I cannot answer that. Send a PDF, PPTX or "
             "DOCX, or a recording (MP4, MKV, MOV, WEBM, M4A, MP3) and ask me again."
         )
-    return {"answer": (answer or "").strip()}
+
+    answer = (answer or "").strip()
+    try:
+        conversations.append_turn(record["id"], user_id, question, answer)
+        if first_turn:
+            # A name from the answer, not from the question: "hi" is not a title,
+            # but what the assistant said back is.
+            title = await run_in_threadpool(
+                suggest_title, question, answer, question[:60] or "Conversation"
+            )
+            conversations.set_generated_title(record["id"], user_id, title)
+        stored = conversations.get(record["id"], user_id) or record
+    except Exception as error:  # noqa: BLE001 - storage must not eat the answer
+        print(f"[Chat] could not store the turn: {error}")
+        stored = record
+
+    return {"answer": answer, "chat_id": record["id"], "title": stored.get("title")}
+
+
+@app.get("/api/conversations")
+async def api_conversations(request: Request):
+    """Conversations that have no file behind them, newest first."""
+    return {"conversations": conversations.list_for(_current_user(request))}
+
+
+@app.post("/api/conversations")
+async def api_conversation_create(request: Request):
+    user_id = _current_user(request)
+    record = conversations.create(user_id)
+    return {"chat_id": record["id"], "title": record["title"]}
+
+
+@app.get("/api/conversations/{chat_id}")
+async def api_conversation(chat_id: str, request: Request):
+    record = conversations.get(chat_id, _current_user(request))
+    if record is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {
+        "chat_id": record["id"],
+        "title": record.get("title"),
+        "messages": record.get("messages") or [],
+    }
+
+
+@app.patch("/api/conversations/{chat_id}")
+async def api_conversation_rename(chat_id: str, req: ConversationUpdate, request: Request):
+    record = conversations.rename(chat_id, _current_user(request), req.title)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"chat_id": record["id"], "title": record["title"]}
+
+
+@app.delete("/api/conversations/{chat_id}")
+async def api_conversation_delete(chat_id: str, request: Request):
+    if not conversations.remove(chat_id, _current_user(request)):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"deleted": chat_id}
 
 
 @app.get("/api/videos")
