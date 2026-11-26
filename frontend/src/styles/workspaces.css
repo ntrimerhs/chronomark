@@ -1875,7 +1875,7 @@
   border-radius: 50%;
   background: #F3F4F8;
   opacity: 0.3;
-  animation: ch-dot 1.15s ease-in-out infinite;
+  animation: ch-dot 0.85s ease-in-out infinite;
 }
 .ch-thinking-dots span:nth-child(2) { animation-delay: 0.14s; }
 .ch-thinking-dots span:nth-child(3) { animation-delay: 0.28s; }
@@ -1890,7 +1890,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: ch-shimmer 2.6s linear infinite;
+  animation: ch-shimmer 1.4s linear infinite;
 }
 @keyframes ch-shimmer {
   from { background-position: 130% 0; }
@@ -1962,7 +1962,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: ch-shimmer 2.6s linear infinite;
+  animation: ch-shimmer 1.4s linear infinite;
 }
 /* ── the answer, once it has settled ─────────────────────────────────────────
    The model writes markdown: bold, lists, tables of invoice fields. It used to
@@ -2042,7 +2042,7 @@
   color: transparent;
   font-weight: 500;
   letter-spacing: 0.005em;
-  animation: ch-shimmer 2.1s linear infinite;
+  animation: ch-shimmer 1.2s linear infinite;
 }
 @keyframes ch-shimmer {
   from { background-position: 135% 0; }
@@ -2579,7 +2579,9 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: ch-shimmer 3.8s linear infinite;
+  /* The loop stays seamless; only the pace changed. At 3.8s the sweep read as
+     something stalled, not as something working. */
+  animation: ch-shimmer 1.7s linear infinite;
 }
 @keyframes ch-shimmer {
   from { background-position: 0 0; }
