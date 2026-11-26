@@ -168,6 +168,10 @@ export default function ChatHome() {
   // True from the moment an answer starts arriving until the last character has
   // been written out, which is later than the request finishing.
   const [typing, setTyping] = useState(false)
+  // What the pill under the composer offers next: the chapter after the one
+  // just read, or exercises once the document has no more.
+  const [nextChapter, setNextChapter] = useState(null)
+  const [atEnd, setAtEnd] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
@@ -414,6 +418,8 @@ export default function ChatHome() {
       setConversationId(data.chat_id)
       // The file first, so the pane and the thread arrive together.
       await showMatterFor(data)
+      setNextChapter(null)
+      setAtEnd(false)
       // A thread already in memory may still be receiving an answer that the
       // server has not stored yet: it wins over what the server sends back.
       showThread(data.chat_id, turnsFromChat(data))
@@ -435,6 +441,17 @@ export default function ChatHome() {
     }
   }, [library, say, showMatterFor, showThread])
 
+  /* What is already on screen -- the sentence that was typed, the file that was
+     dropped -- belongs to the conversation that has just been created, not to
+     the empty page it was written on. */
+  const bindThread = useCallback((chatId) => {
+    if (!chatId || threadKeyRef.current === chatId) return
+    if (threadKeyRef.current === 'draft' && threadsRef.current.has('draft')) {
+      threadsRef.current.set(chatId, threadsRef.current.get('draft'))
+    }
+    threadKeyRef.current = chatId
+  }, [])
+
   /* An upload happens inside a conversation: the one that is open, or a new
      one. It never opens a second chat -- the file is bound to the conversation
      that is already there. */
@@ -442,14 +459,10 @@ export default function ChatHome() {
     if (conversationId) return conversationId
     const { data } = await axios.post(`${API_BASE_URL}/api/conversations`, {}, { timeout: 30000 })
     const created = data.chat_id
-    // What is already on screen (the sentence that was typed, the file that was
-    // dropped) belongs to the conversation that has just been created.
-    const draft = threadsRef.current.get('draft')
-    if (draft && draft.length) threadsRef.current.set(created, draft)
-    threadKeyRef.current = created
+    bindThread(created)
     setConversationId(created)
     return created
-  }, [conversationId])
+  }, [bindThread, conversationId])
 
   const pinConversation = useCallback(async (chatId, pinned) => {
     try {
@@ -509,6 +522,8 @@ export default function ChatHome() {
     setMatter(null)
     setConversationId(null)
     showThread('draft', [])
+    setNextChapter(null)
+    setAtEnd(false)
     setPage(1)
     chatRef.current = null
     setDraft('')
@@ -535,13 +550,16 @@ export default function ChatHome() {
         turns = turnsFromChat(data)
       }
       setMatter({ kind: 'document', id: docId, document: docResponse.data })
-      const key = conversationId || docId
-      // Arriving from a conversation that already had something in it (the
-      // question you typed, the link you pasted, the file you just dropped)
-      // must not wipe that conversation: only a fresh visit loads the stored
-      // one.
-      if (!options.keepThread) showThread(key, turns)
-      else if (threadKeyRef.current !== key) showThread(key)
+      // A different document is a different walkthrough: the pill starts again
+      // from its first chapter.
+      setNextChapter(null)
+      setAtEnd(false)
+      // The conversation is the unit. A file that arrives inside a chat joins
+      // that chat: the sentence before it stays where it was, and the thread is
+      // not swapped for the document's own (usually empty) one. Only a fresh
+      // visit loads what was stored.
+      if (!options.keepThread) showThread(conversationId || docId, turns)
+      else if (!threadsRef.current.has(threadKeyRef.current)) showThread(conversationId || docId)
       setPage(1)
     } catch (error) {
       say('assistant', `I could not open that document: ${error?.response?.data?.detail || error.message}`)
@@ -560,9 +578,10 @@ export default function ChatHome() {
         return
       }
       setMatter({ kind: 'video', id: videoId, video: found })
-      const key = conversationId || videoId
-      if (!options.keepThread) showThread(key, [])
-      else if (threadKeyRef.current !== key) showThread(key)
+      // Same rule as a document: the recording joins the chat it was dropped
+      // into, it does not replace it.
+      if (!options.keepThread) showThread(conversationId || videoId, [])
+      else if (!threadsRef.current.has(threadKeyRef.current)) showThread(conversationId || videoId)
       setPage(1)
     } catch (error) {
       say('assistant', `I could not open that recording: ${error?.response?.data?.detail || error.message}`)
@@ -739,6 +758,27 @@ export default function ChatHome() {
     abortRef.current = controller
     setBusy(true)
 
+    /* One conversation from the first word. If a file joins the chat later, it
+       joins this one: a "hi" typed a minute earlier must not end up in a
+       different chat from the PDF it was about. */
+    let chatId = conversationId
+    if (!chatId) {
+      try {
+        chatId = await ensureConversation()
+        if (chatId && matter) {
+          // A chat opened from a file belongs to that file: choosing it again in
+          // the list has to bring the file back with it.
+          const field =
+            matter.kind === 'document' ? { document_id: matter.id } : { video_id: matter.id }
+          axios
+            .patch(`${API_BASE_URL}/api/conversations/${chatId}`, field, { timeout: 20000 })
+            .catch((error) => console.error('[Chat] could not bind the file to this chat', error))
+        }
+      } catch (error) {
+        console.error('[Chat] could not open a conversation for this message', error)
+      }
+    }
+
     const stream = beginStream()
     setTyping(true)
     let pushed = 0
@@ -765,9 +805,9 @@ export default function ChatHome() {
         const imported = job?.result?.video_id
         if (imported) {
           try {
-            const chatId = await ensureConversation()
+            const boundId = await ensureConversation()
             await axios.patch(
-              `${API_BASE_URL}/api/conversations/${chatId}`,
+              `${API_BASE_URL}/api/conversations/${boundId}`,
               { video_id: imported },
               { timeout: 20000 },
             )
@@ -793,26 +833,21 @@ export default function ChatHome() {
         }))
         const { data } = await axios.post(
           `${API_BASE_URL}/api/chat`,
-          { question: text, history, chat_id: conversationId },
+          { question: text, history, chat_id: chatId },
           { timeout: 120000, signal: controller.signal },
         )
-        if (data.chat_id && data.chat_id !== conversationId) setConversationId(data.chat_id)
+        if (data.chat_id && data.chat_id !== chatId) {
+          bindThread(data.chat_id)
+          setConversationId(data.chat_id)
+        }
         push(data.answer || '')
         library.refresh()
       } else if (matter.kind === 'document') {
-        let chatId = chatRef.current
-        if (!chatId) {
-          const { data } = await axios.post(
-            `${API_BASE_URL}/api/document/${matter.id}/chats`,
-            { title: text.slice(0, 60) },
-            { timeout: 30000 },
-          )
-          chatId = data.id
-          chatRef.current = chatId
-        }
+        // The turn belongs to the conversation, not to a separate per-document
+        // chat: that id is what carries the history of the chapters already read.
         const finalPayload = await readStream(
           '/api/document/ask/stream',
-          { doc_id: matter.id, question: text, conversation_id: conversationId },
+          { doc_id: matter.id, question: text, conversation_id: chatId },
           push,
           controller.signal,
         )
@@ -820,6 +855,17 @@ export default function ChatHome() {
         // not include (a repaired citation, for instance) is appended here.
         if (finalPayload?.answer && finalPayload.answer.length > pushed) {
           push(finalPayload.answer.slice(pushed))
+        }
+        // The document says what comes after the chapter just read, so the pill
+        // stops repeating "Summarize" as if nothing had happened.
+        if (finalPayload) {
+          if (finalPayload.next_chapter) {
+            setNextChapter(finalPayload.next_chapter)
+            setAtEnd(false)
+          } else if (finalPayload.at_end) {
+            setNextChapter(null)
+            setAtEnd(true)
+          }
         }
         library.refresh()
       } else {
@@ -829,7 +875,7 @@ export default function ChatHome() {
         }))
         const { data } = await axios.post(
           `${API_BASE_URL}/ask`,
-          { question: text, video_id: matter.id, history, conversation_id: conversationId },
+          { question: text, video_id: matter.id, history, conversation_id: chatId },
           { timeout: 300000, signal: controller.signal },
         )
         push(data.answer || '')
@@ -849,7 +895,7 @@ export default function ChatHome() {
       // character has been written, not when the socket closed.
       stream.finished.then(() => setTyping(false))
     }
-  }, [beginStream, busy, draft, library, matter, messages, openVideo, readStream, say, waitForJob])
+  }, [beginStream, bindThread, busy, draft, ensureConversation, library, matter, messages, openVideo, readStream, say, waitForJob])
 
   useEffect(() => {
     window.localStorage.setItem('cm.chat.split', String(Math.round(split)))
@@ -1127,19 +1173,35 @@ export default function ChatHome() {
                 <div className="ch-tools">
                   <button
                     type="button"
-                    className="ch-tool"
+                    className={`ch-tool${nextChapter ? ' is-next' : ''}`}
                     onClick={() =>
                       ask(
-                        matter.kind === 'document'
-                          ? 'Summarize this document.'
-                          : 'Summarize this recording.',
+                        atEnd
+                          ? 'Give me exercises on this document.'
+                          : nextChapter
+                            ? `Continue with the next chapter: ${nextChapter}`
+                            : matter.kind === 'document'
+                              ? 'Summarize this document.'
+                              : 'Summarize this recording.',
                       )
                     }
                     disabled={busy}
-                    title="Summarize what is loaded"
+                    title={
+                      atEnd
+                        ? 'Practise what was covered'
+                        : nextChapter
+                          ? `Continue with ${nextChapter}`
+                          : 'Read the first chapter'
+                    }
                   >
                     <Sparkles size={14} />
-                    <span>Summarize</span>
+                    <span>
+                      {atEnd
+                        ? 'Exercises'
+                        : nextChapter
+                          ? `Continue: ${nextChapter}`
+                          : 'Summarize'}
+                    </span>
                   </button>
                 </div>
               ) : null}

@@ -2466,6 +2466,19 @@
   opacity: 0.5;
   cursor: default;
 }
+/* The pill carries a chapter name now, which can be long: it stays on one line
+   and fades at the edge instead of pushing the composer wider. */
+.ch-tool span {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ch-tool.is-next {
+  border-color: rgba(168, 162, 255, 0.34);
+  background: #1a1a28;
+  color: #f3f4f8;
+}
 
 
 /* ── one left edge ───────────────────────────────────────────────────────────
