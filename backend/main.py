@@ -40,6 +40,7 @@ from llama import (
     ask_document,
     complete_with_continuation,
     suggest_title,
+    suggest_title_from_text,
     describe_figure,
     digest_segment,
     document_flashcards,
@@ -4226,6 +4227,58 @@ async def api_conversation_delete(chat_id: str, request: Request):
     if not conversations.remove(chat_id, _current_user(request)):
         raise HTTPException(status_code=404, detail="Conversation not found")
     return {"deleted": chat_id}
+
+
+class AutoTitleRequest(BaseModel):
+    doc_id: str | None = None
+    video_id: str | None = None
+
+
+@app.post("/api/conversations/{chat_id}/auto-title")
+async def api_conversation_auto_title(
+    chat_id: str, req: AutoTitleRequest, request: Request
+):
+    """Name a conversation after what was uploaded into it.
+
+    "hi" and "New conversation" are not names. The opening of the material is:
+    the first pages of a document, the first lines of a transcript. A title the
+    reader typed is never replaced.
+    """
+    user_id = _current_user(request)
+    record = conversations.get(chat_id, user_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if record.get("renamed_by_user"):
+        return {"chat_id": chat_id, "title": record.get("title"), "generated": False}
+
+    excerpt = ""
+    fallback = ""
+    if req.doc_id:
+        document = _owned_document(req.doc_id, user_id)
+        fallback = Path(str(document.get("file_name") or "")).stem
+        excerpt = " ".join(
+            (page.get("text") or "") for page in (document.get("pages") or [])[:3]
+        )
+    elif req.video_id:
+        if not video_registry.is_owner(req.video_id, user_id):
+            raise HTTPException(status_code=404, detail="Video not found")
+        entry = video_registry.get(req.video_id) or {}
+        keys = entry.get("file_keys") or []
+        fallback = (
+            Path(r2_service.display_name_for_key(keys[-1])).stem if keys else "Recording"
+        )
+        try:
+            transcript = json.loads(TRANSCRIPTS_PATH.read_text(encoding="utf-8"))
+            segments = (transcript.get(req.video_id) or {}).get("segments") or []
+            excerpt = " ".join((item.get("text") or "") for item in segments[:12])
+        except Exception:
+            excerpt = ""
+    else:
+        raise HTTPException(status_code=400, detail="Nothing to name")
+
+    title = await run_in_threadpool(suggest_title_from_text, excerpt, fallback or "Conversation")
+    conversations.set_generated_title(chat_id, user_id, title)
+    return {"chat_id": chat_id, "title": title, "generated": True}
 
 
 @app.get("/api/videos")

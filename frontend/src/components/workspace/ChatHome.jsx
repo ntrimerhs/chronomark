@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Paperclip,
   Plus,
+  Sparkles,
   Video,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -309,9 +310,21 @@ export default function ChatHome() {
       setMessages(turnsFromChat(data))
       setPage(1)
     } catch (error) {
+      const gone = error?.response?.status === 404
+      if (gone) {
+        // A cached row for a conversation the server no longer has: refresh so
+        // the list stops offering it, and open a fresh thread rather than
+        // leaving the previous chat on screen.
+        setMatter(null)
+        setConversationId(null)
+        setMessages([])
+        await library.refresh()
+        say('assistant', 'That conversation is no longer here — I have started a new one.')
+        return
+      }
       say('assistant', `I could not open that conversation: ${error?.message}`)
     }
-  }, [say])
+  }, [library, say])
 
   /* An upload happens inside a conversation: the one that is open, or a new
      one. It never opens a second chat -- the file is bound to the conversation
@@ -333,6 +346,23 @@ export default function ChatHome() {
       await library.refresh()
     } catch (error) {
       console.error('[Chat] pin failed', error)
+    }
+  }, [library])
+
+  /* The conversation takes the name of what it is about: the first pages of a
+     document, the first lines of a transcript. The backend skips this if the
+     reader has named the chat themselves. */
+  const nameFromMaterial = useCallback(async (chatId, material) => {
+    if (!chatId) return
+    try {
+      await axios.post(
+        `${API_BASE_URL}/api/conversations/${chatId}/auto-title`,
+        material,
+        { timeout: 60000 },
+      )
+      await library.refresh()
+    } catch (error) {
+      console.error('[Chat] could not name the chat after its file', error)
     }
   }, [library])
 
@@ -514,6 +544,7 @@ export default function ChatHome() {
             )
           }
           await openDocument(data.doc_id, { keepThread: true })
+          await nameFromMaterial(chatId, { doc_id: data.doc_id })
           await library.refresh()
           return
         }
@@ -533,6 +564,7 @@ export default function ChatHome() {
           )
         }
         await openVideo(data.video_id, { keepThread: true })
+        await nameFromMaterial(chatId, { video_id: data.video_id })
         await library.refresh()
       } catch (error) {
         const detail =
@@ -550,11 +582,12 @@ export default function ChatHome() {
     [busy, library, openDocument, openVideo, say, waitForJob],
   )
 
-  const ask = useCallback(async () => {
-    const text = draft.trim()
+  const ask = useCallback(async (override) => {
+    const requested = typeof override === 'string' ? override : draft
+    const text = requested.trim()
     if (!text || busy) return
     say('user', text)
-    setDraft('')
+    if (typeof override !== 'string') setDraft('')
     startedRef.current = Date.now()
     setBusy(true)
 
@@ -931,6 +964,27 @@ export default function ChatHome() {
                   </div>
                 ) : null}
               </div>
+
+              {matter ? (
+                <div className="ch-tools">
+                  <button
+                    type="button"
+                    className="ch-tool"
+                    onClick={() =>
+                      ask(
+                        matter.kind === 'document'
+                          ? 'Summarize this document.'
+                          : 'Summarize this recording.',
+                      )
+                    }
+                    disabled={busy}
+                    title="Summarize what is loaded"
+                  >
+                    <Sparkles size={14} />
+                    <span>Summarize</span>
+                  </button>
+                </div>
+              ) : null}
 
               <div className="ch-composer">
                 <textarea

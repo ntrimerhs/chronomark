@@ -340,6 +340,37 @@ def suggest_title(question: str, answer: str, fallback: str = "") -> str:
     return title
 
 
+_MATERIAL_TITLE_PROMPT = (
+    "Name the material below for a sidebar, in three to six words, in the language "
+    "it is written in. Say what it is about, not what kind of file it is: no "
+    "'document', 'pdf', 'lecture notes' alone. No quotes, no trailing punctuation. "
+    "Answer with the title only."
+)
+
+
+def suggest_title_from_text(text: str, fallback: str = "") -> str:
+    """A name for a document or a recording, taken from its own opening."""
+    sample = " ".join(str(text or "").split())[:1800]
+    if not sample:
+        return fallback
+    try:
+        result, _ = complete_with_continuation(
+            [
+                {"role": "system", "content": _MATERIAL_TITLE_PROMPT},
+                {"role": "user", "content": sample},
+            ],
+            32,
+            0.3,
+        )
+    except Exception as error:  # noqa: BLE001 - a title is never worth a failure
+        print(f"[Chat] material title failed: {error}")
+        return fallback
+    title = " ".join(str(result or "").split()).strip(" .,:;\"'`*-")
+    if not title or len(title) > 70:
+        return fallback
+    return title
+
+
 def describe_figure(data_url: str) -> str:
     """Read a figure drawn on a document page.
 
