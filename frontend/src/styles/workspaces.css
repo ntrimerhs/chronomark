@@ -1659,8 +1659,12 @@
   letter-spacing: -0.02em;
   color: #F3F4F8;
   /* The heading is reserved from the first frame, so the composer under it does
-     not slide as the letters arrive. */
+     not slide as the letters arrive, and it leaves the way it came. */
   min-height: 1.15em;
+  transition: opacity 300ms ease;
+}
+.ch-empty h1.is-gone {
+  opacity: 0;
 }
 .ch-empty h1 .ch-caret {
   margin-left: 3px;

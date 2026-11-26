@@ -136,9 +136,12 @@ const REMARK_PLUGINS = [remarkGfm, remarkMath]
 const REHYPE_PLUGINS = [rehypeKatex]
 
 /* The empty page greets like a person would: it says the one sentence it has
-   to say one character at a time, then stops. */
+   to say one character at a time, lets it sit for a moment, fades it out and
+   says it again. Only on an empty chat. */
 const GREETING = 'Hi. How can I help?'
 const GREETING_MS = 42
+const GREETING_HOLD_MS = 5000
+const GREETING_FADE_MS = 320
 
 function turnsFromChat(chat) {
   return (chat?.messages || []).map((message, index) => ({
@@ -179,6 +182,7 @@ export default function ChatHome() {
   const [atEnd, setAtEnd] = useState(false)
   // What the empty page has managed to say so far.
   const [greeting, setGreeting] = useState('')
+  const [greetingGone, setGreetingGone] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [open, setOpen] = useState(false)
   const [page, setPage] = useState(1)
@@ -239,23 +243,46 @@ export default function ChatHome() {
     if (node) node.scrollTop = node.scrollHeight
   }, [messages, busy])
 
-  /* The greeting types itself out on an empty chat, and again on every return to
-     one. Nothing else on the page moves while it does: only the letters. */
+  /* The greeting types itself out on an empty chat, stays for five seconds,
+     fades out and starts again. Nothing else on the page moves while it does:
+     only the letters. */
   useEffect(() => {
     if (messages.length || matter || busy) return undefined
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
     if (reduced) {
       setGreeting(GREETING)
+      setGreetingGone(false)
       return undefined
     }
-    setGreeting('')
-    let shown = 0
-    const timer = window.setInterval(() => {
-      shown += 1
-      setGreeting(GREETING.slice(0, shown))
-      if (shown >= GREETING.length) window.clearInterval(timer)
-    }, GREETING_MS)
-    return () => window.clearInterval(timer)
+
+    let cancelled = false
+    let timer = 0
+    const wait = (ms) =>
+      new Promise((resolve) => {
+        timer = window.setTimeout(resolve, ms)
+      })
+
+    const run = async () => {
+      while (!cancelled) {
+        setGreetingGone(false)
+        setGreeting('')
+        for (let shown = 1; shown <= GREETING.length && !cancelled; shown += 1) {
+          setGreeting(GREETING.slice(0, shown))
+          await wait(GREETING_MS)
+        }
+        if (cancelled) return
+        await wait(GREETING_HOLD_MS)
+        if (cancelled) return
+        setGreetingGone(true)
+        await wait(GREETING_FADE_MS)
+      }
+    }
+    run()
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
   }, [messages.length, matter, busy])
 
   const say = useCallback((role, text) => {
@@ -1140,7 +1167,7 @@ export default function ChatHome() {
               >
                 {messages.length === 0 && !busy ? (
                   <div className="ch-empty">
-                    <h1>
+                    <h1 className={greetingGone ? 'is-gone' : undefined}>
                       {greeting}
                       {greeting.length < GREETING.length ? (
                         <span className="ch-caret" aria-hidden="true" />
