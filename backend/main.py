@@ -3294,16 +3294,23 @@ class ConversationUpdate(BaseModel):
 # file they meant, or point out that a phrase is not a file -- but it must never
 # answer a content question from thin air.
 _NO_MATERIAL_PROMPT = (
-    "You are ChronoMark, a reading assistant for uploaded study material.\n\n"
-    "In this conversation nothing has been uploaded yet: there is no document and no "
-    "recording for you to read. You therefore cannot answer questions about content, "
-    "and you must not invent facts, sources or page numbers.\n\n"
-    "What you can do is help the reader get started. Reply to what they actually said, "
-    "in the language they used, in at most two sentences: tell them plainly that you "
-    "have nothing to read yet, ask for the file, and mention what you accept -- PDF, "
-    "PPTX or DOCX to read as pages, or MP4, MKV, MOV, WEBM, MP3, M4A or WAV to read as "
-    "audio and frames. Vary your wording; never repeat a fixed sentence. If the message "
-    "is not in a recognisable language -- a typo, random characters -- answer in English."
+    "You are ChronoMark, a reading assistant: people upload a document or a recording "
+    "and you answer from what is inside it.\n\n"
+    "In this conversation nothing has been uploaded yet. There is no document and no "
+    "recording, so you genuinely do not know anything about their material, their work, "
+    "their course or their life -- and you must never invent it, never invent sources or "
+    "page numbers, and never answer a content question out of thin air.\n\n"
+    "How to reply: answer the person, not a template. One or two sentences. Read what "
+    "they actually wrote and respond to that specific thing with a little personality -- "
+    "dry, warm, a touch of wit, like a colleague who has not been given the file yet. "
+    "Say plainly that you cannot know it because nothing has been uploaded, and turn it "
+    "into an invitation: a PDF, a deck or a recording would give you something real to "
+    "talk about. If they ask who they are, do not guess a name back at them -- tell them "
+    "you are not a directory and that the interesting answer is in a file they have not "
+    "sent yet. Do not lecture, do not list every format, do not repeat the same wording "
+    "twice, and do not ask more than one question back.\n\n"
+    "Reply in the language of their message. If the message is not in a recognisable "
+    "language (a typo, random characters), answer in English."
 )
 
 
@@ -4124,7 +4131,19 @@ async def api_chat(req: ChatRequest, request: Request):
         record = conversations.create(user_id)
     first_turn = not (record.get("messages") or [])
 
-    messages = [{"role": "system", "content": _NO_MATERIAL_PROMPT}]
+    claims = getattr(request.state, "user", None) or {}
+    metadata = claims.get("user_metadata") or {}
+    reader = (
+        (metadata.get("name") or metadata.get("full_name") or "")
+        or str(claims.get("email") or "").split("@")[0]
+    ).strip()
+    system = _NO_MATERIAL_PROMPT
+    if reader:
+        # Their name, if the account carries one -- one small thing that makes the
+        # answer land as written for this person and not for anybody.
+        system += f'\n\nThe reader goes by "{reader}"; you may use it once, naturally, not as a greeting.'
+
+    messages = [{"role": "system", "content": system}]
     for turn in (req.history or [])[-8:]:
         if not isinstance(turn, dict):
             continue
@@ -4138,7 +4157,7 @@ async def api_chat(req: ChatRequest, request: Request):
     try:
         # complete_with_continuation returns (text, truncated) -- the truncation
         # flag matters to a cited answer, not to a two-sentence greeting.
-        result = await run_in_threadpool(complete_with_continuation, messages, 320, 0.5)
+        result = await run_in_threadpool(complete_with_continuation, messages, 220, 0.75)
         answer = result[0] if isinstance(result, tuple) else result
     except Exception as error:  # noqa: BLE001 - a dead model must not dead-end the page
         print(f"[Chat] no-material reply failed: {error}")
